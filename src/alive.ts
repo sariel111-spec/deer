@@ -22,7 +22,12 @@ function silentWav(){
   return URL.createObjectURL(new Blob([buf],{type:'audio/wav'}));
 }
 async function loopOn(on:boolean){
-  if(!on){audio?.pause();audio=null;try{navigator.mediaSession.playbackState='none';}catch{/* 没有也行 */}return true;}
+  if(!on){
+    // 关就关干净：停掉、把声音文件卸掉、把锁屏上的播放条也撤掉
+    if(audio){const a=audio;audio=null;a.pause();a.removeAttribute('src');a.load();}
+    try{navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';for(const k of ['play','pause','stop'] as const)navigator.mediaSession.setActionHandler(k,null);}catch{/* 没有也行 */}
+    return true;
+  }
   if(!audio){
     audio=new Audio(silentWav());audio.loop=true;audio.setAttribute('playsinline','');
     // 被系统停掉就自己接着放
@@ -97,11 +102,10 @@ function pipDraw(){
 const HIDE='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-1';
 /** 设置页里给小窗留一块预览的位置：视频真的显示在页面上，iPhone 才更愿意让它进小窗 */
 export function pipSlot(el:HTMLElement|null){
-  if(!pipCan())return;
+  if(!pipCan()||(!el&&!pv))return;
   pipSetup();const v=pv!;
-  if(el){v.style.cssText='display:block;width:100%;border-radius:14px;pointer-events:none';el.appendChild(v);}
-  else{v.style.cssText=HIDE;document.body.appendChild(v);}
-  void v.play().catch(()=>{});
+  if(el){v.style.cssText='display:block;width:100%;border-radius:14px;pointer-events:none';el.appendChild(v);void v.play().catch(()=>{});}
+  else{v.style.cssText=HIDE;document.body.appendChild(v);if(S().prefs.audio)void v.play().catch(()=>{});else v.pause();}
 }
 const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/macintosh/i.test(navigator.userAgent));
 const standalone=()=>matchMedia('(display-mode: standalone)').matches||!!(navigator as Navigator&{standalone?:boolean}).standalone;
@@ -117,7 +121,7 @@ function pipSetup(){
   v.addEventListener('enterpictureinpicture',()=>pipSet(true));
   v.addEventListener('leavepictureinpicture',()=>{pipSet(false);void v.play().catch(()=>{});});
   v.addEventListener('webkitpresentationmodechanged',()=>pipSet(v.webkitPresentationMode==='picture-in-picture'));
-  v.addEventListener('pause',()=>{if(pipLive)setTimeout(()=>{void v.play().catch(()=>{});},300);});
+  v.addEventListener('pause',()=>{if(pipLive&&S().prefs.audio)setTimeout(()=>{void v.play().catch(()=>{});},300);});
   try{v.autoPictureInPicture=true;}catch{/* */}
   document.body.appendChild(v);pv=v;void v.play().catch(()=>{});
 }
@@ -171,9 +175,11 @@ export const wakeLive=()=>!!wl&&!wl.released;
 const want=()=>{const pf=S().prefs,m=pf.mode??'loop';return {loop:pf.audio&&(m==='loop'||m==='both'),osc:pf.audio&&(m==='osc'||m==='both'),pip:pf.audio&&m==='pip'};};
 /** 按现在的设置把各层开起来或关掉。声音类的要在一次点按里才开得出来 */
 export async function apply():Promise<boolean>{
-  const w=want();
+  const w=want(),on=S().prefs.audio;
   const a=await loopOn(w.loop),b=await oscOn(w.osc);
-  if(w.pip||S().prefs.pipAuto)pipSetup();
+  // 总开关关掉：小窗也收起来，备着的视频也停
+  if(!on){if(pipLive)await pipLeave();pv?.pause();}
+  else if(w.pip||S().prefs.pipAuto)pipSetup();
   void wakeOn(!!S().prefs.awake);
   return a&&b;
 }
@@ -202,14 +208,14 @@ export async function start(tick:()=>void){
     const w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),1000)'],{type:'text/javascript'})));
     w.onmessage=()=>{heartbeat();onTick();if(pv)pipDraw();};
   }catch{setInterval(()=>{heartbeat();onTick();if(pv)pipDraw();},1000);}
-  const wake=()=>{onTick();const w=want();if(w.loop&&audio&&audio.paused)void audio.play().catch(()=>{});if(w.osc&&oc&&oc.state!=='running')void oc.resume().catch(()=>{});if(pv&&pv.paused)void pv.play().catch(()=>{});if(S().prefs.awake&&!document.hidden)void wakeOn(true);};
+  const wake=()=>{onTick();const w=want();if(w.loop&&audio&&audio.paused)void audio.play().catch(()=>{});if(w.osc&&oc&&oc.state!=='running')void oc.resume().catch(()=>{});if(S().prefs.audio&&pv&&pv.paused)void pv.play().catch(()=>{});if(S().prefs.awake&&!document.hidden)void wakeOn(true);};
   document.addEventListener('visibilitychange',()=>{seen();if(!document.hidden)armed=true;});
   document.addEventListener('visibilitychange',wake);document.addEventListener('resume',wake);
   addEventListener('pageshow',wake);addEventListener('focus',wake);addEventListener('online',wake);
   // 音频要有一次点按才放得出来：设置里开过的，下次进来第一下点按就接上
-  if(S().prefs.audio||S().prefs.pipAuto||S().prefs.awake){const once=()=>{removeEventListener('pointerdown',once);void apply();};addEventListener('pointerdown',once);if(want().pip||S().prefs.pipAuto)pipSetup();}
+  if(S().prefs.audio||S().prefs.pipAuto||S().prefs.awake){const once=()=>{removeEventListener('pointerdown',once);void apply();};addEventListener('pointerdown',once);if(S().prefs.audio&&(want().pip||S().prefs.pipAuto))pipSetup();}
   // 画中画自动开启：打开之后的第一下点按顺手进小窗；关掉小窗、离开再回来，下一次点按会再进
-  addEventListener('click',()=>{if(S().prefs.pipAuto&&armed&&!pipLive&&pipCan()){armed=false;void pipEnter();}},true);
+  addEventListener('click',()=>{const pf=S().prefs;if(pf.audio&&pf.pipAuto&&armed&&!pipLive&&pipCan()&&!pipBlocked()){armed=false;void pipEnter();}},true);
   try{(navigator.mediaSession as MediaSession&{setActionHandler:(a:string,h:()=>void)=>void}).setActionHandler('enterpictureinpicture',()=>{void pipEnter();});}catch{/* 只有部分浏览器有 */}
   try{void navigator.locks?.request('cx-alive',()=>{locked=true;return new Promise(()=>{});});}catch{/* 没有也行 */}
   try{persisted=!!(await navigator.storage?.persisted?.())||!!(await navigator.storage?.persist?.());}catch{/* */}

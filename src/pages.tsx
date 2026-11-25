@@ -288,7 +288,8 @@ export function Settings(){
   const [sure,setSure]=useState(false);
   useEffect(()=>{const t=setInterval(()=>setS(status()),1500);return()=>clearInterval(t);},[]);
   const slot=useRef<HTMLDivElement>(null);
-  useEffect(()=>{pipSlot(slot.current);const off=onPip(()=>setS(status()));return()=>{off();pipSlot(null);};},[]);
+  useEffect(()=>onPip(()=>setS(status())),[]);
+  useEffect(()=>{pipSlot(slot.current);return()=>pipSlot(null);},[st.prefs.audio]);
   const [bak,setBak]=useState<File|null>(null);
   const [check,setCheck]=useState(false);
   const mode=st.prefs.mode??'loop',away=lastAway();
@@ -311,30 +312,26 @@ export function Settings(){
     {pf.audio&&<>
       <div className="chips" role="radiogroup" aria-label="保活方式">{modes.map(([id,n])=><button key={id} role="radio" aria-checked={mode===id} aria-pressed={mode===id} className="chip" onClick={async()=>{await setMode(id);setS(status());}}>{n}</button>)}</div>
       <p className="hint">{modeNote[mode]}</p>
-    </>}
-    {s.pipBlocked&&<p className="hint">现在是从主屏幕打开的。iPhone 不让主屏幕 app 里的网页开画中画（系统的限制，Safari 里可以）。要用画中画：在 Safari 里打开小鹿，两边的数据靠下面的同步对齐。在这里就用静音音频或振荡器。<button className="linkish" onClick={()=>{void navigator.clipboard?.writeText(location.origin+location.pathname);say('网址复制了，去 Safari 里粘贴打开');}}>复制小鹿的网址</button></p>}
-    {s.pipCan&&!s.pipBlocked?<>
+    {s.pipBlocked&&<p className="hint">现在是从主屏幕打开的。iPhone 只让 Safari 和真正装进系统的 app 开画中画，添加到主屏幕的网页不行。要用画中画就在 Safari 里打开小鹿（两边的数据靠同步对齐）；在这里用静音音频或振荡器。<button className="linkish" onClick={()=>{void navigator.clipboard?.writeText(location.origin+location.pathname);say('网址复制了，去 Safari 里粘贴打开');}}>复制小鹿的网址</button></p>}
+      {s.pipCan&&!s.pipBlocked?<>
       <div className="line"><span>画中画小窗<small>{s.pip?'小窗开着，可以放心切出去':'一个系统小窗，上面是他的头像和最新一句'}</small></span>
         <button className="chip" aria-pressed={s.pip} onClick={async()=>{if(s.pip){await pipLeave();}else{const e=await pipEnter();if(e)say(e);}setS(status());}}>{s.pip?'关掉小窗':'进入画中画'}</button></div>
       <div className="pipview" ref={slot} aria-hidden="true"/>
       <Switch on={!!pf.pipAuto} set={v=>{setPrefs({pipAuto:v});void apply();}} label="画中画自动开启" note="打开小鹿后的第一下点按，顺手进小窗；关掉小窗、离开再回来，下一次点按会再进"/>
     </>:!s.pipBlocked&&<p className="hint">这个浏览器不支持画中画。</p>}
+    </>}
     <Switch on={!!pf.awake} set={v=>{setPrefs({awake:v});void apply().then(()=>{setS(status());if(v&&!wakeLive())say('这台设备上屏幕常亮开不了');});}} label="屏幕常亮" note="停在小鹿里的时候屏幕不自动熄灭，比较费电"/>
     <div className="rowbtn"><button className="linkish" onClick={()=>{setS(status());setCheck(v=>!v);}} aria-expanded={check}>查看后台保活是否在运行</button></div>
     {check&&<div className="checkup">
-      <div className="states">
-        <Dot ok={s.installed} text={s.installed?'已加到主屏幕':'还没加到主屏幕'}/>
-        <Dot ok={s.sw} text="后台线程"/>
+      {pf.audio?<div className="states">
         <Dot ok={s.audio||audioLive()} text="静音音频"/>
         <Dot ok={s.osc} text="振荡器"/>
         <Dot ok={s.pip} text="画中画小窗"/>
         <Dot ok={s.wake} text="屏幕常亮"/>
-        <Dot ok={s.lock} text="防冻结锁"/>
-        <Dot ok={s.periodic} text="定时唤醒"/>
-        <Dot ok={s.persisted} text="数据不被清理"/>
-      </div>
-      <p className="hint">{away?`上次切出去 ${span(away.away)}，其中 ${span(away.alive)} 页面还在运行（${Math.round(away.alive/away.away*100)}%）。${away.alive/away.away>.9?'保活是有效的。':away.alive/away.away>.3?'中途被系统停过，换一种保活方式试试。':'基本被系统停掉了，换一种保活方式试试。'}`:'还没有记录。切到别的 app 待上十几秒再回来，这里会告诉你那段时间页面有没有活着。'}</p>
-      <p className="hint">{s.ios?'iPhone：设置 → 通用 → 画中画，把「自动开启画中画」打开，小窗更稳。':'安卓：把浏览器加进系统的后台白名单、电池设成不限制，后台才留得住。'}</p>
+        <Dot ok={s.installed} text={s.installed?'已加到主屏幕':'还没加到主屏幕'}/>
+      </div>:<p className="hint first">后台保活现在是关着的：没有在放声音，没有小窗，切出去之后页面会被系统停掉。{s.wake?'（屏幕常亮还开着。）':''}</p>}
+      {pf.audio&&<p className="hint">{away?`上次切出去 ${span(away.away)}，其中 ${span(away.alive)} 页面还在运行（${Math.round(away.alive/away.away*100)}%）。${away.alive/away.away>.9?'保活是有效的。':away.alive/away.away>.3?'中途被系统停过，换一种保活方式试试。':'基本被系统停掉了，换一种保活方式试试。'}`:'还没有记录。切到别的 app 待上十几秒再回来，这里会告诉你那段时间页面有没有活着。'}</p>}
+      {pf.audio&&<p className="hint">{s.ios?'iPhone：设置 → 通用 → 画中画，把「自动开启画中画」打开，小窗更稳。':'安卓：把浏览器加进系统的后台白名单、电池设成不限制，后台才留得住。'}</p>}
     </div>}
     {!s.installed&&<p className="hint">{s.ios?'iPhone：用 Safari 打开，点分享 → 添加到主屏幕。加了之后才能收通知。':'在浏览器菜单里选「添加到主屏幕」或「安装应用」，后台会稳很多。'}</p>}
     <div className="rowbtn">
