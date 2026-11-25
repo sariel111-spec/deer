@@ -397,8 +397,10 @@ button.quote{display:block;text-align:left;border:0}
 .ptabs [aria-pressed=true]{background:var(--soft);color:var(--fg)}
 .ptabs .tidy{margin-left:auto}
 .packs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-height:216px;overflow-y:auto;padding:2px}
-.packs button{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;display:grid;place-items:center}
-.packs img{width:100%;height:100%;object-fit:contain;display:block}
+/* 每一格用「上内边距 100%」撑成正方形，不靠 aspect-ratio：iPhone 上格子在限高的网格里会被压扁，几行图叠在一起 */
+.packs{align-content:start;grid-auto-rows:min-content}
+.packs button{position:relative;display:block;width:100%;height:0;padding:0 0 100%;border-radius:12px;overflow:hidden}
+.packs img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
 .packs .addpack{box-shadow:inset 0 0 0 1px var(--line);color:var(--mute)}
 .packs button i{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:var(--fg);color:var(--bg);display:grid;place-items:center}
 .packs .hint{grid-column:2/-1;align-self:center;margin:0}

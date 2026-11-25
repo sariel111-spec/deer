@@ -24,8 +24,10 @@ function silentWav(){
 async function loopOn(on:boolean){
   if(!on){
     // 关就关干净：停掉、把声音文件卸掉、把锁屏上的播放条也撤掉
-    if(audio){const a=audio;audio=null;a.pause();a.removeAttribute('src');a.load();}
-    try{navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';for(const k of ['play','pause','stop'] as const)navigator.mediaSession.setActionHandler(k,null);}catch{/* 没有也行 */}
+    if(audio){
+      const a=audio;audio=null;a.pause();a.removeAttribute('src');a.load();
+      try{navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';for(const k of ['play','pause','stop'] as const)navigator.mediaSession.setActionHandler(k,null);}catch{/* 没有也行 */}
+    }
     return true;
   }
   if(!audio){
@@ -76,7 +78,7 @@ let beat=0;
 let calling:{name:string;pic?:string;at:number}|null=null;
 export function pipCall(v:{name:string;pic?:string;at:number}|null){
   const was=!!calling;calling=v;
-  if(!pipCan())return;
+  if(!pipCan()||pipBlocked())return;
   if(!v&&!was)return;
   pipSetup();
   const [w,h]=v?[360,480]:[640,200];
@@ -203,11 +205,20 @@ async function wakeOn(on:boolean){
 }
 export const wakeLive=()=>!!wl&&!wl.released;
 
+/* ── 这一页的声音在系统里算哪一种 ──
+   后台保活开着（静音音频 / 振荡器）时要算「正在播放」，系统才不停掉页面；
+   其余时候一律算「环境音」：不打断你在别的 app 里听的歌、看的视频，不占锁屏和灵动岛，切到后台就停 */
+function voice(){
+  const w=want();
+  try{(navigator as Navigator&{audioSession?:{type:string}}).audioSession!.type=w.loop||w.osc?'playback':'ambient';}catch{/* 老系统没有这个开关 */}
+}
+
 /* ── 总开关 ── */
 const want=()=>{const pf=S().prefs,m=pf.mode??'loop';return {loop:pf.audio&&(m==='loop'||m==='both'),osc:pf.audio&&(m==='osc'||m==='both'),pip:pf.audio&&m==='pip'};};
 /** 按现在的设置把各层开起来或关掉。声音类的要在一次点按里才开得出来 */
 export async function apply():Promise<boolean>{
   const w=want(),on=S().prefs.audio;
+  voice();
   const a=await loopOn(w.loop),b=await oscOn(w.osc);
   // 总开关关掉：小窗也收起来，备着的视频也停
   if(!on&&!calling){if(pipLive)await pipLeave();pv?.pause();}
@@ -238,6 +249,7 @@ export async function start(tick:()=>void){
   onTick=tick;
   // 一打开就先跑一拍：离开期间该到的话立刻出现在聊天里，不等下一秒
   onTick();
+  voice();
   try{
     const w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),1000)'],{type:'text/javascript'})));
     w.onmessage=()=>{heartbeat();onTick();if(pv)pipDraw();};
@@ -250,7 +262,7 @@ export async function start(tick:()=>void){
   if(S().prefs.audio||S().prefs.pipAuto||S().prefs.awake){const once=()=>{removeEventListener('pointerdown',once);void apply();};addEventListener('pointerdown',once);if(S().prefs.audio&&(want().pip||S().prefs.pipAuto))pipSetup();}
   // 画中画自动开启：打开之后的第一下点按顺手进小窗；关掉小窗、离开再回来，下一次点按会再进
   addEventListener('click',()=>{const pf=S().prefs;if(pf.audio&&pf.pipAuto&&armed&&!pipLive&&pipCan()&&!pipBlocked()){armed=false;void pipEnter();}},true);
-  try{(navigator.mediaSession as MediaSession&{setActionHandler:(a:string,h:()=>void)=>void}).setActionHandler('enterpictureinpicture',()=>{void pipEnter();});}catch{/* 只有部分浏览器有 */}
+  if(pipCan()&&!pipBlocked()&&!isIOS()){try{(navigator.mediaSession as MediaSession&{setActionHandler:(a:string,h:()=>void)=>void}).setActionHandler('enterpictureinpicture',()=>{void pipEnter();});}catch{/* 只有部分浏览器有 */}}
   try{void navigator.locks?.request('cx-alive',()=>{locked=true;return new Promise(()=>{});});}catch{/* 没有也行 */}
   try{persisted=!!(await navigator.storage?.persisted?.())||!!(await navigator.storage?.persist?.());}catch{/* */}
   if('serviceWorker' in navigator){
@@ -295,7 +307,7 @@ export function badge(){
 }
 let ac:AudioContext|null=null,acT=0;
 export function blip(){
-  if(!S().prefs.sound)return;
+  if(!S().prefs.sound||document.hidden)return;
   try{
     ac??=new AudioContext();void ac.resume().catch(()=>{});
     const t=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();

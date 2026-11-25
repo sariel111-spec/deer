@@ -39,7 +39,7 @@ export function CallLayer(){
   const since=on?box(on.id).call?.at??0:0,shot=on?on.callPic??on.avatar:undefined;
   useEffect(()=>{pipCall(on&&since?{name:on.name,pic:shot,at:since}:null);},[on?.id,on?.name,shot,since]);
   // 他打过来：隔一会儿响一下、震一下，直到接了、拒了或者响完
-  useEffect(()=>{if(!ring||on)return;const beep=()=>{blip();try{navigator.vibrate?.([180,120,180]);}catch{/* */}};beep();const t=setInterval(beep,2400);return()=>clearInterval(t);},[ring?.id,!!on]);
+  useEffect(()=>{if(!ring||on)return;const beep=()=>{if(document.hidden)return;blip();try{navigator.vibrate?.([180,120,180]);}catch{/* */}};beep();const t=setInterval(beep,2400);return()=>clearInterval(t);},[ring?.id,!!on]);
   return <>
     {p&&full&&<CallScreen p={p} since={dialing?0:box(p.id).call?.at??0}/>}
     {on&&!full&&!pipOn()&&<Mini p={on} since={since}/>}
