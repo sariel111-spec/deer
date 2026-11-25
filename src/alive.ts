@@ -60,9 +60,11 @@ const pipSubs=new Set<()=>void>();
 export const onPip=(f:()=>void)=>{pipSubs.add(f);return()=>{pipSubs.delete(f);};};
 const pipSet=(v:boolean)=>{if(pipLive!==v){pipLive=v;pipSubs.forEach(f=>f());}};
 export const pipOn=()=>pipLive;
+let can:boolean|null=null;
 export const pipCan=()=>{
+  if(can!==null)return can;
   const v=document.createElement('video') as PV;
-  return !!(document.pictureInPictureEnabled||v.webkitSupportsPresentationMode?.('picture-in-picture'))&&typeof HTMLCanvasElement.prototype.captureStream==='function';
+  return can=!!(document.pictureInPictureEnabled||v.webkitSupportsPresentationMode?.('picture-in-picture'))&&typeof HTMLCanvasElement.prototype.captureStream==='function';
 };
 let beat=0;
 function pipDraw(){
@@ -122,6 +124,8 @@ export async function pipEnter():Promise<string>{
   pipSetup();const v=pv!;
   if(pipLive)return '';
   void v.play().catch(()=>{});
+  // 小窗要等视频有了画面才开得出来：刚建好的话等它一下
+  if(v.readyState<1)await new Promise<void>(ok=>{const done=()=>ok();v.addEventListener('loadedmetadata',done,{once:true});setTimeout(done,1500);});
   try{
     if(typeof v.requestPictureInPicture==='function')await v.requestPictureInPicture();
     else if(v.webkitSupportsPresentationMode?.('picture-in-picture'))v.webkitSetPresentationMode?.('picture-in-picture');
@@ -132,6 +136,8 @@ export async function pipEnter():Promise<string>{
     return /gesture|activation|NotAllowed/i.test(String(e))?'要在点按的那一下才能进入，再点一次':'系统没有让小窗打开';
   }
 }
+/** 提前把小窗要用的视频备好，点「进入画中画」的那一下才来得及 */
+export const pipReady=()=>{if(pipCan())pipSetup();};
 export async function pipLeave(){try{if(document.pictureInPictureElement)await document.exitPictureInPicture();else pv?.webkitSetPresentationMode?.('inline');}catch{/* */}}
 
 /* ── 屏幕常亮 ── */

@@ -2,7 +2,7 @@ import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Menu,Plus,Search,Trash2,X} from 'lucide-react';
 import {S,accents,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
-import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,setMode,status} from './alive';
+import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,pipReady,setMode,status} from './alive';
 import {nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
@@ -286,7 +286,7 @@ export function Settings(){
   const file=useRef<HTMLInputElement>(null);
   const [sure,setSure]=useState(false);
   useEffect(()=>{const t=setInterval(()=>setS(status()),1500);return()=>clearInterval(t);},[]);
-  useEffect(()=>onPip(()=>setS(status())),[]);
+  useEffect(()=>{pipReady();return onPip(()=>setS(status()));},[]);
   const [check,setCheck]=useState(false);
   const mode=st.prefs.mode??'loop',away=lastAway();
   return <main className="page">

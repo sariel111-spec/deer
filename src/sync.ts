@@ -174,18 +174,34 @@ async function round(r:Remote){
   await setKey('synced',synced);
   return {pulled,sent:up.length};
 }
+const clash=(e:unknown)=>e instanceof Fail&&(e.code===422||e.code===409);
+const nap=(ms:number)=>new Promise(r=>setTimeout(r,ms));
+type Locks={request:<T>(n:string,o:{ifAvailable:boolean},f:(l:unknown)=>Promise<T>)=>Promise<T>};
 export async function syncNow(manual=false):Promise<boolean>{
   if(!remote)return false;
   if(st.busy){again=true;return false;}
   put({busy:true,err:''});dirty=false;
+  const r=remote;
+  const work=async()=>{
+    // 另一台设备（或另一个标签页）刚好抢先传了：等一小会儿重来，最多三次
+    for(let i=0;;i++){
+      try{return await round(r);}
+      catch(e){if(!clash(e)||i>=2)throw e;await nap(700+Math.random()*1800);}
+    }
+  };
   try{
-    let res;
-    try{res=await round(remote);}
-    catch(e){if(e instanceof Fail&&(e.code===422||e.code===409))res=await round(remote);else throw e;}   // 另一台设备抢先传了：重来一次
+    // 同一台设备开着几个页面时，只让其中一个去同步，别自己和自己撞
+    const locks=(navigator as Navigator&{locks?:Locks}).locks;
+    const res=locks?await locks.request('cx-sync',{ifAvailable:true},async l=>l?work():null):await work();
+    if(!res){put({busy:false});plan(6000);return false;}
     put({busy:false,at:synced.at,cloudAt:synced.cloudAt,note:res.sent&&res.pulled?'两边的改动合到一起了':res.sent?'本机的改动传上去了':res.pulled?'把别的设备的改动拿下来了':manual?'已经是最新的':st.note});
     if(again||dirty){again=false;plan(4000);}
     return true;
-  }catch(e){put({busy:false,err:explain(e)});again=false;return false;}
+  }catch(e){
+    again=false;
+    if(clash(e)){put({busy:false,note:'别的设备正在同步，稍后自动再试'});plan(8000+Math.random()*6000);return false;}
+    put({busy:false,err:explain(e)});return false;
+  }
 }
 
 /* ───────── 连接、自动 ───────── */
