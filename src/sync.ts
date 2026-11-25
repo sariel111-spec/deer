@@ -66,7 +66,7 @@ function imageIds(d:Dump){
   const ids=new Set<string>();const add=(x?:string)=>{if(x&&!presets.has(x)&&!/^https?:/.test(x))ids.add(x);};
   add(d.state.prefs.myAvatar);for(const k of d.state.packs??[])for(const x of k.ids)add(x);
   for(const p of d.state.personas){
-    add(p.avatar);add(p.wall);add(p.photo);add(p.homeBg);
+    add(p.avatar);add(p.wall);add(p.photo);add(p.homeBg);add(p.callPic);
     for(const m of d.msgs[p.id]??[])if(m.kind==='img')add(m.text);
     for(const x of d.boxes[p.id]?.posts??[])add(x.img);
   }
@@ -85,7 +85,10 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
       return [...m.values()].filter(x=>!dead[x.id]).sort((x,y)=>x.created-y.created||(x.id<y.id?-1:1));
     };
     const decks=pick(l.state.decks,r.state.decks??[]),has=new Set(decks.map(d=>d.id));
-    const personas=pick(l.state.personas,r.state.personas??[]).map(p=>p.decks.every(x=>has.has(x))?p:{...p,decks:p.decks.filter(x=>has.has(x))});
+    // 已读到哪儿：两边取靠后的那个。在一台设备上看过，另一台不会因为自己别的改动更晚就把红点带回来
+    const seenAt=new Map<string,number>();for(const x of [...l.state.personas,...(r.state.personas??[])])seenAt.set(x.id,Math.max(seenAt.get(x.id)??0,x.readAt??0));
+    const personas=pick(l.state.personas,r.state.personas??[]).map(p=>p.decks.every(x=>has.has(x))?p:{...p,decks:p.decks.filter(x=>has.has(x))})
+      .map(p=>(seenAt.get(p.id)??0)>p.readAt?{...p,readAt:seenAt.get(p.id)!}:p);
     const mine=(r.state.prefs?.at??0)>(l.state.prefs.at??0)?{myName:r.state.prefs.myName,myAvatar:r.state.prefs.myAvatar,bubble:r.state.prefs.bubble,at:r.state.prefs.at}:{};
     // 云端推送的地址：新的那边说了算；但没更新的旧版本不认识这一项，别让它把地址冲掉
     const cloud=(mine.at?r.state.prefs.cloud:l.state.prefs.cloud)||l.state.prefs.cloud||r.state.prefs?.cloud;

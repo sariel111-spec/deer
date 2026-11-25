@@ -1,5 +1,5 @@
 import {S,box,list,mapMsgs,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Persona,type When} from './db';
-import {notify,blip,badge} from './alive';
+import {notify,blip,badge,clearNotes} from './alive';
 import {pushWas,type Ahead} from './push';
 
 const rand=(a:number,b:number)=>a+Math.random()*Math.max(0,b-a);
@@ -41,14 +41,17 @@ function mail(p:Persona,now:number){
   const ls=lines(p,3+Math.floor(Math.random()*3));
   if(!ls.length){setBox(p.id,{mailDue:0});return;}
   setBox(p.id,{mailDue:0,letters:[...b.letters,{id:uid(),from:'ta',text:ls.join('\n'),at:now}]});
-  if(!(pushWas()&&now-b.mailDue>LATE))notify(p,'给你回了一封信');
+  if(!(pushWas()&&b.mailDue<backAt))notify(p,'给你回了一封信');
 }
 
 /* 提前排好的话（只在这台设备上）：离开前台时交给云端推送，回来时聊天里补上的就是同样几句 */
 type Line={text:string;src:string;st?:boolean};
 type Reply={at:number;lines:Line[];quote?:string};
-type Plans={pq:Record<string,(Line&{at:number})[]>;rq:Record<string,Reply>};
-const LATE=20000;
+type Plans={pq:Record<string,(Line&{at:number;call?:boolean})[]>;rq:Record<string,Reply>};
+// 最近一次回到前台（或刚打开）的时刻。排好的话如果本该在这之前到，说明当时人不在、云端已经推过：
+// 回来立刻补上，不演「正在输入」，也不再弹一遍通知
+let backAt=Date.now();
+if(typeof document!=='undefined')document.addEventListener('visibilitychange',()=>{if(!document.hidden){backAt=Date.now();if(active)read(active);}});
 const plans:Plans=(()=>{try{const v=JSON.parse(localStorage.getItem('cx-plan')??'null') as Plans|null;if(v&&typeof v.pq==='object'&&typeof v.rq==='object')return v;}catch{/* 坏了就重排 */}return {pq:{},rq:{}};})();
 const savePlans=()=>{try{localStorage.setItem('cx-plan',JSON.stringify(plans));}catch{/* 存不下也不要紧，回来时现抽 */}};
 
@@ -60,7 +63,8 @@ let active='';
 export function setActive(pid:string){active=pid;if(pid)read(pid);}
 export function read(pid:string){
   const p=who(pid);if(!p)return;
-  if(unread(p)>0)setPersona(pid,{readAt:Date.now()});
+  // 已读记到最后一条为止：别的设备钟快几秒、补发的话排在后面，也都算看过了
+  if(unread(p)>0){setPersona(pid,{readAt:Math.max(Date.now(),list(pid).at(-1)?.at??0)});clearNotes(pid);}
   badge();
 }
 
@@ -71,7 +75,7 @@ function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=fa
   if(sticker){pushMsg({pid:p.id,from:'ta',kind:'img',text,at,st:true});text='[表情]';}
   else pushMsg({pid:p.id,from:'ta',kind:'text',text,at,src,re});
   const here=!document.hidden&&active===p.id;
-  if(here){setPersona(p.id,{readAt:Date.now()});blip();}
+  if(here){setPersona(p.id,{readAt:Math.max(Date.now(),at)});blip();}
   else if(!(late&&pushWas()))notify(p,text);
   badge();
 }
@@ -113,7 +117,7 @@ function replyPlan(p:Persona,at:number):Reply{
 function reply(p:Persona,planned?:Reply){
   if(busy.has(p.id))return;busy.add(p.id);
   seen(p.id);
-  if(planned&&Date.now()-planned.at>LATE){
+  if(planned&&planned.at<backAt){
     // 离开期间他已经回了：按原定的时刻一口气补上
     planned.lines.forEach((l,i)=>arrive(who(p.id)??p,l.text,l.src,planned.at+i*1500,i===0?planned.quote:undefined,!!l.st,true));
     busy.delete(p.id);return;
@@ -129,6 +133,35 @@ function reply(p:Persona,planned?:Reply){
   };
   step();
 }
+
+/* ── 视频通话：接通之后一直挂着，只有你能挂。开始的时刻存着，划掉小鹿、锁屏、换设备，回来都还在通话中 ── */
+const RING=45000;
+export const onCall=()=>S().personas.find(p=>box(p.id).call);
+export const ringing=()=>S().personas.find(p=>{const r=box(p.id).ring;return !!r&&Date.now()-r.at<RING;});
+export const clock=(ms:number)=>{const s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),pad=(n:number)=>String(n).padStart(2,'0');return (h?h+':'+pad(m):pad(m))+':'+pad(s%60);};
+const long=(ms:number)=>{const s=Math.max(1,Math.round(ms/1000));return s<60?`${s} 秒`:s<3600?`${Math.floor(s/60)} 分 ${s%60} 秒`:`${Math.floor(s/3600)} 小时 ${Math.floor(s%3600/60)} 分`;};
+export function callStart(pid:string){if(onCall()||!who(pid))return false;setBox(pid,{call:{at:Date.now()},ring:undefined});return true;}
+export function callEnd(pid:string){
+  const c=box(pid).call;if(!c)return;
+  setBox(pid,{call:undefined});
+  pushMsg({pid,from:'me',kind:'tip',text:`视频通话 ${long(Date.now()-c.at)}`,at:Date.now()});
+}
+export function callDecline(pid:string){
+  if(!box(pid).ring)return;
+  setBox(pid,{ring:undefined});
+  pushMsg({pid,from:'me',kind:'tip',text:'你没有接他的视频通话',at:Date.now()});
+}
+function missed(p:Persona,at:number){
+  pushMsg({pid:p.id,from:'ta',kind:'tip',text:'未接视频通话',at:Math.max(Math.min(at,Date.now()),(list(p.id).at(-1)?.at??0)+1)});
+  badge();
+}
+// 他打过来：还来得及就响；人回来得太晚、或者正和别人通着话，就记一条未接
+function ring(p:Persona,at:number){
+  if(Date.now()-at>=RING||onCall()){missed(p,at);return;}
+  setBox(p.id,{ring:{at}});
+  if(!(at<backAt&&pushWas()))notify(p,'邀请你视频通话');
+}
+const maybeCall=(p:Persona)=>p.calls!==false&&!onCall()&&!box(p.id).ring&&Math.random()<.08?{text:'',src:'',call:true as const}:null;
 
 /* 他主动找你 */
 export function nextTime(p:Persona,from:number){
@@ -146,8 +179,9 @@ function proactive(p:Persona,now:number){
   // 离开很久回来：最多补三条，时间按他本来要发的时刻记
   let at=p.nextAt,sentN=0;
   while(at<=now&&sentN<3){
-    const got=q.length&&q[0].at===at?q.shift()!:draw(p,'pro',at);
-    if(got)arrive(p,got.text,got.src,Math.min(at,now),undefined,false,now-at>LATE);
+    const got=q.length&&q[0].at===at?q.shift()!:maybeCall(p)??draw(p,'pro',at);
+    if(got&&'call' in got&&got.call)ring(p,at);
+    else if(got)arrive(p,got.text,got.src,Math.min(at,now),undefined,false,at<backAt);
     sentN++;at=q.length?q[0].at:nextTime(p,at);
   }
   if(at<=now){q=[];at=nextTime(p,now);}
@@ -173,11 +207,11 @@ export function ahead():Ahead[]{
       while(q.length<3){
         const at=q.length?nextTime(p,q[q.length-1].at):p.nextAt;
         if(at>now+48*3600e3)break;
-        const got=draw(p,'pro',at);if(!got)break;
+        const got=(q.some(x=>x.call)?null:maybeCall(p))??draw(p,'pro',at);if(!got)break;
         q.push({at,...got});
       }
       if(q.length)plans.pq[p.id]=q;else delete plans.pq[p.id];
-      q.forEach(x=>out.push({at:Math.max(x.at,now),title:p.name,body:x.text,pid:p.id,badge:1}));
+      q.forEach(x=>out.push({at:Math.max(x.at,now),title:p.name,body:x.call?'邀请你视频通话':x.text,pid:p.id,badge:1}));
     }else delete plans.pq[p.id];
     // 他的回信
     const due=box(p.id).mailDue;
@@ -202,6 +236,9 @@ export function tick(){
     }
     if(!busy.has(p.id)&&!p.replyAt)proactive(p,now);
     mail(p,now);
+    // 响了很久没人接
+    const r=box(p.id).ring;
+    if(r&&now-r.at>=RING){setBox(p.id,{ring:undefined});missed(p,r.at+RING);}
   }
 }
 // 这句不满意：给同一条消息换一句

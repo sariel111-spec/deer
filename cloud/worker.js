@@ -9,7 +9,7 @@
 
 const SITE = 'https://sariel111-spec.github.io';
 const PUSH_HOSTS = [/(^|\.)push\.apple\.com$/, /(^|\.)googleapis\.com$/, /(^|\.)push\.services\.mozilla\.com$/, /(^|\.)notify\.windows\.com$/];
-const MAX_SUBS = 8, MAX_ITEMS = 12, AHEAD = 72 * 3600e3, STALE = 6 * 3600e3, EARLY = 30e3;
+const MAX_SUBS = 8, MAX_ITEMS = 12, AHEAD = 72 * 3600e3, STALE = 6 * 3600e3;
 
 const enc = new TextEncoder();
 const b64u = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -158,14 +158,14 @@ export default {
     }
   },
 
-  // 每分钟看一眼：到点的发出去
+  // 每分钟看一眼：到点的发出去。只晚不早：通知弹出来的时候，小鹿的聊天里一定已经能补上这一句
   async scheduled(_event, env, ctx) {
     ctx.waitUntil((async () => {
       const db = env.DB; if (!db) return;
       await ensure(db);
       const now = Date.now();
       await db.prepare('DELETE FROM items WHERE at < ?').bind(now - STALE).run();
-      const due = (await db.prepare('SELECT i.id, i.sid, i.payload, s.sub FROM items i JOIN subs s ON s.id = i.sid WHERE i.at <= ? ORDER BY i.at LIMIT 12').bind(now + EARLY).all()).results || [];
+      const due = (await db.prepare('SELECT i.id, i.sid, i.payload, s.sub FROM items i JOIN subs s ON s.id = i.sid WHERE i.at <= ? ORDER BY i.at LIMIT 12').bind(now).all()).results || [];
       const gone = new Set();
       for (const it of due) {
         if (gone.has(it.sid)) continue;

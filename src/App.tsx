@@ -5,6 +5,7 @@ import {isTyping} from './engine';
 import {Cards,Settings,Home,Sheet,SyncPanel,say,Toast} from './pages';
 import {Chat,peek} from './chat';
 import {Feature} from './more';
+import {CallLayer} from './call';
 
 export const go=(h:string)=>{location.hash=h;};
 const hhmm=(t:number)=>new Date(t).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -57,6 +58,7 @@ export function App(){
       <a href="#/cards" aria-current={a==='cards'?'page':undefined} aria-label="字卡"><Layers size={25} strokeWidth={a==='cards'?2.2:1.6}/></a>
       <a href="#/set" aria-current={a==='set'?'page':undefined} aria-label="设置"><Settings2 size={25} strokeWidth={a==='set'?2.2:1.6}/></a>
     </nav>}
+    <CallLayer hash={hash}/>
     <Toast/>
   </div>;
 }

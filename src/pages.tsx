@@ -1,12 +1,12 @@
 import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Menu,Plus,Search,Trash2,X} from 'lucide-react';
-import {S,accents,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
+import {S,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
 import {onPush,pushLink,pushLive,pushOff,pushOn,pushPrep,pushSet,pushTest,pushUnlink} from './push';
 import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,pipSlot,setMode,status,wakeLive} from './alive';
 import {lines,nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
-import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
+import {Avatar,backTo,dayLabel,go,nav} from './App';
 import {feats} from './more';
 
 /* ───────── 小零件 ───────── */
@@ -44,8 +44,7 @@ const download=(name:string,text:string,type='application/json')=>{
 export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
   useVer();
   const st=S();
-  const pick=useRef<HTMLInputElement>(null),wall=useRef<HTMLInputElement>(null),bg=useRef<HTMLInputElement>(null);
-  const preset=backs.some(x=>x[0]===(p.homeBg??''));
+  const pick=useRef<HTMLInputElement>(null),wall=useRef<HTMLInputElement>(null),face=useRef<HTMLInputElement>(null);
   const [sure,setSure]=useState(false);
   const set=(patch:Partial<Persona>)=>setPersona(p.id,patch);
   const hours=Array.from({length:24},(_,h)=>h);
@@ -57,16 +56,16 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
     <label className="field"><span>名字</span><input value={p.name} onChange={e=>set({name:e.target.value})}/></label>
     <label className="field"><span>签名</span><input value={p.bio} onChange={e=>set({bio:e.target.value})} placeholder="显示在名字下面的一句话"/></label>
     <label className="field"><span>在一起的日子</span><input type="date" value={p.since} onChange={e=>set({since:e.target.value})}/></label>
-    <div className="field"><span>点缀色</span><div className="swatches">{accents.map(c=><button key={c} style={{background:c}} aria-label={'颜色 '+c} aria-pressed={p.accent===c} onClick={()=>set({accent:c})}/>)}</div></div>
     <div className="field"><span>聊天背景</span><div className="rowbtn">
       <button className="chip" onClick={()=>wall.current?.click()}>{p.wall?'换一张':'放一张照片'}</button>
       {p.wall&&<button className="chip" onClick={()=>set({wall:undefined})}>不要背景</button>}
       <input ref={wall} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)set({wall:await putImage(f,1600)});}}/>
     </div></div>
-    <div className="field"><span>主页背景</span><div className="rowbtn">
-      {backs.map(([id,n])=><button key={id} className="chip" aria-pressed={(p.homeBg??'')===id} onClick={()=>set({homeBg:id||undefined})}>{n}</button>)}
-      <button className="chip" aria-pressed={!!p.homeBg&&!preset} onClick={()=>bg.current?.click()}>照片</button>
-      <input ref={bg} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)set({homeBg:await putImage(f,1600)});}}/>
+
+    <div className="field"><span>通话画面</span><div className="rowbtn">
+      <button className="chip" onClick={()=>face.current?.click()}>{p.callPic?'换一张':'放一张照片'}</button>
+      {p.callPic&&<button className="chip" onClick={()=>set({callPic:undefined})}>不要画面</button>}
+      <input ref={face} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)set({callPic:await putImage(f,1600)});}}/>
     </div></div>
 
     <h3>他回复的节奏</h3>
@@ -86,6 +85,7 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
       <div className="line"><span>他睡觉的时间<small>这段时间不会主动找你</small></span><span className="num">
         <select value={p.quietFrom} onChange={e=>set({quietFrom:+e.target.value,nextAt:0})} aria-label="几点睡">{hours.map(h=><option key={h} value={h}>{h}:00</option>)}</select>到
         <select value={p.quietTo} onChange={e=>set({quietTo:+e.target.value,nextAt:0})} aria-label="几点醒">{hours.map(h=><option key={h} value={h}>{h}:00</option>)}</select></span></div>
+      <Switch on={p.calls!==false} set={v=>set({calls:v})} label="他也会打视频过来" note="偶尔不发消息，直接打过来；没接到会在聊天里留一条未接"/>
       <button className="chip" onClick={()=>{if(!nudge(p.id))say('他还没有能用的字卡');}}>现在让他说一句试试</button>
     </>}
 
@@ -110,7 +110,6 @@ export function todayLine(p:Persona){
   const key=new Date().toDateString()+p.id;let h=0;for(const ch of key)h=(h*31+ch.charCodeAt(0))>>>0;
   return all[h%all.length];
 }
-const backs=[['','纯色'],['dots','点阵'],['mist','雾']] as const;
 
 function Switcher({p,close}:{p:Persona;close:()=>void}){
   const st=S();
@@ -136,11 +135,9 @@ export function Home({p}:{p:Persona}){
   const days=p.since?Math.max(1,Math.floor((Date.now()-new Date(p.since+'T00:00:00').getTime())/864e5)+1):0;
   const favN=ms.filter(m=>m.fav).length,chatN=ms.filter(m=>m.kind!=='tip').length;
   const line=todayLine(p);
-  const preset=backs.some(x=>x[0]===(p.homeBg??''));
   const others=st.personas.filter(x=>x.id!==p.id).reduce((n,x)=>n+unread(x),0);
   const dot:Record<string,boolean>={mail:b.letters.some(l=>l.from==='ta'&&!l.read)};
-  return <main className={`page home${p.homeBg?' has-bg':''}${preset?' bg-'+(p.homeBg||'none'):''}`} style={{'--accent':p.accent} as React.CSSProperties}>
-    {p.homeBg&&!preset&&<Pic id={p.homeBg} className="home-bg"/>}
+  return <main className="page home" style={{'--accent':p.accent} as React.CSSProperties}>
     <header className="bar">
       {nav.from.startsWith('#/c/')&&<a className="ico back" href={nav.from} onClick={backTo(nav.from)} aria-label="回到聊天"><ChevronLeft size={28} strokeWidth={1.8}/></a>}
       <button className="namebtn" onClick={()=>setSw(true)} aria-label={`现在是 ${p.name}，点开换一位`}><b>{p.name}</b><ChevronDown size={18} strokeWidth={2}/>{others>0&&<i/>}</button>

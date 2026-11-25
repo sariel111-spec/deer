@@ -14,9 +14,9 @@ export type Card={id:string;t:string;off?:boolean};
 // 一个字卡分组。分组是公用的：哪几位在用，记在每个人自己的 decks 里
 export type Deck={id:string;name:string;when:When;use:Use;cards:Card[];created:number;updated:number;only?:string[]};   // only：这个分组只属于这几个名字的人，新加的人不会自动用上
 export type Persona={
-  id:string;name:string;bio:string;avatar?:string;accent:string;wall?:string;photo?:string;homeBg?:string;since:string;decks:string[];
+  id:string;name:string;bio:string;avatar?:string;accent:string;wall?:string;photo?:string;homeBg?:string;callPic?:string;since:string;decks:string[];
   min:number;max:number;burst:number;ghost:number;join:boolean;joinMax:number;   // 回复：最快/最慢（秒）、一次最多几条、已读不回的概率、是否拼接
-  pro:boolean;proMin:number;proMax:number;quietFrom:number;quietTo:number;stick?:boolean;        // 主动：间隔（分钟）、他睡觉的钟点；stick：他也会发表情包
+  pro:boolean;proMin:number;proMax:number;quietFrom:number;quietTo:number;stick?:boolean;calls?:boolean;        // 主动：间隔（分钟）、他睡觉的钟点；stick：他也会发表情包；calls：他也会打视频过来
   nextAt:number;replyAt:number;readAt:number;created:number;updated:number;
 };
 export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean};   // react：贴在这条上的表情；st：这是一张表情包
@@ -32,7 +32,8 @@ export type Day={id:string;name:string;date:string;yearly:boolean};
 export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt?:string};
 export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string}[];answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string}[];listen:number;focus:{n:number;min:number};
-  cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number};
+  cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number;
+  call?:{at:number};ring?:{at:number}};   // call：视频通话从什么时候开始（一直到你挂断）；ring：他正打过来
 export const blankBox=():Box=>({letters:[],mailDue:0,diary:[],days:[],lines:[],answers:{},checks:[],listen:0,focus:{n:0,min:0},cycle:{starts:[],len:5,gap:28},posts:[]});
 
 export const accents=['#8A6A52','#000000','#3D6BE0','#D4526E','#5B8C6A','#8B6FD1','#E08A3C'];
@@ -80,7 +81,10 @@ let saveT=0;
 let rev=0;const hooks=new Set<()=>void>();
 const touch=()=>{rev++;hooks.forEach(f=>f());};
 export const onChange=(f:()=>void)=>{hooks.add(f);return()=>{hooks.delete(f);};};
-const save=()=>{touch();emit();clearTimeout(saveT);saveT=window.setTimeout(()=>{void setKey('state',state).then(()=>bc?.postMessage('state'));},120);};
+const flush=()=>{if(!saveT)return;clearTimeout(saveT);saveT=0;void setKey('state',state).then(()=>bc?.postMessage('state'));};
+const save=()=>{touch();emit();clearTimeout(saveT);saveT=window.setTimeout(flush,120);};
+// 页面要被收走（切到后台、关掉、刷新）的那一下，把还没落盘的改动立刻写下去
+if(typeof document!=='undefined'){addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();});}
 const saveMsgs=(pid:string)=>{touch();emit();void setKey('m:'+pid,list(pid)).then(()=>bc?.postMessage('m:'+pid));};
 export const setBox=(pid:string,patch:Partial<Box>)=>{const b={...blankBox(),...boxes.get(pid),...patch,at:Date.now()};boxes.set(pid,b);touch();emit();void setKey('x:'+pid,b).then(()=>bc?.postMessage('x:'+pid));};
 const loadBox=async(pid:string)=>{boxes.set(pid,{...blankBox(),...(await getKey<Box>('x:'+pid))});const g=await getKey<Grave>('d:'+pid);if(g)graves.set(pid,g);};

@@ -1,7 +1,8 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
-import {Bookmark,Camera,ChevronDown,ChevronLeft,Copy,Dices,EyeOff,Hand,Heart,Image as ImageIcon,Info,Mail,MapPin,Plus,RefreshCw,Reply,Search,Smile,Trash2,Undo2,X} from 'lucide-react';
+import {Bookmark,Camera,ChevronDown,ChevronLeft,Copy,Dices,EyeOff,Hand,Heart,Image as ImageIcon,Info,Mail,MapPin,Plus,RefreshCw,Reply,Search,Smile,Trash2,Undo2,Video,X} from 'lucide-react';
 import {S,addPack,dropPack,list,pushMsg,putImage,setCard,setMsg,setPack,setPrefs,useVer,type Msg,type Pack,type Persona} from './db';
-import {isTyping,pool,read,redraw,sent,setActive} from './engine';
+import {isTyping,onCall,pool,read,redraw,sent,setActive} from './engine';
+import {callOpen} from './call';
 import {PersonaSheet,Sheet,say} from './pages';
 import {Avatar,Pic,dayLabel} from './App';
 
@@ -73,7 +74,8 @@ export function Chat({p}:{p:Persona}){
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key!=='Escape'||manage||menu||more||edit)return;if(view)setView('');else if(re)setRe(null);else if(panel)setPanel('');};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[view,re,panel,manage,menu,more,edit]);
   const pat=()=>{pushMsg({pid:p.id,from:'me',kind:'tip',text:`你拍了拍 ${p.name}`,at:Date.now()});setMore(false);sent(p.id);};
   const lastTa=[...all].reverse().find(m=>m.from==='ta');
-  const status=typing?'正在输入…':lastTa&&Date.now()-lastTa.at<5*60000?'在线':lastTa?brief(lastTa.at)+'在线':p.bio||'在线';
+  const calling=onCall()?.id===p.id;
+  const status=calling?'视频通话中':typing?'正在输入…':lastTa&&Date.now()-lastTa.at<5*60000?'在线':lastTa?brief(lastTa.at)+'在线':p.bio||'在线';
   const last=all.filter(m=>m.kind!=='tip').at(-1);
   const empty=pool(p,'reply').length===0;
   const found=q?.trim()?all.filter(m=>m.kind==='text'&&m.text.includes(q.trim())).reverse().slice(0,200):[];
@@ -94,7 +96,8 @@ export function Chat({p}:{p:Persona}){
     {p.wall&&<Pic id={p.wall} className="wall"/>}
     {q===null?<header className="bar chat-bar">
       <a className="ico" href="#/inbox" aria-label="回到消息列表"><ChevronLeft size={28} strokeWidth={1.8}/></a>
-      <a className="peer" href={'#/us/'+p.id}><Avatar id={p.avatar} name={p.name} size={34}/><span><b>{p.name}</b><small>{status}</small></span></a>
+      <a className="peer" href={'#/us/'+p.id}><Avatar id={p.avatar} name={p.name} size={34}/><span><b>{p.name}</b><small className={calling?'live':undefined}>{status}</small></span></a>
+      <button className={`ico${calling?' live':''}`} onClick={()=>callOpen(p.id)} aria-label={calling?'回到视频通话':'视频通话'}><Video size={25} strokeWidth={1.7}/></button>
       <button className="ico" onClick={()=>setQ('')} aria-label="搜索聊天记录"><Search size={23} strokeWidth={1.7}/></button>
       <button className="ico" onClick={()=>setEdit(true)} aria-label="资料与节奏"><Info size={24} strokeWidth={1.7}/></button>
     </header>:<header className="bar chat-bar searching">
@@ -239,7 +242,10 @@ function Bubble({m,p,gap,top,bottom,lit,quoted,onReply,onMenu,onView,onJump}:{m:
     if(e.pointerType!=='mouse'&&Math.abs(x)>Math.abs(y))setDx(Math.max(-72,Math.min(72,mine?Math.min(0,x):Math.max(0,x))));
   };
   const up=()=>{const s=g.current;clearTimeout(s.held);if(s.on&&Math.abs(dx)>52)onReply();s.on=false;setDx(0);};
-  if(m.kind==='tip')return <>{gap&&<time className="stamp">{dayLabel(m.at)}</time>}<p id={'m-'+m.id} className="tip" onContextMenu={e=>{e.preventDefault();onMenu();}} onDoubleClick={onMenu}>{m.text}</p></>;
+  if(m.kind==='tip'){
+    const rec=m.text.includes('视频通话');
+    return <>{gap&&<time className="stamp">{dayLabel(m.at)}</time>}<p id={'m-'+m.id} className={rec?'tip rec':'tip'} onContextMenu={e=>{e.preventDefault();onMenu();}} onDoubleClick={onMenu}>{rec&&<Video size={15} strokeWidth={1.8} aria-hidden="true"/>}{m.text}</p></>;
+  }
   return <>
     {gap&&<time className="stamp">{dayLabel(m.at)}</time>}
     <div id={'m-'+m.id} className={`row ${m.from}${top?' top':''}${bottom?' bottom':''}${lit?' lit':''}`}>

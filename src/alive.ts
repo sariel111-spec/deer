@@ -5,7 +5,7 @@
 // 3 Web Lock，告诉浏览器这页还有事没做完
 // 4 Service Worker：发系统通知、点通知回到对话；浏览器肯给的话，定期在后台醒来替他把话送到
 // 5 回到页面的那一刻补上离开期间他该说的话（这一层任何设备都有效）
-import {S,getImage,list,reload,setPrefs,unread,type Persona} from './db';
+import {S,getImage,list,onChange,reload,setPrefs,unread,type Persona} from './db';
 
 let reg:ServiceWorkerRegistration|null=null;
 let onTick=()=>{};
@@ -204,6 +204,8 @@ function seen(){
 
 export async function start(tick:()=>void){
   onTick=tick;
+  // 一打开就先跑一拍：离开期间该到的话立刻出现在聊天里，不等下一秒
+  onTick();
   try{
     const w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),1000)'],{type:'text/javascript'})));
     w.onmessage=()=>{heartbeat();onTick();if(pv)pipDraw();};
@@ -233,6 +235,7 @@ export async function start(tick:()=>void){
     }catch{/* 本地预览时没有也行 */}
   }
   badge();
+  let bt=0;onChange(()=>{clearTimeout(bt);bt=window.setTimeout(badge,400);});
 }
 
 export async function askNotify():Promise<boolean>{
@@ -249,6 +252,10 @@ export function notify(p:Persona,text:string){
   const opt={body:text,tag:'cx-'+p.id,icon:'./icon-192.png',badge:'./icon-192.png',data:{pid:p.id},renotify:true} as NotificationOptions;
   if(reg)void reg.showNotification(p.name,opt).catch(()=>{});
   else try{new Notification(p.name,opt);}catch{/* 有的浏览器只许 Service Worker 发 */}
+}
+/** 看过了：把这位已经弹出来的通知收掉（不给 pid 就全收） */
+export function clearNotes(pid?:string){
+  void reg?.getNotifications().then(ns=>ns.forEach(n=>{const d=n.data as {pid?:string}|null;if(!pid||d?.pid===pid||(n.tag||'').startsWith('cx-'+pid))n.close();})).catch(()=>{});
 }
 export function badge(){
   const n=S().personas.reduce((a,p)=>a+unread(p),0);
