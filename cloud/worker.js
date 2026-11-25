@@ -140,7 +140,16 @@ export default {
       }
       if (url.pathname === '/plan') {
         const items = (Array.isArray(d.items) ? d.items : []).filter(it => it && Number.isFinite(it.at) && it.at > now - 60e3 && it.at < now + AHEAD).slice(0, MAX_ITEMS);
+        // 每次交接带一个只增不减的序号。手机切来切去时，请求可能后发先到：
+        // 序号比已经收到的旧，就说明这是迟到的旧请求，不能让它把新的盖掉
+        const seq = Number.isFinite(d.seq) ? Math.round(d.seq) : 0, qk = 'q:' + sid;
+        if (seq) {
+          const last = await db.prepare('SELECT v FROM kv WHERE k = ?').bind(qk).first();
+          // （存着的序号比现在的时间还超前很多，说明那台设备的钟不准：这种不拿来比）
+          if (last && Number(last.v) > seq && Number(last.v) < now + 300e3) return json({ ok: true, stale: true }, 200, origin);
+        }
         await db.batch([
+          ...(seq ? [db.prepare('INSERT INTO kv (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v').bind(qk, String(seq))] : []),
           db.prepare('INSERT INTO subs (id, sub, seen) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET sub = excluded.sub, seen = excluded.seen').bind(sid, JSON.stringify(sub), now),
           db.prepare('DELETE FROM items WHERE sid = ?').bind(sid),
           ...items.map(it => db.prepare('INSERT INTO items (sid, at, payload) VALUES (?, ?, ?)').bind(sid, Math.round(it.at), message(site, d.home, it))),
@@ -151,7 +160,7 @@ export default {
         return json({ ok: true, held: items.length }, 200, origin);
       }
       if (url.pathname === '/leave') {
-        await db.batch([db.prepare('DELETE FROM items WHERE sid = ?').bind(sid), db.prepare('DELETE FROM subs WHERE id = ?').bind(sid)]);
+        await db.batch([db.prepare('DELETE FROM items WHERE sid = ?').bind(sid), db.prepare('DELETE FROM subs WHERE id = ?').bind(sid), db.prepare('DELETE FROM kv WHERE k = ?').bind('q:' + sid)]);
         return json({ ok: true }, 200, origin);
       }
       return json({ error: 'path' }, 404, origin);

@@ -1,0 +1,110 @@
+# 传讯网站（暂名「小鹿」，图标=用户指定的小红书帖子第一张图：棕色小鹿玩偶）
+方向（用户定的）：本质是和爱人聊天；ins 简约干净；不要古风/世界观/入戏文案；不必和「染」一致。
+用户要求：最完善的后台保活；多位梦角可公用一个字卡分组；第一版逐步做细；素材/图标可用网上可用的；传 GitHub。
+调研记录：/home/claude/chuanxun/notes.md
+## 第一版已写（src/）
+- db.ts 数据（Persona/Deck/Msg/Prefs，IndexedDB cx-site/kv：state、m:<pid>、a:<图片>）
+- engine.ts 回复/已读不回/拼接/主动消息/离开补发；alive.ts 保活多层；public/sw.js 通知+离线+后台替发
+- App.tsx（欢迎、消息列表、对话）；pages.tsx（我们、字卡、设置、资料与节奏）；styles.css
+## 还没做
+- 同步到私有仓库（要用户新建令牌）；关掉页面后的真推送（需要中转：Cloudflare Worker 或类似，用户要开账号）
+- 第二期：信、让他帮你选、问卷、每日一句、纪念日/时差、查岗、日记、导出长图；表情包/拍一拍/搜索聊天
+## 部署
+- 仓库名未定（等用户确认名字）；做法同 ran：vite build 到 docs/，Chrome 里 GitHub 网页上传
+## 已上线（2026-11-25）
+- 仓库 sariel111-spec/deer（公开，Pages：main /docs）→ https://sariel111-spec.github.io/deer/ ，线上版本 index-PtvwCGeh.js
+- 名字「小鹿」和仓库名 deer 是我先定的，等用户确认
+- 图标源文件临时放在她电脑 after-class/_to_delete/cx-icon-src.jpg（可删）
+- 上传做法：/home/claude/rwork/cxup1 那样分阶段文件 + Chrome 里 github upload 页注入 cl-in
+## 2026-11-25 17:1x 第二次上线（index-DtYnfh8a.js）
+- 主页（pages.tsx 的 Home）成为打开后的第一屏：顶部各位头像一排（有未读带 ins 渐变环）、双头像+三个数字、发消息/编辑主页、圆形入口、小组件（最新消息、今日一句、在一起天数、照片、他醒着/睡了）、主页背景（纯色/点阵/雾/自己的照片）、收藏和图片
+- 气泡默认改成 ins：我方紫到蓝渐变（跟滚动位置变），对方浅灰；设置里仍可换 黑白/点缀色/细边
+- 底栏：主页 / 消息 / 字卡 / 设置
+
+## 2026-11-25 第三次（主页精简 + 全部功能入口）
+- 调研见 notes.md 末尾（小红书 ins主页排版/线条图标/字卡仿IG聊天；抖音 传讯网站 ins风：Muse、Mochi 的 4 列图标宫格、SHE.X 切换梦角）
+- 主页只剩：顶部名字（点开换一位）、头像+今日一句 note 气泡、三个数字、签名、发消息/编辑主页、4×4 功能宫格。时钟/头像条/小组件/背景条/收藏图片 tab 全拿掉；主页背景搬进「资料与节奏」
+- 新文件 src/more.tsx：信箱、日记、纪念日、今日一句、帮我选、问卷、占卜、默契、报备、一起听、专注、经期、动态、收藏、相册（路由 #/f/<id>/<pid>）；数据在 db.ts 的 Box（kv x:<pid>），备份已包含
+- 聊天输入条改成 ins 胶囊：左相机，右 表情/加号/心；加号面板：图片、拍一拍（kind:'tip'）、报备、帮我选、写信
+- 这些功能目前是「第一层」：能用但浅（回信=几张字卡连成一封；默契=他随机选；问卷是固定十题）。之后每个功能深入前先去小红书/抖音看
+## 2026-11-25 第四次（线上 index-wCcnqBYI.js）：字卡搬家 + GitHub 同步
+- 咖啡猫 = Side by Side（Chrome 装成 app）。字卡 14 组 2266 张已搬进她 Chrome 里的小鹿（#cards= 交接，main.tsx 的 carried()；db.importDecks 按分组名合并去重；Deck.only 记「只属于谁」）。地点/李、称呼/李 只属于李怀安（小鹿里还没有这位）。
+- 教训：在 Chrome 标签页里打开咖啡猫的网址，会让她开着的咖啡猫 app 弹「本机资料保护：另一页面已更新了资料」并暂停写入。以后不要再用另一个标签页打开它；只能看她开着的窗口（只读截图）。
+- 同步 src/sync.ts：私有仓库 deer-data（只填令牌：/user 取用户名，找不到仓库就尝试新建私有的）；data/state.json、data/m/<pid>.json、data/x/<pid>.json、data/a/<id>.txt；Git Data API 一次同步一个提交；合并规则：人和分组谁晚听谁+删除记在 state.dead，聊天按 id 并集+Grave(dead/cleared)，小功能整份谁晚听谁；自动：改动后 12 秒、回到页面、每 3 分钟。
+- 只用本地假 GitHub（/home/claude/cxshots/mock/gh.mjs + t6.py）测过双设备；真实 GitHub 还没连过（要她自己填令牌）。咖啡猫自己的 GitHub 同步页还没看到（被它的保护弹窗挡住，我也不能点它的窗口）。
+## 2026-11-25 第五次（线上 index-3Vzk_xXa.js）
+- 欢迎页加了「导入一份备份文件」；导入备份算作本机改动（会触发同步）。
+- 私有仓库 sariel111-spec/deer-data 已建（带 README）。令牌页（细粒度，预填 contents=write）开在她 Chrome 里，停在 GitHub 的「Verify via email」身份确认，等她自己做。
+- 复查：线上包 + 假 GitHub 跑通 上传 / 新设备导入 / 两台互传 / 备份文件导入（cxshots/t8.py）；真 GitHub 上从她浏览器验证了读取链路、sha 算法一致、坏令牌 401、PATCH/POST/PUT 预检通过。真实写入要等她填令牌。
+## 2026-11-25 第六次（线上 index-CPNn4jCr.js）：聊天页完善
+- src/chat.tsx（从 App.tsx 拆出）：ins 式长按（表情回应 Msg.react + 小菜单：回复/复制/收藏/换一句/这句以后不说/撤回留痕/删除）、表情包库（State.stickers，双方都发，Persona.stick 开关；他约两成概率在第二句起回一张；一成概率给我的话贴表情）、Emoji、点图看大图、搜索+跳转高亮、回到底部+新消息数、每次 120 条分段加载、草稿（localStorage cx-draft-<pid>）、粘贴发图、点引用跳回、内容变高时保持贴底（ResizeObserver）。
+- 有意不做：转账红包、语音条、多选（保持简单）。还没在真手机上试过长按/横滑手感。
+- 测试脚本 cxshots/t9.py；同步回归 t8.py 通过。
+## 2026-11-25 第七次（线上 index-D4INkzSf.js）：保活四种方式 + 画中画；聊天二次完善
+- alive.ts：prefs.mode = pip/loop/osc/both；画中画 = 画布卡片（头像/名字/最新一句/未读数）captureStream → video → requestPictureInPicture（iOS 走 webkitSetPresentationMode）；失败时录 2 秒成真视频再试；prefs.pipAuto = 打开后第一下点按进小窗（离开再回来重新待命）；prefs.awake 屏幕常亮；lastAway() 记录上次切出去多久、其中多久页面还活着。静音音频改成 5 分钟一圈（短了灵动岛会闪）。
+- 她电脑 Chrome 上实测：第一下点按就进小窗，小窗内容是实时的。iPhone 上没法由我测（她手机里那个 app 用的也是这类做法）。
+- 踩过的坑：首次点按触发的 apply() 曾把刚开的小窗关掉（已去掉自动关）。
+- 聊天：长按不再选字（.chat 全部 user-select:none）、抽屉 overflow-x:hidden + overscroll contain + body 不滚、回车直接发（enterKeyHint=send）、表情包分组 State.packs（批量上传 / 链接导入 / 他发不发 / 改名 / 删），从聊天进功能页或主页后返回回到聊天（nav.from + history.back）。
+- 同步：真 GitHub 已连通（deer-data）。同一设备多标签页用 Web Lock 只让一个同步；撞车自动重试三次，不再报红字。
+- 已知：两台设备同时开着时，他的主动消息可能各发一条（各自的引擎都在跑）。
+## 2026-11-25 第八次（线上 index-BkkMT7dU.js）：网页端 vs 主屏幕 app
+- 代码是同一份，差别全来自 iOS：主屏幕 app 里不能画中画（WebKit bug 303885 / 280627，Safari 里可以）；通知只有主屏幕 app 有；两边存储各一份（靠同步对齐）。
+- 面板里：主屏幕 app 检测到 iOS+standalone 时不显示画中画那几行，改成一段说明 +「复制小鹿的网址」；Safari 里多了一块小窗预览（视频真的显示在页面上）。
+- 备份导出：iPhone 上先备好文件，再点一次走系统分享面板存到「文件」。屏幕常亮开不了会提示。
+- 她手机上没法由我看（镜像断了），iPhone Safari 里的画中画仍未实测。
+## 2026-11-25 第九次（线上 index-CVx-KCEA.js）：保活总开关关得干净
+- 关掉总开关：静音音频卸掉文件 + 清掉 mediaSession（锁屏播放条撤掉）、振荡器关、小窗关、备用视频停、自动进小窗不再触发；选项只在总开关开着时显示。检查面板只列能开关的几层。
+- 糯叽机 = TestFlight 原生 app，所以能画中画；小鹿要一样得打包成原生 app（未做，等她决定）。
+
+## 原生 iPhone 壳：已撤掉
+- 她决定不做原生 app（免费自签 7 天过期，TestFlight 要 $99/年）。ios/、编译流程、网页里的桥接代码都删了；本地备份在 /home/claude/rwork/_removed_ios。
+- release `ios-latest`（Deer.ipa）还在 GitHub 上，等她确认再删。
+
+## 后台：不影响听歌刷视频的路
+- 查过（小红书多篇 + WebKit 文档）：iPhone 上静音音频和别的 app 的声音互斥；Web Audio（振荡器）不打断别人但一进后台就停；画中画只有 Safari 里行。
+- 所以网页自己留在后台这条路做不到「不影响」。社区的做法是云端推送：iOS 16.4+ 主屏幕网页 app 的 Web Push + 一个远程 worker（Cloudflare Worker 之类）定时发。
+- 方案（待她同意）：离开时把接下来要说的话（时间 + 内容，提前抽好）交给 worker，到点推送；回来时取消并在本地补上同样的话。worker 自己生成 VAPID 密钥存在 KV，谁都不用经手密钥。
+
+## 云端推送（已上线）
+- 云端：Cloudflare Worker `deer-push`（源码 cloud/worker.js）+ D1 数据库 `deer-push`（绑定名 DB）+ 每分钟定时触发。VAPID 密钥第一次用到时自己生成，存在 D1 的 kv 表。地址存在 prefs.cloud（跟着同步走，不写进公开仓库，因为 workers.dev 子域名带她的邮箱前缀）。
+- 网页：src/push.ts（订阅、离开时交出去 /plan、回来收回）、engine.ts 的 ahead()（提前排三句主动 + 待回的回复 + 回信提醒，存 localStorage `cx-plan`）；回来时 proactive()/reply() 优先用排好的那几句，迟到的不再弹本地通知。
+- 接口：GET /key；POST /plan {sub,home,items}（items 为空 = 收回）；POST /test；POST /leave。只认站点自己的 Origin，最多 8 台设备、每台 12 条。
+- 验证过：本地 wrangler + 模拟推送服务（验签 + 解密）整套；线上 Worker 在她 Mac 的 Chrome 上立即推送和定时推送都收到。没验证：iPhone（Apple 的推送服务）。
+- 测试脚本：/home/claude/rwork/cloudtest（t.mjs、pushmock.mjs、wrangler.toml）、/home/claude/cxshots/t16.py、t17.py。
+- 已知：两台设备都开云端推送会各推各的话；Mac 上测试后已关，只建议手机开。
+
+## 11-25 深夜：通知与聊天同步、红点、视频通话
+- 通知和聊天不同步：云端原来会提前最多 30 秒推（EARLY），现在只晚不早；engine 记 backAt（最近一次回到前台/启动），排好的话若本该在这之前到，回来立刻补上、不演打字、不再弹通知；start() 一启动先跑一拍。
+- 红点：回到前台时把开着的聊天标已读（原来只有来新消息才标）；read() 把已读记到最后一条；同步合并时 readAt 取两边较大；同步后角标刷新；读过的聊天把已弹出的通知收掉。
+- db：页面被收走时把还没落盘的 state 立刻写下去（原来有 120ms 的空窗）。
+- 资料与节奏：去掉点缀色、主页背景（主页背景不再生效；点缀色保留各人现有的值，只是不再提供选择）。加了「通话画面」「他也会打视频过来」。
+- 视频通话：src/call.tsx（CallLayer 挂在 App 上）+ engine 里的 callStart/callEnd/callDecline/ring/missed。通话 = Box.call{at}，来电 = Box.ring{at}（45 秒没接记未接）。主动消息里 8% 的概率是来电（Persona.calls!==false），云端推送文案「邀请你视频通话」。自己的画面只在本机 getUserMedia，不上传。
+- 测试：cxshots/t16（推送全流程）、t18（视频通话）、t19（红点、两台设备同步），cloudtest/t.mjs（云端服务）。都过。
+- 这轮抖音搜索要登录，没查成，只查了小红书（笔记见 chuanxun/notes.md）。
+- 还没解决：两台设备都开着小鹿时会各自生成他的主动消息。
+
+## 11-26 凌晨：气泡、通话小窗、表情包按角色、两端一致
+- 气泡：不再用 background-attachment:fixed（iPhone 上不可靠，入场动画时颜色会跳）。chat.tsx 的 paint() 按气泡在屏幕上的高低算 --b1/--b2，滚动、内容变化、窗口变化时重算。
+- 通话小窗：缩小后是应用内可拖动的小窗（.callmini）；浏览器给画中画的地方缩小时同时开系统小窗（alive.pipCall，画他的通话画面 + 计时）。iPhone 主屏幕版开不了系统小窗。
+- 表情包：Pack.who（只给这几位用）；在谁的聊天里新建默认只给谁。六个帖子的图已导入她的数据：审奚 18、抽象 27、小熊 4（都只给陈子奚）。图存在她的私有同步仓库，不在公开代码里。
+- 云端推送：开启时自动关后台保活；提示音响完就释放音频；worker 记录推送服务的回应。已在 Cloudflare 日志里看到 00:03:14 推给 web.push.apple.com 回 201（她手机上他主动发的那句）。
+- 两台设备：主动消息的内容、消息 id、下一次的时间都只由「谁 + 几点」决定（engine seeded/proId/proLine），两台设备算出同一句，同步后只留一条。测试 t21。
+- db：第一下改动立刻写盘，之后 120ms 内的合并写。
+- 测试：t18（手机 + 网页两种尺寸）、t20（表情包按角色，两种尺寸）、t21、t16、t19、cloudtest/t.mjs 都过。
+- 抖音搜索仍要登录，没查。
+
+## 11-26 00:30：手机上关了保活还有音频、表情包挤在一起
+- 音频：alive.voice() —— 保活开着（静音音频/振荡器）时 audioSession.type='playback'，其余一律 'ambient'（不打断别的 app、不占灵动岛、进后台就停）。启动时和 apply() 时都设。提示音在页面隐藏时不响；iPhone 主屏幕版通话不再备画中画视频；loopOn(false) 只在真有音频时才动 mediaSession。没法在真机上验证，原因是推断（最可疑：没关的 AudioContext 把页面当成在播放）。
+- 表情包：.packs 的格子改用 padding-bottom:100% 撑方，不靠 aspect-ratio（她的 iPhone 上限高网格把行压扁，几行叠在一起）。Playwright 的 WebKit 里新旧写法都正常，没能复现原问题。
+- 装了 Playwright WebKit（/opt/pw-browsers/webkit-2359），测试 cxshots/t22.py。
+
+
+## 第 21 轮（存储不丢、推送与对话对得上、进聊天在底部）
+- 起因：手机上整份设置退回旧样子（表情包、云端地址没了，保活又开着）。旧的存储层只用一条数据库连接、写失败不报错；iPhone 后台回来后连接会断，之后的改动只在内存里，一刷新（更新时会自动刷新）就退回很早以前存的那份。旧构建用 t23 能复现。
+- db.ts：事务落盘才算成功；出错/超时就重连重试；写不进去的记账重试并在 localStorage 留救急副本（下次打开优先用、写回后清掉）；读失败不再当成「没有」；打开时读不出来就显示说明、什么都不写；回到前台发现连接坏了自动刷新一次。
+- 只管本机的设置（保活、通知、声音、明暗、云端地址…）在 localStorage 另留一份（cx-dev），打开时以它为准。prefs.v=3：保活/画中画自动/屏幕常亮统一回到关。
+- sync.ts：每轮先把云端不一样的文件拿下来合并再上传，不再只看「云端变没变」——旧数据不会盖掉云端新的。adopt 先同步换内存再落盘。
+- sw.js：后台线程不再写用户数据；页面缓存不再按 ?v= ?t= 攒重复的。
+- engine.ts/push.ts：交给云端的话本机记账（cx-held），回来时到点的每一句按固定 id 补进聊天；回复也按「谁、哪一刻」固定；收回请求失败会重试；交接带序号（worker 认序号，防后发先到）。
+- chat.tsx：贴底只在自己往上翻时松开，图片陆续载出来不会停在上面。
+- 测试：t23 存储、t24 推送对账、t25 进聊天在底部（手机/电脑 × Chromium/WebKit）、t26 退回旧数据后同步恢复。

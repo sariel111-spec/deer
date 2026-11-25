@@ -45,7 +45,9 @@ export function Chat({p}:{p:Persona}){
   const [view,setView]=useState('');
   const [away,setAway]=useState(0),[up,setUp]=useState(false),[flash,setFlash]=useState('');
   const sc=useRef<HTMLDivElement>(null),end=useRef<HTMLDivElement>(null),file=useRef<HTMLInputElement>(null),box=useRef<HTMLTextAreaElement>(null);
-  const near=useRef(true),keep=useRef(0),count=useRef(all.length),inner=useRef<HTMLDivElement>(null);
+  // near：贴着底（跟着最新一条走）。只有你自己往上翻才会松开；图片载出来把内容撑高不算
+  const near=useRef(true),keep=useRef(0),count=useRef(all.length),inner=useRef<HTMLDivElement>(null),lastTop=useRef(0);
+  const toEnd=()=>{const el=sc.current;if(el){el.scrollTop=el.scrollHeight;lastTop.current=el.scrollTop;}};
   const packs=packsFor(p.id),shown=packs.find(k=>k.id===panel);
 
   useEffect(()=>{setActive(p.id);if(S().prefs.last!==p.id)setPrefs({last:p.id});return()=>setActive('');},[p.id]);
@@ -53,32 +55,41 @@ export function Chat({p}:{p:Persona}){
   useEffect(()=>{
     if(!document.hidden)read(p.id);
     const fresh=all.length-count.current,last=all.at(-1);count.current=all.length;
-    if(near.current||(fresh>0&&last?.from==='me'))end.current?.scrollIntoView({block:'end'});
+    if(near.current||(fresh>0&&last?.from==='me')){near.current=true;toEnd();}
     else if(fresh>0&&last?.from==='ta')setAway(n=>n+fresh);
   },[all.length,typing,p.id]);
-  useLayoutEffect(()=>{end.current?.scrollIntoView({block:'end'});},[p.id]);
+  // 一进来就在最新一条。之后头像、图片、表情包陆续载出来会把内容撑高，下面的观察器会一直把它按在底部
+  useLayoutEffect(()=>{near.current=true;toEnd();},[p.id]);
+  useEffect(()=>{
+    // 刚打开的头两秒多按几次：有的手机第一帧量出来的高度还不准
+    const ts=[60,200,500,1000,2000].map(ms=>setTimeout(()=>{if(near.current&&!keep.current)toEnd();},ms));
+    return()=>ts.forEach(clearTimeout);
+  },[p.id]);
   const raf=useRef(0);
   const repaint=()=>{cancelAnimationFrame(raf.current);raf.current=requestAnimationFrame(()=>paint(sc.current));};
   useLayoutEffect(()=>{paint(sc.current);repaint();});
   // 图片载出来、表情面板打开，内容会变高或窗口变矮：原本贴着底的话继续贴着
   useEffect(()=>{
     if(typeof ResizeObserver!=='function')return;
-    const ro=new ResizeObserver(()=>{if(near.current&&!keep.current)end.current?.scrollIntoView({block:'end'});repaint();});
+    const ro=new ResizeObserver(()=>{if(near.current&&!keep.current)toEnd();repaint();});
     if(inner.current)ro.observe(inner.current);if(sc.current)ro.observe(sc.current);
     return()=>ro.disconnect();
   },[p.id,q===null]);
   // 往上翻到头再多拿一段，位置不跳
-  useLayoutEffect(()=>{const el=sc.current;if(el&&keep.current){el.scrollTop+=el.scrollHeight-keep.current;keep.current=0;}},[limit]);
+  useLayoutEffect(()=>{const el=sc.current;if(el&&keep.current){el.scrollTop+=el.scrollHeight-keep.current;lastTop.current=el.scrollTop;keep.current=0;}},[limit]);
   useEffect(()=>{const el=box.current;if(el){el.style.height='auto';el.style.height=Math.min(120,el.scrollHeight)+'px';}
     try{if(text)localStorage.setItem(draftKey(p.id),text);else localStorage.removeItem(draftKey(p.id));}catch{/* 存不了草稿不要紧 */}},[text,p.id]);
   const onScroll=()=>{
     const el=sc.current;if(!el)return;
     repaint();
-    const d=el.scrollHeight-el.scrollTop-el.clientHeight;
-    near.current=d<140;setUp(d>480);if(near.current&&away)setAway(0);
-    if(el.scrollTop<120&&limit<all.length&&!keep.current){keep.current=el.scrollHeight;setLimit(l=>l+PAGE);}
+    const d=el.scrollHeight-el.scrollTop-el.clientHeight,wentUp=el.scrollTop<lastTop.current-2;
+    lastTop.current=el.scrollTop;
+    // 往上翻了才算离开底部；内容自己变高（图片载出来）不算
+    if(d<140)near.current=true;else if(wentUp)near.current=false;
+    setUp(d>480&&!near.current);if(near.current&&away)setAway(0);
+    if(wentUp&&el.scrollTop<120&&limit<all.length&&!keep.current){keep.current=el.scrollHeight;setLimit(l=>l+PAGE);}
   };
-  const bottom=()=>{near.current=true;setAway(0);end.current?.scrollIntoView({block:'end',behavior:'smooth'});};
+  const bottom=()=>{near.current=true;setAway(0);const el=sc.current;if(el)el.scrollTo({top:el.scrollHeight,behavior:'smooth'});};
   const jump=(id:string)=>{
     const i=all.findIndex(m=>m.id===id);if(i<0){say('那条消息已经不在了');return;}
     setQ(null);if(all.length-i>limit)setLimit(all.length-i+20);

@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Menu,Plus,Search,Trash2,X} from 'lucide-react';
-import {S,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
+import {S,storage,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
 import {onPush,pushLink,pushLive,pushOff,pushOn,pushPrep,pushSet,pushTest,pushUnlink} from './push';
 import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,pipSlot,setMode,status,wakeLive} from './alive';
@@ -358,6 +358,7 @@ export function Settings(){
 
     <h3>备份</h3>
     <p className="hint">不用同步的话，所有东西只存在这台设备上。换手机或清浏览器之前，先导出一份备份。</p>
+    {(()=>{const h=storage();return <p className="hint" data-store={h.down||h.waiting?'retry':'ok'}>本机存储：{h.down||h.waiting?`有 ${h.waiting} 项这一下没存进去，正在重试（已经另留了一份，不会丢）`:'正常'}{h.reopened?`。这次打开后重新连过 ${h.reopened} 次`:''}</p>;})()}
     <div className="rowbtn">
       <button className="chip" aria-pressed={!!bak} onClick={async()=>{
         if(bak){try{await navigator.share({files:[bak]});}catch{/* 她取消了 */}setBak(null);return;}

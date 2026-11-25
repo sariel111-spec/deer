@@ -1,5 +1,5 @@
 import {useSyncExternalStore} from 'react';
-import {adopt,delKey,dropImageCache,dump,getKey,onChange,setKey,type Box,type Deck,type Dump,type Grave,type Msg,type Pack,type Persona,type State} from './db';
+import {adopt,delKey,dropImageCache,dump,getKey,onChange,readKey,setKey,storageDown,type Box,type Deck,type Dump,type Grave,type Msg,type Pack,type Persona,type State} from './db';
 
 /* 同步：把数据放进你自己的一个私有 GitHub 仓库。
    不是整包覆盖——每台设备先把云端的拿下来和本机的合并，再把合并后的结果传上去；
@@ -135,19 +135,25 @@ async function round(r:Remote){
   const cloud:Record<string,string>={};for(const t of tree.tree)if(t.type==='blob'&&t.path.startsWith('data/'))cloud[t.path]=t.sha;
   const read=async(path:string)=>unb64((await api<{content:string}>(r,`/git/blobs/${cloud[path]}`)).content);
 
-  // 云端哪些文件在上次同步之后变过：只拿这些
+  // 云端和本机内容不一样的文件，都先拿下来合并，再决定传什么。
+  // 不只看「云端在上次同步之后变没变」：万一这台设备手里的是一份旧数据，直接传上去会把云端新的盖掉——
+  // 先合并的话，两边各自多出来的都留得住
+  const before=dump(),mine=files(before),mineSha:Record<string,string>={};
+  for(const [path,text] of Object.entries(mine))mineSha[path]=await blobSha(text);
   const part:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box>}={m:{},x:{}};
   for(const path of Object.keys(cloud)){
-    if(cloud[path]===synced.tree[path]||path.startsWith('data/a/'))continue;
+    if(path.startsWith('data/a/')||cloud[path]===mineSha[path])continue;
+    const id=path.startsWith('data/m/')||path.startsWith('data/x/')?path.slice(7,-5):'';
+    // 已经删掉的人：云端留着的旧文件不用再看
+    if(id&&before.state.dead?.[id])continue;
     const text=await read(path);
     if(path===F.state)part.state=JSON.parse(text) as Shared;
-    else if(path.startsWith('data/m/'))part.m[path.slice(7,-5)]=JSON.parse(text) as Chat;
-    else if(path.startsWith('data/x/'))part.x[path.slice(7,-5)]=JSON.parse(text) as Box;
+    else if(path.startsWith('data/m/'))part.m[id]=JSON.parse(text) as Chat;
+    else if(path.startsWith('data/x/'))part.x[id]=JSON.parse(text) as Box;
   }
   // 下载期间本机可能又有新消息：到这一步才取本机的数据来合并，合并完立刻放回去
   const merged=merge(dump(),part);
-  const pulled=!!part.state||Object.keys(part.m).length>0||Object.keys(part.x).length>0;
-  if(pulled)await adopt(merged);
+  const pulled=(!!part.state||Object.keys(part.m).length>0||Object.keys(part.x).length>0)&&await adopt(merged);
 
   // 图片：本机缺的拿下来，云端缺的传上去
   const up:{path:string;mode:string;type:string;content?:string;sha?:string}[]=[],pushed:Record<string,string>={};
@@ -155,7 +161,7 @@ async function round(r:Remote){
     const path=F.a(id);
     if(!have.has(id)){
       if(await getKey<string>('a:'+id))have.add(id);
-      else if(cloud[path]){await setKey('a:'+id,await read(path));dropImageCache(id);have.add(id);}
+      else if(cloud[path]){if(await setKey('a:'+id,await read(path))){dropImageCache(id);have.add(id);}}
     }
     if(have.has(id)&&!cloud[path]){
       const data=await getKey<string>('a:'+id);if(!data)continue;
@@ -183,7 +189,7 @@ const clash=(e:unknown)=>e instanceof Fail&&(e.code===422||e.code===409);
 const nap=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 type Locks={request:<T>(n:string,o:{ifAvailable:boolean},f:(l:unknown)=>Promise<T>)=>Promise<T>};
 export async function syncNow(manual=false):Promise<boolean>{
-  if(!remote)return false;
+  if(!remote||storageDown())return false;
   if(st.busy){again=true;return false;}
   put({busy:true,err:''});dirty=false;
   const r=remote;
@@ -250,7 +256,9 @@ export async function connect(token:string,repo=''):Promise<string>{
 export async function disconnect(){remote=null;synced={tree:{},at:0,cloudAt:0};clearTimeout(timer);await delKey('remote');await delKey('synced');put({on:false,repo:'',at:0,cloudAt:0,err:'',note:'',busy:false});}
 export async function setAuto(auto:boolean){if(!remote)return;remote={...remote,auto};await setKey('remote',remote);put({auto});if(auto)plan(500);}
 export async function startSync(){
-  remote=(await getKey<Remote>('remote'))??null;
+  if(storageDown())return;
+  // 连接信息这一下没读出来的话，等一会儿再读，不当成「没连过」
+  try{remote=(await readKey<Remote>('remote'))??null;}catch{setTimeout(()=>{void startSync();},3000);return;}
   synced=(await getKey<Synced>('synced'))??{tree:{},at:0,cloudAt:0};
   if(remote)put({on:true,repo:remote.repo,auto:remote.auto!==false,at:synced.at,cloudAt:synced.cloudAt});
   // 本机一有改动，过十几秒传一次；回到页面、每隔几分钟，也看看云端有没有新的

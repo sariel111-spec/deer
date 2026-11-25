@@ -21,11 +21,14 @@ const seeded=(key:string)=>{
 };
 const proId=(p:Persona,at:number)=>'p'+p.id.slice(-5)+Math.round(at).toString(36);
 // rnd：给了就按它来抽（主动消息用，结果只由「谁、几点」决定）；不给就随手抽，并避开最近说过的
-function draw(p:Persona,mode:'reply'|'pro',t:number,rnd?:()=>number):{text:string;src:string}|null{
+function draw(p:Persona,mode:'reply'|'pro',t:number,rnd?:()=>number,avoid?:Set<string>):{text:string;src:string}|null{
   const all=pool(p,mode,t);if(!all.length)return null;
   if(rnd){
-    const left=[...all],n=Math.min(left.length,p.join?1+Math.floor(rnd()*Math.max(1,p.joinMax)):1);
+    // avoid：最近说过的那些先不抽（抽完了才回头用）
+    const ok=avoid?all.filter(c=>!avoid.has(c.id)):all;
+    const left=ok.length?[...ok]:[...all],n=Math.min(left.length,p.join?1+Math.floor(rnd()*Math.max(1,p.joinMax)):1);
     const cs=Array.from({length:n},()=>left.splice(Math.floor(rnd()*left.length),1)[0]);
+    if(avoid)for(const c of cs)avoid.add(c.id);
     return {text:cs.map(c=>c.t).reduce((a,b)=>a+glue[Math.floor(rnd()*glue.length)]+b),src:cs.map(c=>c.id).join(',')};
   }
   const rec=recent.get(p.id)??[];
@@ -68,6 +71,30 @@ if(typeof document!=='undefined')document.addEventListener('visibilitychange',()
 const plans:Plans=(()=>{try{const v=JSON.parse(localStorage.getItem('cx-plan')??'null') as Plans|null;if(v&&typeof v.pq==='object'&&typeof v.rq==='object')return v;}catch{/* 坏了就重排 */}return {pq:{},rq:{}};})();
 const savePlans=()=>{try{localStorage.setItem('cx-plan',JSON.stringify(plans));}catch{/* 存不下也不要紧，回来时现抽 */}};
 
+/* 交给云端的那几句，这台设备自己也记一份账（只在本机）。
+   云端到点会把它们推成通知，所以不管之后发生了什么（时间被重排、状态被同步改写、页面被系统收走重开），
+   回来时账上到了点的每一句都要出现在聊天里——通知里有的，对话里一定有 */
+type Held={pid:string;at:number;id:string;kind:'pro'|'reply'|'call';text:string;src:string;st?:boolean;re?:string};
+let held:Held[]=(()=>{try{const v=JSON.parse(localStorage.getItem('cx-held')??'[]') as Held[];return Array.isArray(v)?v.filter(h=>h&&typeof h.id==='string'&&typeof h.at==='number'):[];}catch{return [];}})();
+const saveHeld=()=>{try{localStorage.setItem('cx-held',JSON.stringify(held));}catch{/* */}};
+const unhold=(id:string)=>{if(held.some(h=>h.id===id)){held=held.filter(h=>h.id!==id);saveHeld();}};
+// grace：页面醒着的时候先让正常的流程去说（带「正在输入」的那种），过了这几秒还没出现的才由这里补
+function settle(now:number,grace:number){
+  if(!held.length)return;
+  // 人不在的时候到点的（比回来的那一刻早）：回来立刻补，不等
+  const isDue=(h:Held)=>h.at<=now&&(h.at<=now-grace||h.at<backAt);
+  const due=held.filter(isDue);if(!due.length)return;
+  held=held.filter(h=>!isDue(h));saveHeld();
+  for(const h of due){
+    const p=who(h.pid);if(!p)continue;
+    if(h.kind==='call'){ring(p,h.at);continue;}
+    if(h.kind==='reply')seen(h.pid);
+    arrive(p,h.text,h.src,h.at,h.re,!!h.st,true,h.id);
+  }
+}
+/** 云端确认已经把没发的收回去了：账上还没到点的不会再推，划掉 */
+export function released(at=Date.now()){if(held.some(h=>h.at>at)){held=held.filter(h=>h.at<=at);saveHeld();}}
+
 /* 正在输入、当前打开的是谁 */
 const typing=new Set<string>();
 export const isTyping=(pid:string)=>typing.has(pid);
@@ -84,13 +111,13 @@ export function read(pid:string){
 // late：这句是离开期间该到的、现在补上的。云端推送开着的话当时已经推过，不再弹一遍通知
 function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=false,late=false,id?:string){
   // 这一句别的设备已经替他说过、同步过来了：不再说一遍
-  if(id&&list(p.id).some(m=>m.id===id))return;
+  if(id){unhold(id);if(list(p.id).some(m=>m.id===id))return;}
   // 补发的话不能排到已有消息的前面
   at=Math.max(at,(list(p.id).at(-1)?.at??0)+1);
-  if(sticker){pushMsg({pid:p.id,from:'ta',kind:'img',text,at,st:true});text='[表情]';}
+  if(sticker){pushMsg({pid:p.id,from:'ta',kind:'img',text,at,st:true,...(id?{id}:{})});text='[表情]';}
   else pushMsg({pid:p.id,from:'ta',kind:'text',text,at,src,re,...(id?{id}:{})});
   const here=!document.hidden&&active===p.id;
-  if(here){setPersona(p.id,{readAt:Math.max(Date.now(),at)});blip();}
+  if(here){setPersona(p.id,{readAt:Math.max(Date.now(),at)});if(!late)blip();}
   else if(!(late&&pushWas()))notify(p,text);
   badge();
 }
@@ -116,32 +143,38 @@ function seen(pid:string){
 }
 const reacts=['❤️','❤️','😂','🥺','👍','😮'];
 const busy=new Set<string>();
-function replyLine(p:Persona,i:number,t:number):Line|null{
+const rid=(p:Persona,at:number,i:number)=>'r'+p.id.slice(-5)+Math.round(at).toString(36)+'.'+i;
+function replyLine(p:Persona,i:number,t:number,rnd:()=>number,avoid:Set<string>):Line|null{
   const packs=packsFor(p.id).filter(k=>k.his!==false).flatMap(k=>k.ids);
   // 有表情包的话，他偶尔回一张（不会连着第一句就发）
-  if(i>0&&p.stick!==false&&packs.length&&Math.random()<.22)return {text:packs[Math.floor(Math.random()*packs.length)],src:'',st:true};
-  return draw(p,'reply',t);
+  if(i>0&&p.stick!==false&&packs.length&&rnd()<.22)return {text:packs[Math.floor(rnd()*packs.length)],src:'',st:true};
+  return draw(p,'reply',t,rnd,avoid);
 }
+// 这一次回什么只由「谁、哪一刻该回」决定：提前排给云端的、回来现算的、别的设备算的，都是同样几句
 function replyPlan(p:Persona,at:number):Reply{
-  const n=1+Math.floor(Math.random()*Math.max(1,p.burst)),lines:Line[]=[];
-  for(let i=0;i<n;i++){const l=replyLine(p,i,at);if(!l)break;lines.push(l);}
+  const rnd=seeded(p.id+'|r|'+Math.round(at));
+  // 最近说过的先避开
+  const avoid=new Set(list(p.id).filter(m=>m.from==='ta'&&m.src).slice(-12).flatMap(m=>m.src!.split(',')));
+  const half=Math.floor(pool(p,'reply',at).length/2);while(avoid.size>half)avoid.delete(avoid.values().next().value as string);
+  const n=1+Math.floor(rnd()*Math.max(1,p.burst)),lines:Line[]=[];
+  for(let i=0;i<n;i++){const l=replyLine(p,i,at,rnd,avoid);if(!l)break;lines.push(l);}
   const mine=list(p.id).filter(m=>m.from==='me'&&m.kind!=='tip');
-  return {at,lines,quote:mine.length&&Math.random()<.12?mine[mine.length-1].id:undefined};
+  return {at,lines,quote:mine.length&&rnd()<.12?mine[mine.length-1].id:undefined};
 }
 // planned：离开前台时提前排好、交给云端推送过的那几句
-function reply(p:Persona,planned?:Reply){
+function reply(p:Persona,at:number,planned?:Reply){
   if(busy.has(p.id))return;busy.add(p.id);
   seen(p.id);
-  if(planned&&planned.at<backAt){
+  const plan=planned??replyPlan(p,at),n=plan.lines.length;
+  if(plan.at<backAt){
     // 离开期间他已经回了：按原定的时刻一口气补上
-    planned.lines.forEach((l,i)=>arrive(who(p.id)??p,l.text,l.src,planned.at+i*1500,i===0?planned.quote:undefined,!!l.st,true));
+    plan.lines.forEach((l,i)=>arrive(who(p.id)??p,l.text,l.src,plan.at+i*1500,i===0?plan.quote:undefined,!!l.st,true,rid(p,plan.at,i)));
     busy.delete(p.id);return;
   }
-  const now0=planned??replyPlan(p,Date.now()),n=now0.lines.length;
   let i=0;
   const step=()=>{
-    const now=who(p.id)??p,got=now0.lines[i];
-    if(got)arrive(now,got.text,got.src,Date.now(),i===0?now0.quote:undefined,!!got.st);
+    const now=who(p.id)??p,got=plan.lines[i];
+    if(got)arrive(now,got.text,got.src,Date.now(),i===0?plan.quote:undefined,!!got.st,false,rid(p,plan.at,i));
     i++;
     if(got&&i<n){setTyping(p.id,true);setTimeout(step,rand(900,2400));}
     else{setTyping(p.id,false);busy.delete(p.id);}
@@ -166,13 +199,17 @@ export function callDecline(pid:string){
   setBox(pid,{ring:undefined});
   pushMsg({pid,from:'me',kind:'tip',text:'你没有接他的视频通话',at:Date.now()});
 }
-function missed(p:Persona,at:number){
-  pushMsg({pid:p.id,from:'ta',kind:'tip',text:'未接视频通话',at:Math.max(Math.min(at,Date.now()),(list(p.id).at(-1)?.at??0)+1)});
+const callId=(p:Persona,at:number)=>'c'+proId(p,at);
+function missed(p:Persona,at:number,id:string){
+  if(list(p.id).some(m=>m.id===id))return;
+  pushMsg({pid:p.id,from:'ta',kind:'tip',text:'未接视频通话',at:Math.max(Math.min(at,Date.now()),(list(p.id).at(-1)?.at??0)+1),id});
   badge();
 }
 // 他打过来：还来得及就响；人回来得太晚、或者正和别人通着话，就记一条未接
 function ring(p:Persona,at:number){
-  if(Date.now()-at>=RING||onCall()){missed(p,at);return;}
+  const id=callId(p,at);unhold(id);
+  if(box(p.id).ring?.at===at||list(p.id).some(m=>m.id===id))return;
+  if(Date.now()-at>=RING||onCall()){missed(p,at,id);return;}
   setBox(p.id,{ring:{at}});
   if(!(at<backAt&&pushWas()))notify(p,'邀请你视频通话');
 }
@@ -213,12 +250,18 @@ function proactive(p:Persona,now:number){
 /* 离开前台时：把接下来要到的话排好，交给云端按时推送 */
 export function ahead():Ahead[]{
   const now=Date.now(),out:Ahead[]=[];
+  // 上一回交出去、已经到点的先落进聊天里，再重新排
+  settle(now,0);
+  const book:Held[]=[];
   for(const p of S().personas){
     // 你发了话，他还没回
     if(p.replyAt&&!busy.has(p.id)){
       let r=plans.rq[p.id];
       if(!r||r.at!==p.replyAt)r=plans.rq[p.id]=replyPlan(p,p.replyAt);
-      r.lines.forEach((l,i)=>out.push({at:Math.max(r.at,now)+i*1500,title:p.name,body:l.st?'[表情]':l.text,pid:p.id,badge:1}));
+      r.lines.forEach((l,i)=>{
+        out.push({at:Math.max(r.at,now)+i*1500,title:p.name,body:l.st?'[表情]':l.text,pid:p.id,badge:1});
+        book.push({pid:p.id,at:Math.max(r.at,now)+i*1500,id:rid(p,r.at,i),kind:'reply',text:l.text,src:l.src,st:l.st,re:i===0?r.quote:undefined});
+      });
     }else delete plans.rq[p.id];
     // 他主动找你：排三句，和回来时「最多补三条」对得上
     if(p.pro&&p.nextAt){
@@ -231,7 +274,10 @@ export function ahead():Ahead[]{
         q.push({at,...got});
       }
       if(q.length)plans.pq[p.id]=q;else delete plans.pq[p.id];
-      q.forEach(x=>out.push({at:Math.max(x.at,now),title:p.name,body:x.call?'邀请你视频通话':x.text,pid:p.id,badge:1}));
+      q.forEach(x=>{
+        out.push({at:Math.max(x.at,now),title:p.name,body:x.call?'邀请你视频通话':x.text,pid:p.id,badge:1});
+        book.push({pid:p.id,at:Math.max(x.at,now),id:x.call?callId(p,x.at):proId(p,x.at),kind:x.call?'call':'pro',text:x.text,src:x.src});
+      });
     }else delete plans.pq[p.id];
     // 他的回信
     const due=box(p.id).mailDue;
@@ -240,6 +286,7 @@ export function ahead():Ahead[]{
   for(const id of Object.keys(plans.pq))if(!who(id))delete plans.pq[id];
   for(const id of Object.keys(plans.rq))if(!who(id))delete plans.rq[id];
   savePlans();
+  held=book.sort((a,b)=>a.at-b.at);saveHeld();
   out.sort((a,b)=>a.at-b.at);
   // 每到一句，图标上的数字加一
   let n=S().personas.reduce((a,p)=>a+unread(p),0);
@@ -249,16 +296,21 @@ export function ahead():Ahead[]{
 
 export function tick(){
   const now=Date.now();
+  tickBody(now);
+  // 账上到了点、正常流程却没说出来的，在这里补上
+  settle(now,8000);
+}
+function tickBody(now:number){
   for(const p of S().personas){
     if(p.replyAt){
-      if(now>=p.replyAt){const r=plans.rq[p.id],planned=r&&r.at===p.replyAt?r:undefined;if(r){delete plans.rq[p.id];savePlans();}setPersona(p.id,{replyAt:0});reply(p,planned);}
+      if(now>=p.replyAt&&!busy.has(p.id)){const at=p.replyAt,r=plans.rq[p.id],planned=r&&r.at===at?r:undefined;if(r){delete plans.rq[p.id];savePlans();}setPersona(p.id,{replyAt:0});reply(p,at,planned);}
       else if(p.replyAt-now<Math.min(6000,(p.min*1000)*.8+1200))setTyping(p.id,true);
     }
     if(!busy.has(p.id)&&!p.replyAt)proactive(p,now);
     mail(p,now);
     // 响了很久没人接
     const r=box(p.id).ring;
-    if(r&&now-r.at>=RING){setBox(p.id,{ring:undefined});missed(p,r.at+RING);}
+    if(r&&now-r.at>=RING){setBox(p.id,{ring:undefined});missed(p,r.at+RING,callId(p,r.at));}
   }
 }
 // 这句不满意：给同一条消息换一句

@@ -89,35 +89,64 @@ export async function pushTest(title:string,body:string,pid:string):Promise<bool
   try{const r=await post('/test',{title,body,pid});return r.ok&&!!(await r.json() as {ok?:boolean}).ok;}catch{return false;}
 }
 
+// 每次交接带一个只增不减的序号：请求后发先到时，云端认序号不认先后
+let seq=0;
+const nextSeq=()=>seq=Math.max(seq+1,Date.now());
+let turn=0,onFree:(at:number)=>void=()=>{};
 // 离开：交出去
 function hand(){
   if(!sub)return;
+  const mine=++turn;
   flying?.abort();flying=null;
-  void post('/plan',{items:plan()},{keepalive:true}).then(r=>{if(r.ok&&document.hidden)setHold(true);}).catch(()=>{});
+  void post('/plan',{items:plan(),seq:nextSeq()},{keepalive:true}).then(r=>{
+    if(r.ok&&document.hidden)setHold(true);
+    // 这个请求落地时人已经回来了（被系统压到回来才发出去）：再收一次
+    if(!document.hidden&&mine===turn)back();
+  }).catch(()=>{});
 }
-// 回来：收回来，顺手把已经弹过的通知清掉
+// 回来：收回来，顺手把已经弹过的通知清掉。
+// 刚回到前台的头一两秒网络常常还没接上，收不回来的话云端会照旧推那几句——所以没成功就一直重试
 function back(){
   setHold(false);
   if(!sub)return;
-  flying?.abort();const c=flying=new AbortController();
-  void post('/plan',{items:[]},{signal:c.signal}).catch(()=>{}).finally(()=>{if(flying===c)flying=null;});
+  const mine=++turn;
+  flying?.abort();
+  const go=(n:number)=>{
+    if(mine!==turn||document.hidden||!sub)return;
+    const c=flying=new AbortController();
+    void post('/plan',{items:[],seq:nextSeq()},{signal:c.signal}).then(r=>{
+      if(!r.ok)throw new Error('plan');
+      if(mine===turn)onFree(Date.now());
+    }).catch(()=>{if(mine===turn&&n<7)setTimeout(()=>go(n+1),[700,1500,3000,6000,12000,25000,50000][n]);})
+      .finally(()=>{if(flying===c)flying=null;});
+  };
+  go(0);
   void swReady().then(reg=>reg?.getNotifications()).then(ns=>ns?.forEach(n=>n.close())).catch(()=>{});
 }
 
-export async function startPush(ahead:()=>Ahead[]){
-  plan=ahead;
-  if(!able())return;
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)hand();else back();});
-  addEventListener('pagehide',hand);
-  if(!pushSet())return;
-  void pushPrep();
-  if(localStorage.getItem(FLAG)!=='1')return;
+// 开过云端推送的设备：把订阅取回来接着用
+let resuming=false;
+async function resume(){
+  if(sub||resuming||!pushSet()||localStorage.getItem(FLAG)!=='1')return;
+  resuming=true;
   try{
+    void pushPrep();
     const reg=await swReady();if(!reg)return;
     let s=await reg.pushManager.getSubscription();
     // 开过、但系统把订阅收走了：通知权限还在的话悄悄续上
     if(!s&&Notification.permission==='granted'){await pushPrep();if(key)s=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:unb64u(key)});}
     sub=s?asSub(s):null;
     if(sub){changed();if(document.hidden)hand();else back();}
-  }catch{/* 这次没续上，下次打开再试 */}
+  }catch{/* 这次没续上，下次再试 */}
+  finally{resuming=false;}
+}
+export async function startPush(ahead:()=>Ahead[],freed:(at:number)=>void=()=>{}){
+  plan=ahead;onFree=freed;
+  if(!able())return;
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)hand();else{back();void resume();}});
+  addEventListener('pagehide',hand);
+  addEventListener('online',()=>{if(!document.hidden)back();});
+  // 云端的地址是跟着同步来的：刚打开时可能还没到，过一会儿再看几次
+  for(const ms of [4000,12000,30000,70000])setTimeout(()=>{void resume();},ms);
+  await resume();
 }

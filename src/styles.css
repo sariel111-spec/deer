@@ -489,3 +489,4 @@ img{-webkit-user-drag:none;-webkit-touch-callout:none}
 .ringkeys .yes i{background:#34C759}
 @media (prefers-reduced-motion:reduce){.call .csub,.ringcard{animation:none}}
 .tip.rec{display:flex;justify-content:center;align-items:center;gap:6px}
+.page.down{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:32px;text-align:center}.page.down p{margin:0}

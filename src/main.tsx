@@ -1,11 +1,11 @@
 import {createRoot} from 'react-dom/client';
 import './styles.css';
 import {App} from './App';
-import {boot,importDecks} from './db';
+import {boot,importDecks,storageDown} from './db';
 import {startSync} from './sync';
 import {say} from './pages';
 import {start} from './alive';
-import {ahead,tick} from './engine';
+import {ahead,released,tick} from './engine';
 import {startPush} from './push';
 import './update';
 
@@ -22,8 +22,11 @@ function carried(){
 }
 
 void boot().then(()=>{
-  carried();
+  // 本机的数据这次没读出来：只显示一句说明，别的都不启动（读出来之后会自己刷新）
+  const down=storageDown();
+  if(!down)carried();
   createRoot(document.getElementById('root')!).render(<App/>);
-  void start(tick).then(()=>startPush(ahead));
+  if(down)return;
+  void start(tick).then(()=>startPush(ahead,released));
   void startSync();
 });

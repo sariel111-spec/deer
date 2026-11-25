@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {House,Layers,MessageCircle,Settings2,SquarePen} from 'lucide-react';
-import {S,addPersona,getImage,importAll,list,unread,useVer,who} from './db';
+import {S,addPersona,getImage,importAll,list,storageDown,unread,useVer,who} from './db';
 import {isTyping} from './engine';
 import {Cards,Settings,Home,Sheet,SyncPanel,say,Toast} from './pages';
 import {Chat,peek} from './chat';
@@ -40,6 +40,7 @@ export function App(){
 
   const [,a,b,c]=hash.replace(/^#\/?/,'/').split('/');
   let page:React.ReactNode;
+  if(storageDown())return <div className="app"><main className="page down" role="status"><p>这台设备上的数据这一下没读出来，正在重试…</p><p className="hint">你的记录没有动。几秒后还是这样的话，把小鹿划掉重新打开一次。</p><button className="btn" onClick={()=>location.reload()}>重新打开</button></main></div>;
   if(!st.personas.length)page=<Welcome/>;
   else if(a==='inbox')page=<Inbox/>;
   else if(a==='cards')page=<Cards deckId={b}/>;
