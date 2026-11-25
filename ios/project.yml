@@ -1,0 +1,41 @@
+# 小鹿的 iPhone 壳子：一个只装着网页视图的原生 app。
+# 这个文件交给 XcodeGen 生成工程，工程本身不进仓库。
+name: Deer
+options:
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  Deer:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: 小鹿
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        # 后台能继续放（听不见的）声音，页面才不会被系统停掉
+        UIBackgroundModes:
+          - audio
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # 只认小鹿自己的网址：这样离线缓存能用，本机数据也不会被系统定期清掉
+        WKAppBoundDomains:
+          - sariel111-spec.github.io
+        NSCameraUsageDescription: 发图片、换头像时用相机拍一张
+        NSPhotoLibraryUsageDescription: 发图片、换头像、加表情包时从相册里选
+        NSMicrophoneUsageDescription: 用相机录视频时会用到麦克风
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.sariel111spec.deer
+        PRODUCT_NAME: Deer
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: NO

@@ -7,6 +7,12 @@
 // 5 回到页面的那一刻补上离开期间他该说的话（这一层任何设备都有效）
 import {S,getImage,list,reload,setPrefs,unread,type Persona} from './db';
 
+/* ── 装成 iPhone app 时：通知、角标、存文件走壳子给的通道（网页自己的通知在壳子里用不了） ── */
+type Bridge={postMessage:(m:unknown)=>void};
+const bridge=():Bridge|undefined=>(window as unknown as {webkit?:{messageHandlers?:{deer?:Bridge}}}).webkit?.messageHandlers?.deer;
+export const isNative=()=>!!bridge();
+export const nativeShare=(name:string,text:string)=>{const b=bridge();if(!b)return false;b.postMessage({type:'share',name,text});return true;};
+
 let reg:ServiceWorkerRegistration|null=null;
 let onTick=()=>{};
 let audio:HTMLAudioElement|null=null,locked=false,persisted=false,periodic=false;
@@ -204,6 +210,7 @@ function seen(){
 
 export async function start(tick:()=>void){
   onTick=tick;
+  (window as unknown as {__deerOpen?:(pid:string)=>void}).__deerOpen=pid=>{location.hash='#/c/'+pid;};
   try{
     const w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),1000)'],{type:'text/javascript'})));
     w.onmessage=()=>{heartbeat();onTick();if(pv)pipDraw();};
@@ -236,11 +243,18 @@ export async function start(tick:()=>void){
 }
 
 export async function askNotify():Promise<boolean>{
+  const b=bridge();
+  if(b){
+    const ok=await new Promise<boolean>(res=>{const w=window as unknown as {__deerNotify?:(g:boolean)=>void};w.__deerNotify=g=>res(!!g);b.postMessage({type:'askNotify'});setTimeout(()=>res(false),30000);});
+    setPrefs({notify:ok});return ok;
+  }
   if(!('Notification' in window))return false;
   const ok=(Notification.permission==='granted')||(await Notification.requestPermission())==='granted';
   setPrefs({notify:ok});return ok;
 }
 export function notify(p:Persona,text:string){
+  const b=bridge();
+  if(b){if(S().prefs.notify)b.postMessage({type:'notify',title:p.name,body:text,pid:p.id});return;}
   if(!S().prefs.notify||!('Notification' in window)||Notification.permission!=='granted')return;
   const opt={body:text,tag:'cx-'+p.id,icon:'./icon-192.png',badge:'./icon-192.png',data:{pid:p.id},renotify:true} as NotificationOptions;
   if(reg)void reg.showNotification(p.name,opt).catch(()=>{});
@@ -248,6 +262,7 @@ export function notify(p:Persona,text:string){
 }
 export function badge(){
   const n=S().personas.reduce((a,p)=>a+unread(p),0);
+  const b=bridge();if(b){b.postMessage({type:'badge',n});return;}
   try{const nav=navigator as Navigator&{setAppBadge?:(n:number)=>Promise<void>;clearAppBadge?:()=>Promise<void>};if(n)void nav.setAppBadge?.(n);else void nav.clearAppBadge?.();}catch{/* */}
 }
 let ac:AudioContext|null=null;
@@ -261,8 +276,8 @@ export function blip(){
   }catch{/* 没声音也不要紧 */}
 }
 export const status=()=>({
-  installed:matchMedia('(display-mode: standalone)').matches||!!(navigator as Navigator&{standalone?:boolean}).standalone,
-  notify:'Notification' in window?Notification.permission:'unsupported',
+  installed:isNative()||matchMedia('(display-mode: standalone)').matches||!!(navigator as Navigator&{standalone?:boolean}).standalone,native:isNative(),
+  notify:isNative()?(S().prefs.notify?'granted':'default'):'Notification' in window?Notification.permission:'unsupported',
   sw:!!reg,audio:audioLive(),osc:oscLive(),pip:pipLive,pipCan:pipCan(),pipBlocked:pipBlocked(),wake:wakeLive(),lock:locked,persisted,periodic,
   ios:/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/macintosh/i.test(navigator.userAgent)),
 });

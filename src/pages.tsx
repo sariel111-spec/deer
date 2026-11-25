@@ -2,7 +2,7 @@ import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Menu,Plus,Search,Trash2,X} from 'lucide-react';
 import {S,accents,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
-import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,pipSlot,setMode,status,wakeLive} from './alive';
+import {apply,askNotify,audioLive,audioOn,lastAway,nativeShare,notify,onPip,pipEnter,pipLeave,pipSlot,setMode,status,wakeLive} from './alive';
 import {nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
@@ -35,6 +35,7 @@ export function Num({label,value,set,min=0,max=9999,unit}:{label:string;value:nu
 }
 const shareable=(f:File)=>{try{return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!!navigator.canShare?.({files:[f]});}catch{return false;}};
 const download=(name:string,text:string,type='application/json')=>{
+  if(nativeShare(name,text))return;
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 };
 
@@ -307,7 +308,7 @@ export function Settings(){
     <h3>后台保活</h3>
     <p className="hint">为了让他在你没盯着页面的时候也能找到你，这里一层一层兜着。哪一层在这台设备上不亮，就靠别的层。</p>
     <div className="line"><span>消息通知<small>他找你时弹系统通知</small></span>
-      {s.notify==='granted'&&pf.notify?<Dot ok text="已开"/>:<button className="chip" onClick={async()=>{const ok=await askNotify();setS(status());say(ok?'通知开好了':s.ios&&!s.installed?'iPhone 上要先加到主屏幕，再从主屏幕打开来开通知':'浏览器没有同意，去浏览器的网站设置里允许通知');}}>开启</button>}</div>
+      {s.notify==='granted'&&pf.notify?<Dot ok text="已开"/>:<button className="chip" onClick={async()=>{const ok=await askNotify();setS(status());say(ok?'通知开好了':s.native?'去 iPhone 的 设置 → 通知 → 小鹿 里允许通知':s.ios&&!s.installed?'iPhone 上要先加到主屏幕，再从主屏幕打开来开通知':'浏览器没有同意，去浏览器的网站设置里允许通知');}}>开启</button>}</div>
     <Switch on={pf.audio} set={async v=>{const ok=await audioOn(v);setS(status());if(v&&!ok)say('点一下页面任意位置，它就会接上');}} label="后台保活" note="让页面在你切到别的 app、锁屏的时候不被系统停掉"/>
     {pf.audio&&<>
       <div className="chips" role="radiogroup" aria-label="保活方式">{modes.map(([id,n])=><button key={id} role="radio" aria-checked={mode===id} aria-pressed={mode===id} className="chip" onClick={async()=>{await setMode(id);setS(status());}}>{n}</button>)}</div>
@@ -348,7 +349,7 @@ export function Settings(){
       <button className="chip" aria-pressed={!!bak} onClick={async()=>{
         if(bak){try{await navigator.share({files:[bak]});}catch{/* 她取消了 */}setBak(null);return;}
         const name=`备份-${new Date().toISOString().slice(0,10)}.json`,text=await exportAll(),f=new File([text],name,{type:'application/json'});
-        if(shareable(f)){setBak(f);say('备份准备好了，再点一次存到「文件」');}else{download(name,text);say('备份文件下载了');}
+        if(!s.native&&shareable(f)){setBak(f);say('备份准备好了，再点一次存到「文件」');}else{download(name,text);say('备份文件下载了');}
       }}>{bak?'存到「文件」':'导出备份'}</button>
       <button className="chip" onClick={()=>file.current?.click()}>导入备份</button>
       <input ref={file} type="file" accept="application/json,.json" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{await importAll(await f.text());say('导入好了');}catch(x){say(x instanceof Error?x.message:'这个文件读不了');}}}/>
