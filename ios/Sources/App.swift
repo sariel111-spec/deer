@@ -112,7 +112,7 @@ final class WebController: UIViewController, WKNavigationDelegate, WKUIDelegate,
       // 开着小鹿就不用弹了
       guard UIApplication.shared.applicationState != .active else { return }
       let content = UNMutableNotificationContent()
-      content.title = body["title"] as? String ?? "小鹿"
+      content.title = body["title"] as? String ?? "🦌"
       content.body = body["body"] as? String ?? ""
       content.sound = .default
       let pid = body["pid"] as? String ?? ""

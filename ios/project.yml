@@ -13,7 +13,7 @@ targets:
     info:
       path: Info.plist
       properties:
-        CFBundleDisplayName: 小鹿
+        CFBundleDisplayName: "🦌"
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}

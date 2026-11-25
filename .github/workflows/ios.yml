@@ -40,4 +40,4 @@ jobs:
         run: |
           gh release delete ios-latest --yes --cleanup-tag || true
           sleep 3
-          gh release create ios-latest ios/Deer.ipa --title "小鹿 iPhone 安装包" --notes "没有签名的安装包。用自签工具（Sideloadly、爱思助手等）签上你自己的 Apple ID 再装到 iPhone。"
+          gh release create ios-latest ios/Deer.ipa --title "🦌 iPhone 安装包" --notes "没有签名的安装包。用自签工具（Sideloadly、爱思助手等）签上你自己的 Apple ID 再装到 iPhone。"
