@@ -78,7 +78,7 @@ export function sent(pid:string){
 }
 function seen(pid:string){
   const now=Date.now();
-  if(list(pid).some(m=>m.from==='me'&&!m.seen))mapMsgs(pid,m=>m.from==='me'&&!m.seen?{...m,seen:now}:m);
+  if(list(pid).some(m=>m.from==='me'&&!m.seen))mapMsgs(pid,m=>m.from==='me'&&!m.seen?{...m,seen:now,u:now}:m);
 }
 const busy=new Set<string>();
 function reply(p:Persona){

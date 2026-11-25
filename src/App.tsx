@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {Camera,ChevronLeft,Dices,Hand,Heart,House,Image as ImageIcon,Info,Layers,Mail,MapPin,MessageCircle,Plus,Settings2,Smile,SquarePen,X} from 'lucide-react';
 import {S,addPersona,getImage,list,pushMsg,putImage,setMsg,setPrefs,unread,useVer,who,type Msg,type Persona} from './db';
 import {isTyping,pool,read,sent,setActive} from './engine';
-import {Cards,Settings,Home,PersonaSheet,Sheet,say,Toast} from './pages';
+import {Cards,Settings,Home,PersonaSheet,Sheet,SyncPanel,say,Toast} from './pages';
 import {Feature} from './more';
 
 export const go=(h:string)=>{location.hash=h;};
@@ -58,7 +58,7 @@ export function App(){
 }
 
 function Welcome(){
-  const [name,setName]=useState('');
+  const [name,setName]=useState(''),[sync,setSync]=useState(false);
   const start=()=>{const n=name.trim();if(!n)return;const p=addPersona(n);go('#/us/'+p.id);};
   return <main className="welcome">
     <img src="./icon-192.png" alt="" width={84} height={84}/>
@@ -67,6 +67,8 @@ function Welcome(){
     <input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')start();}} placeholder="他的名字" aria-label="他的名字" autoFocus/>
     <button className="btn" onClick={start} disabled={!name.trim()}>开始</button>
     <small>所有内容只存在这台设备上。回复是从你放进去的字卡里随机抽的。</small>
+    <button className="linkish" onClick={()=>setSync(true)}>在别的设备上用过？连接同步把数据拿回来</button>
+    {sync&&<Sheet title="同步" close={()=>setSync(false)}><SyncPanel/></Sheet>}
   </main>;
 }
 

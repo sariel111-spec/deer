@@ -12,16 +12,17 @@ export const uses:{id:Use;name:string}[]=[{id:'both',name:'回复和主动都用
 
 export type Card={id:string;t:string;off?:boolean};
 // 一个字卡分组。分组是公用的：哪几位在用，记在每个人自己的 decks 里
-export type Deck={id:string;name:string;when:When;use:Use;cards:Card[];created:number;updated:number};
+export type Deck={id:string;name:string;when:When;use:Use;cards:Card[];created:number;updated:number;only?:string[]};   // only：这个分组只属于这几个名字的人，新加的人不会自动用上
 export type Persona={
   id:string;name:string;bio:string;avatar?:string;accent:string;wall?:string;photo?:string;homeBg?:string;since:string;decks:string[];
   min:number;max:number;burst:number;ghost:number;join:boolean;joinMax:number;   // 回复：最快/最慢（秒）、一次最多几条、已读不回的概率、是否拼接
   pro:boolean;proMin:number;proMax:number;quietFrom:number;quietTo:number;        // 主动：间隔（分钟）、他睡觉的钟点
   nextAt:number;replyAt:number;readAt:number;created:number;updated:number;
 };
-export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string};
-export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean};
-export type State={personas:Persona[];decks:Deck[];prefs:Prefs};
+export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number};
+export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number};
+export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>};   // dead：删掉的人和分组，同步时别的设备也跟着删
+export type Grave={dead:string[];cleared:number};   // 一位的聊天里删掉的消息、清空的时刻
 // 每一位各自的小功能数据，单独存一份（x:<pid>），不和聊天记录混在一起
 export type Letter={id:string;from:'me'|'ta';text:string;at:number;read?:boolean};
 export type Diary={id:string;at:number;text:string;mood:string;note?:string};
@@ -29,7 +30,7 @@ export type Day={id:string;name:string;date:string;yearly:boolean};
 export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt?:string};
 export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string}[];answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string}[];listen:number;focus:{n:number;min:number};
-  cycle:{starts:string[];len:number;gap:number};posts:Post[]};
+  cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number};
 export const blankBox=():Box=>({letters:[],mailDue:0,diary:[],days:[],lines:[],answers:{},checks:[],listen:0,focus:{n:0,min:0},cycle:{starts:[],len:5,gap:28},posts:[]});
 
 export const accents=['#8A6A52','#000000','#3D6BE0','#D4526E','#5B8C6A','#8B6FD1','#E08A3C'];
@@ -57,6 +58,8 @@ const blank=():State=>({personas:[],decks:[],prefs:{theme:'auto',bubble:'ins',v:
 let state:State=blank();
 const msgs=new Map<string,Msg[]>();
 const boxes=new Map<string,Box>();
+const graves=new Map<string,Grave>();
+export const grave=(pid:string):Grave=>graves.get(pid)??{dead:[],cleared:0};
 let ver=0;
 const subs=new Set<()=>void>();
 const emit=()=>{ver++;subs.forEach(f=>f());};
@@ -66,15 +69,20 @@ export const poke=emit;
 export const S=()=>state;
 export const list=(pid:string)=>msgs.get(pid)??[];
 export const who=(pid:string)=>state.personas.find(p=>p.id===pid);
+const pics=new Map<string,string>();
 const empty=blankBox();
 export const box=(pid:string):Box=>boxes.get(pid)??empty;
 
 const bc=typeof BroadcastChannel==='function'?new BroadcastChannel('cx-site'):null;
 let saveT=0;
-const save=()=>{emit();clearTimeout(saveT);saveT=window.setTimeout(()=>{void setKey('state',state).then(()=>bc?.postMessage('state'));},120);};
-const saveMsgs=(pid:string)=>{emit();void setKey('m:'+pid,list(pid)).then(()=>bc?.postMessage('m:'+pid));};
-export const setBox=(pid:string,patch:Partial<Box>)=>{const b={...blankBox(),...boxes.get(pid),...patch};boxes.set(pid,b);emit();void setKey('x:'+pid,b).then(()=>bc?.postMessage('x:'+pid));};
-const loadBox=async(pid:string)=>{boxes.set(pid,{...blankBox(),...(await getKey<Box>('x:'+pid))});};
+let rev=0;const hooks=new Set<()=>void>();
+const touch=()=>{rev++;hooks.forEach(f=>f());};
+export const onChange=(f:()=>void)=>{hooks.add(f);return()=>{hooks.delete(f);};};
+const save=()=>{touch();emit();clearTimeout(saveT);saveT=window.setTimeout(()=>{void setKey('state',state).then(()=>bc?.postMessage('state'));},120);};
+const saveMsgs=(pid:string)=>{touch();emit();void setKey('m:'+pid,list(pid)).then(()=>bc?.postMessage('m:'+pid));};
+export const setBox=(pid:string,patch:Partial<Box>)=>{const b={...blankBox(),...boxes.get(pid),...patch,at:Date.now()};boxes.set(pid,b);touch();emit();void setKey('x:'+pid,b).then(()=>bc?.postMessage('x:'+pid));};
+const loadBox=async(pid:string)=>{boxes.set(pid,{...blankBox(),...(await getKey<Box>('x:'+pid))});const g=await getKey<Grave>('d:'+pid);if(g)graves.set(pid,g);};
+const bury=(pid:string,g:Grave)=>{graves.set(pid,g);void setKey('d:'+pid,g);};
 
 export async function boot(){
   const s=await getKey<State>('state');
@@ -98,18 +106,18 @@ export async function reload(){
 
 /* ───────── 改东西 ───────── */
 
-export const setPrefs=(p:Partial<Prefs>)=>{state={...state,prefs:{...state.prefs,...p}};save();};
+export const setPrefs=(p:Partial<Prefs>)=>{state={...state,prefs:{...state.prefs,...p,...('myName' in p||'myAvatar' in p||'bubble' in p?{at:Date.now()}:{})}};save();};
 export function addPersona(name:string):Persona{
   const now=Date.now();
-  const p:Persona={id:uid(),name,bio:'',accent:accents[0],since:'',decks:state.decks.map(d=>d.id),
+  const p:Persona={id:uid(),name,bio:'',accent:accents[0],since:'',decks:state.decks.filter(d=>!d.only?.length||d.only.includes(name)).map(d=>d.id),
     min:3,max:12,burst:2,ghost:.06,join:false,joinMax:2,pro:true,proMin:40,proMax:180,quietFrom:1,quietTo:8,
     nextAt:0,replyAt:0,readAt:now,created:now,updated:now};
   state={...state,personas:[...state.personas,p],prefs:{...state.prefs,last:p.id}};msgs.set(p.id,[]);save();return p;
 }
 export const setPersona=(id:string,patch:Partial<Persona>)=>{state={...state,personas:state.personas.map(p=>p.id===id?{...p,...patch,updated:Date.now()}:p)};save();};
 export function dropPersona(id:string){
-  state={...state,personas:state.personas.filter(p=>p.id!==id),prefs:{...state.prefs,last:state.prefs.last===id?'':state.prefs.last}};
-  msgs.delete(id);boxes.delete(id);void delKey('m:'+id);void delKey('x:'+id);save();
+  state={...state,personas:state.personas.filter(p=>p.id!==id),prefs:{...state.prefs,last:state.prefs.last===id?'':state.prefs.last},dead:{...state.dead,[id]:Date.now()}};
+  msgs.delete(id);boxes.delete(id);graves.delete(id);void delKey('m:'+id);void delKey('x:'+id);void delKey('d:'+id);save();
 }
 export function addDeck(name:string):Deck{
   const now=Date.now();
@@ -119,7 +127,7 @@ export function addDeck(name:string):Deck{
 }
 export const setDeck=(id:string,patch:Partial<Deck>)=>{state={...state,decks:state.decks.map(d=>d.id===id?{...d,...patch,updated:Date.now()}:d)};save();};
 export function dropDeck(id:string){
-  state={...state,decks:state.decks.filter(d=>d.id!==id),personas:state.personas.map(p=>({...p,decks:p.decks.filter(x=>x!==id)}))};save();
+  state={...state,decks:state.decks.filter(d=>d.id!==id),personas:state.personas.map(p=>({...p,decks:p.decks.filter(x=>x!==id)})),dead:{...state.dead,[id]:Date.now()}};save();
 }
 export const shareDeck=(deckId:string,pid:string,on:boolean)=>{
   const p=who(pid);if(!p)return;
@@ -161,15 +169,52 @@ export function readCards(text:string):{name:string;lines:string[]}[]{
   return ls.length?[{name:'导入的分组',lines:ls}]:[];
 }
 
+// 一次搬进好几个分组：同名的分组并进去（重复的不要），没有的新建；only 里写了名字的，只给同名的人用
+export function importDecks(groups:{name:string;cards:string[];only?:string[]}[]):{decks:number;added:number}{
+  let added=0,n=0;
+  for(const g of groups){
+    const name=String(g.name??'').trim(),cards=(g.cards??[]).map(x=>String(x).trim()).filter(Boolean);
+    if(!name||!cards.length)continue;
+    let d=state.decks.find(x=>x.name===name);
+    if(!d){
+      const now=Date.now();
+      d={id:uid(),name,when:'all',use:'both',cards:[],created:now,updated:now,...(g.only?.length?{only:g.only}:{})};
+      const fits=(p:Persona)=>!g.only?.length||g.only.includes(p.name);
+      state={...state,decks:[...state.decks,d],personas:state.personas.map(p=>fits(p)?{...p,decks:[...p.decks,d!.id]}:p)};
+    }
+    added+=addCards(d.id,cards.join('\n')).added;n++;
+  }
+  save();return {decks:n,added};
+}
+
+/* ───────── 同步用：整份拿出来、整份放回去 ───────── */
+export type Dump={state:State;msgs:Record<string,Msg[]>;boxes:Record<string,Box>;graves:Record<string,Grave>};
+export const dump=():Dump=>({state,msgs:Object.fromEntries(msgs),boxes:Object.fromEntries(boxes),graves:Object.fromEntries(graves)});
+// 合并后的结果放回本机。只写真的变了的部分，不算作「本机有新改动」
+export async function adopt(d:Dump){
+  const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
+  const gone=state.personas.filter(p=>!d.state.personas.some(x=>x.id===p.id));
+  for(const p of gone){msgs.delete(p.id);boxes.delete(p.id);graves.delete(p.id);await delKey('m:'+p.id);await delKey('x:'+p.id);await delKey('d:'+p.id);}
+  if(!same(state,d.state)){state=d.state;await setKey('state',state);bc?.postMessage('state');}
+  for(const p of d.state.personas){
+    const m=d.msgs[p.id]??[];if(!same(list(p.id),m)){msgs.set(p.id,m);await setKey('m:'+p.id,m);bc?.postMessage('m:'+p.id);}
+    const b=d.boxes[p.id];if(b&&!same(boxes.get(p.id),b)){boxes.set(p.id,b);await setKey('x:'+p.id,b);bc?.postMessage('x:'+p.id);}
+    const g=d.graves[p.id];if(g&&!same(graves.get(p.id),g)){graves.set(p.id,g);await setKey('d:'+p.id,g);}
+  }
+  emit();
+}
+export const dropImageCache=(id:string)=>{pics.delete(id);};
+
 export function pushMsg(m:Omit<Msg,'id'>&{id?:string}):Msg{
   const full={...m,id:m.id??uid()} as Msg;
   msgs.set(m.pid,[...list(m.pid),full]);saveMsgs(m.pid);return full;
 }
 export const setMsg=(pid:string,id:string,patch:Partial<Msg>|null)=>{
-  msgs.set(pid,patch?list(pid).map(m=>m.id===id?{...m,...patch}:m):list(pid).filter(m=>m.id!==id));saveMsgs(pid);
+  if(!patch){const g=grave(pid);bury(pid,{...g,dead:[...g.dead,id].slice(-4000)});}
+  msgs.set(pid,patch?list(pid).map(m=>m.id===id?{...m,...patch,u:Date.now()}:m):list(pid).filter(m=>m.id!==id));saveMsgs(pid);
 };
 export const mapMsgs=(pid:string,fn:(m:Msg)=>Msg)=>{msgs.set(pid,list(pid).map(fn));saveMsgs(pid);};
-export const clearMsgs=(pid:string)=>{msgs.set(pid,[]);saveMsgs(pid);};
+export const clearMsgs=(pid:string)=>{bury(pid,{dead:[],cleared:Date.now()});msgs.set(pid,[]);saveMsgs(pid);};
 export const unread=(p:Persona)=>list(p.id).filter(m=>m.from==='ta'&&m.at>p.readAt).length;
 
 /* ───────── 图片：缩小后存在本机 ───────── */
@@ -181,7 +226,6 @@ export async function putImage(file:Blob,max=1280):Promise<string>{
   c.getContext('2d')!.drawImage(bmp,0,0,c.width,c.height);bmp.close?.();
   const id=uid();await setKey('a:'+id,c.toDataURL('image/jpeg',.86));return id;
 }
-const pics=new Map<string,string>();
 export async function getImage(id:string):Promise<string>{
   if(pics.has(id))return pics.get(id)!;
   const v=(await getKey<string>('a:'+id))??'';if(v)pics.set(id,v);return v;
@@ -191,13 +235,13 @@ export async function getImage(id:string):Promise<string>{
 
 export async function exportAll():Promise<string>{
   const out:Record<string,unknown>={app:APP,v:1,state};
-  for(const k of await allKeys())if(typeof k==='string'&&(k.startsWith('m:')||k.startsWith('a:')||k.startsWith('x:')))out[k]=await getKey(k);
+  for(const k of await allKeys())if(typeof k==='string'&&(/^[maxd]:/.test(k)))out[k]=await getKey(k);
   return JSON.stringify(out);
 }
 export async function importAll(text:string){
   const j=JSON.parse(text) as Record<string,unknown>;
   if(j.app!==APP||!j.state)throw new Error('这不是这个网站的备份文件');
-  for(const [k,v] of Object.entries(j))if(k.startsWith('m:')||k.startsWith('a:')||k.startsWith('x:'))await setKey(k,v);
+  for(const [k,v] of Object.entries(j))if(/^[maxd]:/.test(k))await setKey(k,v);
   await setKey('state',j.state);pics.clear();await reload();
 }
-export async function wipe(){for(const k of await allKeys())await delKey(String(k));state=blank();msgs.clear();boxes.clear();pics.clear();emit();}
+export async function wipe(){for(const k of await allKeys())await delKey(String(k));state=blank();msgs.clear();boxes.clear();graves.clear();pics.clear();emit();}

@@ -4,7 +4,8 @@ import {S,accents,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona
   type Deck,type Persona,type Use,type When} from './db';
 import {askNotify,audioLive,audioOn,notify,status} from './alive';
 import {nudge} from './engine';
-import {Avatar,Pic,go} from './App';
+import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
+import {Avatar,Pic,dayLabel,go} from './App';
 import {feats} from './more';
 
 /* ───────── 小零件 ───────── */
@@ -238,6 +239,33 @@ function DeckPage({d}:{d:Deck}){
   </main>;
 }
 
+/* ───────── 同步 ───────── */
+
+export function SyncPanel(){
+  const sy=useSync();
+  const [token,setToken]=useState(''),[repo,setRepo]=useState(''),[more,setMore]=useState(false),[busy,setBusy]=useState(false),[err,setErr]=useState(''),[sure,setSure]=useState(false);
+  const link=async()=>{setBusy(true);setErr('');const e=await connect(token,repo);setBusy(false);if(e)setErr(e);else{setToken('');say('连上了，数据已经对齐');}};
+  if(!sy.on)return <div className="sync">
+    <p className="hint">把数据放进你自己 GitHub 上的一个私有仓库。换手机、换电脑，填同一个令牌就都接上；两台设备各聊各的，也会合到一起，不会互相盖掉。</p>
+    <label className="field"><span>GitHub 令牌</span><input type="password" autoComplete="off" spellCheck={false} value={token} onChange={e=>setToken(e.target.value)} placeholder="粘贴你自己的令牌" onKeyDown={e=>{if(e.key==='Enter')void link();}}/></label>
+    {more&&<label className="field"><span>仓库（不填就用你名下的 {defaultRepo}）</span><input value={repo} onChange={e=>setRepo(e.target.value)} placeholder={`用户名/${defaultRepo}`} autoCapitalize="off" spellCheck={false}/></label>}
+    {err&&<p className="warn" role="alert">{err}</p>}
+    <div className="rowbtn"><button className="btn sm" onClick={()=>void link()} disabled={busy||!token.trim()}>{busy?'正在连接…':'连接'}</button>{!more&&<button className="chip" onClick={()=>setMore(true)}>用别的仓库</button>}</div>
+    <p className="hint">令牌只存在这台设备上，不会进备份文件。没有仓库时会替你新建一个私有的 {defaultRepo}；如果令牌不许新建，就先在 GitHub 上建好这个私有仓库，再给令牌它的 Contents 读写权限。</p>
+  </div>;
+  const state=sy.busy?'正在同步…':sy.err?sy.err:sy.note||'已连接';
+  return <div className="sync">
+    <div className="line"><span>{sy.repo}<small className={sy.err&&!sy.busy?'bad':''}>{state}</small></span><button className="chip" onClick={()=>void syncNow(true)} disabled={sy.busy}>现在同步</button></div>
+    <dl className="times">
+      <div><dt>上次同步</dt><dd>{sy.at?dayLabel(sy.at):'还没有'}</dd></div>
+      <div><dt>云端更新</dt><dd>{sy.cloudAt?dayLabel(sy.cloudAt):'—'}</dd></div>
+      <div><dt>本机改动</dt><dd>{sy.localAt?(sy.localAt>sy.at?'有新的，等着传':'都传上去了'):'没有新的'}</dd></div>
+    </dl>
+    <Switch on={sy.auto} set={v=>void setAuto(v)} label="自动同步" note="本机有改动十几秒后传上去；回到页面和每隔几分钟，也会去拿别的设备的改动"/>
+    <div className="rowbtn"><button className="chip danger" onClick={async()=>{if(!sure){setSure(true);return;}await disconnect();setSure(false);say('这台设备不再同步了，云端的数据还在');}}>{sure?'再点一次，断开这台设备':'断开同步'}</button></div>
+  </div>;
+}
+
 /* ───────── 设置 ───────── */
 
 export function Settings(){
@@ -278,13 +306,16 @@ export function Settings(){
     </div>
     <p className="hint">页面被彻底关掉之后，他这段时间该说的话会在你下次打开时补上，时间照他本来要发的时刻算。</p>
 
-    <h3>数据</h3>
-    <p className="hint">所有东西只存在这台设备上。换手机或清浏览器之前，先导出一份备份。</p>
+    <h3>同步</h3>
+    <SyncPanel/>
+
+    <h3>备份</h3>
+    <p className="hint">不用同步的话，所有东西只存在这台设备上。换手机或清浏览器之前，先导出一份备份。</p>
     <div className="rowbtn">
       <button className="chip" onClick={async()=>{download(`备份-${new Date().toISOString().slice(0,10)}.json`,await exportAll());say('备份文件下载了');}}>导出备份</button>
       <button className="chip" onClick={()=>file.current?.click()}>导入备份</button>
       <input ref={file} type="file" accept="application/json,.json" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{await importAll(await f.text());say('导入好了');}catch(x){say(x instanceof Error?x.message:'这个文件读不了');}}}/>
-      <button className="chip danger" onClick={async()=>{if(!sure){setSure(true);return;}await wipe();setSure(false);go('#/');}}>{sure?'再点一次，全部清空':'清空所有数据'}</button>
+      <button className="chip danger" onClick={async()=>{if(!sure){setSure(true);return;}await disconnect();await wipe();setSure(false);go('#/');}}>{sure?'再点一次，清空这台设备':'清空这台设备上的数据'}</button>
     </div>
     <p className="foot">回复是从你放进去的字卡里随机抽的。</p>
   </main>;
