@@ -73,6 +73,7 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
     <Num label="一次最多回" value={p.burst} set={n=>set({burst:n})} min={1} max={6} unit="条"/>
     <Num label="已读不回" value={Math.round(p.ghost*100)} set={n=>set({ghost:n/100})} min={0} max={90} unit="%"/>
     <Switch on={p.join} set={v=>set({join:v})} label="把几张字卡拼成一句" note="随机抽几张，用逗号、空格或省略号连起来"/>
+    <Switch on={p.stick!==false} set={v=>set({stick:v})} label="他也会发表情包" note="从聊天里的表情包库随手挑一张"/>
     {p.join&&<Num label="最多拼" value={p.joinMax} set={n=>set({joinMax:n})} min={2} max={5} unit="张"/>}
 
     <h3>他主动找你</h3>

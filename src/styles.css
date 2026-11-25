@@ -356,3 +356,59 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .sync .line small{display:block}
 .sync .rowbtn .btn{width:auto;margin-top:0}
 .welcome .linkish{align-self:flex-start;text-align:left}
+
+/* ── 聊天页补全 ── */
+.chat-bar .ico+.ico{margin-left:-6px}
+.chat-bar.searching{padding-left:12px;gap:4px}
+.find.wide{flex:1;height:38px}.find.wide input{flex:1;width:auto;font-size:16px}
+.results{padding:0}
+.results button{width:100%;display:flex;align-items:center;gap:12px;padding:10px 16px;text-align:left}
+.results button:active{background:var(--soft)}
+.results .who b{display:flex;gap:8px;align-items:baseline;font-weight:600;font-size:13.5px}
+.results .who small{font-weight:400;font-size:11.5px;color:var(--mute)}
+.results .who span{font-size:14.5px;color:var(--fg);white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.row.lit .bubble{animation:lit 1.4s ease-out}
+@keyframes lit{0%,40%{box-shadow:0 0 0 3px color-mix(in srgb,#3A82F7 60%,transparent)}100%{box-shadow:0 0 0 3px transparent}}
+button.quote{display:block;text-align:left;border:0}
+.bubble.st{border-radius:10px}
+.bubble.st img{max-width:128px;max-height:128px;border-radius:10px}
+.bubble.pic:not(.st){cursor:zoom-in}
+.liked{width:auto;min-width:24px;height:22px;padding:0 4px;font-style:normal;font-size:13px;line-height:1;color:inherit}
+.down{position:absolute;right:14px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:3;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--bg);color:var(--fg);box-shadow:0 2px 12px rgba(0,0,0,.18),inset 0 0 0 1px var(--line);animation:rise .2s var(--ease)}
+.down i{position:absolute;top:-6px;right:-4px;min-width:20px;height:20px;padding:0 5px;border-radius:99px;background:#3A82F7;color:#fff;font-style:normal;font-size:11.5px;font-weight:600;display:grid;place-items:center}
+.viewer{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.92);display:grid;place-items:center;cursor:zoom-out;animation:fade .18s}
+.viewer img{max-width:100%;max-height:100%;object-fit:contain}
+/* 长按菜单 */
+.ctx{position:fixed;inset:0;z-index:45;display:flex;flex-direction:column;justify-content:center;gap:8px;padding:20px 16px;background:color-mix(in srgb,var(--bg) 62%,transparent);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);animation:fade .16s}
+.ctx.me{align-items:flex-end}.ctx.ta{align-items:flex-start}
+.ctx>*{animation:pop .22s var(--ease)}
+.reacts{display:flex;gap:2px;padding:5px 8px;border-radius:99px;background:var(--bg);box-shadow:0 4px 22px rgba(0,0,0,.16)}
+.reacts button{width:40px;height:40px;border-radius:50%;font-size:25px;line-height:1;transition:transform .12s}
+.reacts button:active{transform:scale(1.25)}
+.reacts [aria-pressed=true]{background:var(--soft)}
+.bubble.ghost{max-width:min(78%,440px);max-height:34vh;overflow:hidden}
+.ctx.me .bubble.ghost:not(.pic){background:var(--mine-bg);color:var(--mine-fg)}
+:root[data-bubble=ins] .ctx.me .bubble.ghost:not(.pic){background:linear-gradient(135deg,#7B45F6,#3A82F7);color:#fff}
+:root[data-bubble=line] .ctx.me .bubble.ghost:not(.pic){background:var(--bg);color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
+.bubble.tipb{background:none;color:var(--mute);font-size:13px;padding:0 4px}
+.cmenu{width:216px;border-radius:14px;background:var(--bg);box-shadow:0 6px 28px rgba(0,0,0,.18);overflow:hidden}
+.cmenu small{display:block;padding:9px 14px 7px;font-size:11.5px;color:var(--mute);border-bottom:1px solid var(--line)}
+.cmenu button{width:100%;height:44px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;font-size:15px;border-bottom:1px solid var(--line)}
+.cmenu button:last-child{border:0}.cmenu button:active{background:var(--soft)}
+:root[data-theme=dark] .reacts,:root[data-theme=dark] .cmenu{background:#262626}
+@media (prefers-color-scheme:dark){:root[data-theme=auto] .reacts,:root[data-theme=auto] .cmenu{background:#262626}}
+/* 表情面板 */
+.panel{padding-top:8px}
+.ptabs{display:flex;align-items:center;gap:6px;padding:0 2px 6px}
+.ptabs button{height:30px;padding:0 12px;border-radius:99px;font-size:13px;font-weight:500;color:var(--mute)}
+.ptabs [aria-pressed=true]{background:var(--soft);color:var(--fg)}
+.ptabs .tidy{margin-left:auto}
+.packs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-height:216px;overflow-y:auto;padding:2px}
+.packs button{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;display:grid;place-items:center}
+.packs img{width:100%;height:100%;object-fit:contain;display:block}
+.packs .addpack{box-shadow:inset 0 0 0 1px var(--line);color:var(--mute)}
+.packs button i{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:var(--fg);color:var(--bg);display:grid;place-items:center}
+.packs .hint{grid-column:2/-1;align-self:center;margin:0}
+.emos{max-height:216px;overflow-y:auto}
+.liked{bottom:-13px}
+.row:has(.liked){margin-bottom:13px}

@@ -1,4 +1,4 @@
-import {S,box,list,mapMsgs,poke,pushMsg,setBox,setPersona,uid,who,whens,unread,type Persona,type When} from './db';
+import {S,box,list,mapMsgs,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Persona,type When} from './db';
 import {notify,blip,badge} from './alive';
 
 const rand=(a:number,b:number)=>a+Math.random()*Math.max(0,b-a);
@@ -55,10 +55,11 @@ export function read(pid:string){
   badge();
 }
 
-function arrive(p:Persona,text:string,src:string,at:number,re?:string){
+function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=false){
   // 补发的话不能排到已有消息的前面
   at=Math.max(at,(list(p.id).at(-1)?.at??0)+1);
-  pushMsg({pid:p.id,from:'ta',kind:'text',text,at,src,re});
+  if(sticker){pushMsg({pid:p.id,from:'ta',kind:'img',text,at,st:true});text='[表情]';}
+  else pushMsg({pid:p.id,from:'ta',kind:'text',text,at,src,re});
   const here=!document.hidden&&active===p.id;
   if(here){setPersona(p.id,{readAt:Date.now()});blip();}
   else notify(p,text);
@@ -78,8 +79,13 @@ export function sent(pid:string){
 }
 function seen(pid:string){
   const now=Date.now();
-  if(list(pid).some(m=>m.from==='me'&&!m.seen))mapMsgs(pid,m=>m.from==='me'&&!m.seen?{...m,seen:now,u:now}:m);
+  if(!list(pid).some(m=>m.from==='me'&&!m.seen))return;
+  mapMsgs(pid,m=>m.from==='me'&&!m.seen?{...m,seen:now,u:now}:m);
+  // 偶尔给你刚发的那句贴个表情
+  const mine=list(pid).filter(m=>m.from==='me'&&m.kind==='text').at(-1);
+  if(mine&&!mine.react&&Math.random()<.1)setTimeout(()=>setMsg(pid,mine.id,{react:reacts[Math.floor(Math.random()*reacts.length)]}),rand(600,2200));
 }
+const reacts=['❤️','❤️','😂','🥺','👍','😮'];
 const busy=new Set<string>();
 function reply(p:Persona){
   if(busy.has(p.id))return;busy.add(p.id);
@@ -89,8 +95,10 @@ function reply(p:Persona){
   const quote=mine.length&&Math.random()<.12?mine[mine.length-1].id:undefined;
   let i=0;
   const step=()=>{
-    const got=draw(who(p.id)??p,'reply',Date.now());
-    if(got)arrive(who(p.id)??p,got.text,got.src,Date.now(),i===0?quote:undefined);
+    const now=who(p.id)??p,packs=S().stickers??[];
+    // 有表情包的话，他偶尔回一张（不会连着第一句就发）
+    const got=i>0&&now.stick!==false&&packs.length&&Math.random()<.22?{text:packs[Math.floor(Math.random()*packs.length)],src:'',st:true}:draw(now,'reply',Date.now());
+    if(got)arrive(now,got.text,got.src,Date.now(),i===0?quote:undefined,'st' in got);
     i++;
     if(got&&i<n){setTyping(p.id,true);setTimeout(step,rand(900,2400));}
     else{setTyping(p.id,false);busy.delete(p.id);}
@@ -130,5 +138,7 @@ export function tick(){
     mail(p,now);
   }
 }
+// 这句不满意：给同一条消息换一句
+export function redraw(pid:string,id:string){const p=who(pid);if(!p)return false;const got=draw(p,'reply',Date.now());if(!got)return false;setMsg(pid,id,{text:got.text,src:got.src});return true;}
 // 立刻让他说一句（设置里试一试用）
 export function nudge(pid:string){const p=who(pid);if(!p)return false;const got=draw(p,'pro',Date.now());if(!got)return false;arrive(p,got.text,got.src,Date.now());return true;}

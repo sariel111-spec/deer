@@ -283,7 +283,7 @@ function FavPage({p}:{p:Persona}){
     :<p className="empty">在聊天里长按一条消息，选「收藏」，它就会留在这里。</p>}</Sub>;
 }
 function AlbumPage({p}:{p:Persona}){
-  const pics=[...list(p.id).filter(m=>m.kind==='img').map(m=>m.text),...box(p.id).posts.filter(x=>x.img).map(x=>x.img!)].reverse();
+  const pics=[...list(p.id).filter(m=>m.kind==='img'&&!m.st).map(m=>m.text),...box(p.id).posts.filter(x=>x.img).map(x=>x.img!)].reverse();
   return <Sub p={p} title="相册" cls="flush">{pics.length?<div className="grid">{pics.map(id=><Pic key={id} id={id}/>)}</div>:<p className="empty">聊天和动态里发过的图片会排在这里。</p>}</Sub>;
 }
 

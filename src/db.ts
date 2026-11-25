@@ -16,12 +16,12 @@ export type Deck={id:string;name:string;when:When;use:Use;cards:Card[];created:n
 export type Persona={
   id:string;name:string;bio:string;avatar?:string;accent:string;wall?:string;photo?:string;homeBg?:string;since:string;decks:string[];
   min:number;max:number;burst:number;ghost:number;join:boolean;joinMax:number;   // 回复：最快/最慢（秒）、一次最多几条、已读不回的概率、是否拼接
-  pro:boolean;proMin:number;proMax:number;quietFrom:number;quietTo:number;        // 主动：间隔（分钟）、他睡觉的钟点
+  pro:boolean;proMin:number;proMax:number;quietFrom:number;quietTo:number;stick?:boolean;        // 主动：间隔（分钟）、他睡觉的钟点；stick：他也会发表情包
   nextAt:number;replyAt:number;readAt:number;created:number;updated:number;
 };
-export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number};
+export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean};   // react：贴在这条上的表情；st：这是一张表情包
 export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number};
-export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>};   // dead：删掉的人和分组，同步时别的设备也跟着删
+export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>;stickers?:string[]};   // dead：删掉的人和分组，同步时别的设备也跟着删
 export type Grave={dead:string[];cleared:number};   // 一位的聊天里删掉的消息、清空的时刻
 // 每一位各自的小功能数据，单独存一份（x:<pid>），不和聊天记录混在一起
 export type Letter={id:string;from:'me'|'ta';text:string;at:number;read?:boolean};
@@ -129,6 +129,8 @@ export const setDeck=(id:string,patch:Partial<Deck>)=>{state={...state,decks:sta
 export function dropDeck(id:string){
   state={...state,decks:state.decks.filter(d=>d.id!==id),personas:state.personas.map(p=>({...p,decks:p.decks.filter(x=>x!==id)})),dead:{...state.dead,[id]:Date.now()}};save();
 }
+export const addSticker=(id:string)=>{state={...state,stickers:[...(state.stickers??[]),id]};save();};
+export const dropSticker=(id:string)=>{state={...state,stickers:(state.stickers??[]).filter(x=>x!==id),dead:{...state.dead,[id]:Date.now()}};save();};
 export const shareDeck=(deckId:string,pid:string,on:boolean)=>{
   const p=who(pid);if(!p)return;
   setPersona(pid,{decks:on?[...new Set([...p.decks,deckId])]:p.decks.filter(x=>x!==deckId)});
