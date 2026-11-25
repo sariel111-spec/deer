@@ -160,7 +160,6 @@ export async function apply():Promise<boolean>{
   const w=want();
   const a=await loopOn(w.loop),b=await oscOn(w.osc);
   if(w.pip||S().prefs.pipAuto)pipSetup();
-  if(!w.pip&&!S().prefs.pipAuto&&pipLive)void pipLeave();
   void wakeOn(!!S().prefs.awake);
   return a&&b;
 }
