@@ -311,6 +311,8 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 /* 抽牌 */
 .tr-ritual{margin:18px 0 0!important;padding:0 16px;overflow:hidden}
 .tr-slots{display:flex;justify-content:center;gap:10px}
+.tr-slotcol{display:grid;justify-items:center;gap:6px;width:66px}.tr-slotcol small{font-size:11px;line-height:1.25;color:var(--mute);text-align:center}
+.tr-slotcol.now small{color:var(--fg);font-weight:600}.tr-slotcol.now .tr-slot{box-shadow:inset 0 0 0 1.5px var(--fg)}
 .tr-slot{--cw:58px;width:var(--cw);height:calc(var(--cw) * 1.713);border-radius:6px;box-shadow:inset 0 0 0 1px var(--line)}
 .tr-slot.has{box-shadow:none;animation:tr-pop .4s var(--ease)}
 @keyframes tr-pop{from{opacity:0;transform:translateY(46px) scale(1.08)}}
@@ -330,6 +332,8 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 /* 结果 */
 .tr-spread{display:flex;justify-content:center;gap:12px;margin-top:20px}
 .tr-col{display:grid;justify-items:center;gap:8px}.tr-col>small{font-size:12px;color:var(--mute)}
+.tr-spread{flex-wrap:wrap}
+.tr-spread[data-n="4"] .tr-card,.tr-spread[data-n="5"] .tr-card,.tr-spread[data-n="6"] .tr-card{--cw:clamp(72px,19.5vw,112px)}
 .tr-card{display:block;--cw:clamp(88px,26vw,128px);width:var(--cw);height:calc(var(--cw) * 1.713);perspective:900px;border-radius:calc(var(--cw) * .085)}
 .tr-spread[data-n="1"] .tr-card{--cw:clamp(140px,40vw,176px)}
 .tr-card:disabled{cursor:default}
@@ -346,7 +350,15 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .tr-read header i{font-style:normal;font-size:11.5px;line-height:1;padding:4px 8px;border-radius:99px;box-shadow:inset 0 0 0 1px var(--line);color:var(--mute)}
 .tr-read header i.rev{background:var(--soft);box-shadow:none;color:var(--fg)}
 .tr-keys{font-size:12.5px;color:var(--mute);margin-top:5px}
-.tr-read li p:last-child{margin-top:4px;font-size:15px;line-height:1.65}
+.tr-line{margin-top:4px;font-size:15px;line-height:1.65}
+.tr-read header .linkish{margin-left:auto;font-size:12px;white-space:nowrap;color:var(--mute);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.tr-mine{margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--soft);font-size:15px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.tr-mine small{display:block;font-size:11.5px;color:var(--mute);margin-bottom:2px}
+.tr-link{margin-top:6px;font-size:13.5px;color:var(--mute)}
+.tr-tone{font-size:11.5px;color:var(--mute);padding-left:4px}
+.tr-ok{margin-top:20px}.tr-ok p{font-size:14px}.tr-okd{margin-top:16px;font-size:13.5px;color:var(--mute)}
+.tr-grid button.mine{position:relative}.tr-grid button.mine::after{content:'';position:absolute;right:6px;top:6px;width:6px;height:6px;border-radius:50%;background:var(--fg)}
+.tr-card,.tr-w,.tr-start,.tr-grid button{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .tr-result .said{margin-top:24px}
 .tr-note{margin-top:18px;padding:12px 14px;border-radius:14px;background:var(--soft);font-size:14.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
 .tr-note small{display:block;font-size:12px;color:var(--mute);margin-bottom:3px}

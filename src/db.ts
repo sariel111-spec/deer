@@ -31,12 +31,13 @@ export type Diary={id:string;at:number;text:string;mood:string;note?:string};
 export type Day={id:string;name:string;date:string;yearly:boolean};
 export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt?:string};
 // 一次塔罗：kind 是牌阵，cards 是抽到的牌（c 第几张、r 逆位），said 是他当时说的那句，note 是你写的感想
-export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time';date?:string;q?:string;cards:{c:number;r?:boolean}[];said?:string;note?:string;sent?:boolean};
+// ok：「对一对」牌阵里你觉得对不对得上
+export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time'|'link'|'match';date?:string;q?:string;cards:{c:number;r?:boolean}[];said?:string;note?:string;sent?:boolean;ok?:boolean};
 export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string}[];answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string}[];listen:number;focus:{n:number;min:number};
   cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number;
   call?:{at:number};ring?:{at:number};
-  tarot?:Reading[];tarotRev?:boolean};   // tarot：塔罗的记录；tarotRev=false 表示只抽正位   // call：视频通话从什么时候开始（一直到你挂断）；ring：他正打过来
+  tarot?:Reading[];tarotRev?:boolean;tarotGone?:string[];tarotMine?:Record<string,string>};   // tarotGone：删掉的那几次（同步时别的设备也跟着删）；tarotMine：你们自己磨合出来的牌意（第几张牌 → 你写的话）   // tarot：塔罗的记录；tarotRev=false 表示只抽正位   // call：视频通话从什么时候开始（一直到你挂断）；ring：他正打过来
 export const blankBox=():Box=>({letters:[],mailDue:0,diary:[],days:[],lines:[],answers:{},checks:[],listen:0,focus:{n:0,min:0},cycle:{starts:[],len:5,gap:28},posts:[]});
 
 export const accents=['#8A6A52','#000000','#3D6BE0','#D4526E','#5B8C6A','#8B6FD1','#E08A3C'];
