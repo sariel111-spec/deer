@@ -1,8 +1,9 @@
 import {useEffect,useRef,useState} from 'react';
-import {ChevronLeft,Heart,House,Image as ImageIcon,Info,Layers,MessageCircle,Settings2,SquarePen,X} from 'lucide-react';
+import {Camera,ChevronLeft,Dices,Hand,Heart,House,Image as ImageIcon,Info,Layers,Mail,MapPin,MessageCircle,Plus,Settings2,Smile,SquarePen,X} from 'lucide-react';
 import {S,addPersona,getImage,list,pushMsg,putImage,setMsg,setPrefs,unread,useVer,who,type Msg,type Persona} from './db';
 import {isTyping,pool,read,sent,setActive} from './engine';
 import {Cards,Settings,Home,PersonaSheet,Sheet,say,Toast} from './pages';
+import {Feature} from './more';
 
 export const go=(h:string)=>{location.hash=h;};
 const hhmm=(t:number)=>new Date(t).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -32,16 +33,17 @@ export function App(){
   const st=S(),theme=st.prefs.theme;
   useEffect(()=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.bubble=st.prefs.bubble;},[theme,st.prefs.bubble]);
 
-  const [,a,b]=hash.replace(/^#\/?/,'/').split('/');
+  const [,a,b,c]=hash.replace(/^#\/?/,'/').split('/');
   let page:React.ReactNode;
   if(!st.personas.length)page=<Welcome/>;
   else if(a==='inbox')page=<Inbox/>;
   else if(a==='cards')page=<Cards deckId={b}/>;
   else if(a==='set')page=<Settings/>;
+  else if(a==='f'){const p=who(c)??who(st.prefs.last)??st.personas[0];page=<Feature key={b+p.id} id={b} p={p}/>;}
   else if(a==='c'){const p=who(b)??who(st.prefs.last)??st.personas[0];page=<Chat key={p.id} p={p}/>;}
   else{const p=(a==='us'?who(b):undefined)??who(st.prefs.last)??st.personas[0];page=<Home key={p.id} p={p}/>;}
-  const home=a!=='inbox'&&a!=='cards'&&a!=='set'&&a!=='c';
-  const tabs=st.personas.length>0&&a!=='c'&&!(a==='cards'&&b);
+  const home=a!=='inbox'&&a!=='cards'&&a!=='set'&&a!=='c'&&a!=='f';
+  const tabs=st.personas.length>0&&a!=='c'&&a!=='f'&&!(a==='cards'&&b);
   const n=st.personas.reduce((x,p)=>x+unread(p),0);
   return <div className="app">
     {page}
@@ -80,7 +82,7 @@ function Inbox(){
       return <li key={p.id}><a href={'#/c/'+p.id} className={n?'new':''}>
         <Avatar id={p.avatar} name={p.name} size={56}/>
         <span className="who"><b>{p.name}</b>
-          <span>{isTyping(p.id)?'正在输入…':last?<>{last.from==='me'?'你：':''}{last.kind==='img'?'[图片]':last.text} · {brief(last.at)}</>:'还没有说过话'}</span></span>
+          <span>{isTyping(p.id)?'正在输入…':last?<>{last.from==='me'&&last.kind!=='tip'?'你：':''}{last.kind==='img'?'[图片]':last.text} · {brief(last.at)}</>:'还没有说过话'}</span></span>
         {n>0&&<i aria-label={`${n} 条未读`}>{n}</i>}
       </a></li>;
     })}</ul>
@@ -106,6 +108,7 @@ function Chat({p}:{p:Persona}){
   const [re,setRe]=useState<Msg|null>(null);
   const [menu,setMenu]=useState<Msg|null>(null);
   const [edit,setEdit]=useState(false);
+  const [more,setMore]=useState(false),[emo,setEmo]=useState(false);
   const end=useRef<HTMLDivElement>(null),file=useRef<HTMLInputElement>(null),box=useRef<HTMLTextAreaElement>(null);
   useEffect(()=>{setActive(p.id);if(S().prefs.last!==p.id)setPrefs({last:p.id});return()=>setActive('');},[p.id]);
   useEffect(()=>{if(!document.hidden)read(p.id);end.current?.scrollIntoView({block:'end'});},[ms.length,typing,p.id]);
@@ -121,9 +124,10 @@ function Chat({p}:{p:Persona}){
     try{const id=await putImage(f);pushMsg({pid:p.id,from:'me',kind:'img',text:id,at:Date.now(),re:re?.id});setRe(null);sent(p.id);}
     catch{say('这张图片读不了，换一张试试');}
   };
+  const pat=()=>{pushMsg({pid:p.id,from:'me',kind:'tip',text:`你拍了拍 ${p.name}`,at:Date.now()});setMore(false);sent(p.id);};
   const lastTa=[...ms].reverse().find(m=>m.from==='ta');
   const status=typing?'正在输入…':lastTa&&Date.now()-lastTa.at<5*60000?'在线':lastTa?brief(lastTa.at)+'在线':p.bio||'在线';
-  const last=ms.at(-1);
+  const last=ms.filter(m=>m.kind!=='tip').at(-1);
   const empty=pool(p,'reply').length===0;
 
   return <main className="chat" style={{'--accent':p.accent} as React.CSSProperties}>
@@ -143,7 +147,7 @@ function Chat({p}:{p:Persona}){
       {ms.map((m,i)=>{
         const prev=ms[i-1],next=ms[i+1];
         const gap=!prev||m.at-prev.at>10*60000;
-        const top=gap||prev.from!==m.from,bottom=!next||next.from!==m.from||next.at-m.at>10*60000;
+        const top=gap||prev.from!==m.from||prev.kind==='tip',bottom=!next||next.from!==m.from||next.kind==='tip'||next.at-m.at>10*60000;
         return <Bubble key={m.id} m={m} p={p} gap={gap} top={top} bottom={bottom} quoted={m.re?ms.find(x=>x.id===m.re):undefined}
           onReply={()=>{setRe(m);box.current?.focus();}} onMenu={()=>setMenu(m)}/>;
       })}
@@ -156,13 +160,17 @@ function Chat({p}:{p:Persona}){
     <footer className="composer">
       {re&&<div className="replying"><span>回复 {re.from==='me'?'自己':p.name}<em>{re.kind==='img'?'[图片]':re.text}</em></span><button className="ico sm" onClick={()=>setRe(null)} aria-label="取消回复"><X size={18}/></button></div>}
       <div className="pill">
-        <button className="cam" onClick={()=>file.current?.click()} aria-label="发一张图片"><ImageIcon size={19} strokeWidth={2}/></button>
+        <button className="cam" onClick={()=>file.current?.click()} aria-label="发一张图片"><Camera size={19} strokeWidth={2}/></button>
         <input ref={file} type="file" accept="image/*" hidden onChange={e=>{void sendPic(e.target.files?.[0]);e.target.value='';}}/>
         <textarea ref={box} rows={1} value={text} onChange={e=>setText(e.target.value)} placeholder="发消息…" aria-label={`给${p.name}发消息`}
           onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing&&matchMedia('(hover:hover)').matches){e.preventDefault();send();}}}/>
-        {text.trim()?<button className="send" onClick={send}>发送</button>
-          :<button className="ico sm" onClick={()=>{pushMsg({pid:p.id,from:'me',kind:'text',text:'❤️',at:Date.now()});sent(p.id);}} aria-label="发一颗心"><Heart size={24} strokeWidth={1.7}/></button>}
+        {text.trim()?<button className="send" onClick={send}>发送</button>:<>
+          <button className="ico sm" onClick={()=>setEmo(v=>!v)} aria-label="表情" aria-pressed={emo}><Smile size={23} strokeWidth={1.7}/></button>
+          <button className="ico sm" onClick={()=>setMore(true)} aria-label="更多"><Plus size={25} strokeWidth={1.7}/></button>
+          <button className="ico sm" onClick={()=>{pushMsg({pid:p.id,from:'me',kind:'text',text:'❤️',at:Date.now()});sent(p.id);}} aria-label="发一颗心"><Heart size={23} strokeWidth={1.7}/></button>
+        </>}
       </div>
+      {emo&&<div className="emos" role="group" aria-label="表情">{emojis.map(e=><button key={e} onClick={()=>{setText(t=>t+e);box.current?.focus();}}>{e}</button>)}</div>}
     </footer>
 
     {menu&&<Sheet title="" close={()=>setMenu(null)} plain>
@@ -174,9 +182,19 @@ function Chat({p}:{p:Persona}){
         <button className="danger" onClick={()=>{setMsg(p.id,menu.id,null);setMenu(null);}}>{menu.from==='me'?'撤回':'删除'}</button>
       </div>
     </Sheet>}
+    {more&&<Sheet title="" close={()=>setMore(false)} plain>
+      <ul className="apps tools">
+        <li><button onClick={()=>{setMore(false);file.current?.click();}}><span><ImageIcon size={23} strokeWidth={1.5}/></span>图片</button></li>
+        <li><button onClick={pat}><span><Hand size={23} strokeWidth={1.5}/></span>拍一拍</button></li>
+        <li><a href={`#/f/check/${p.id}`}><span><MapPin size={23} strokeWidth={1.5}/></span>报备</a></li>
+        <li><a href={`#/f/pick/${p.id}`}><span><Dices size={23} strokeWidth={1.5}/></span>帮我选</a></li>
+        <li><a href={`#/f/mail/${p.id}`}><span><Mail size={23} strokeWidth={1.5}/></span>写信</a></li>
+      </ul>
+    </Sheet>}
     {edit&&<PersonaSheet p={p} close={()=>setEdit(false)}/>}
   </main>;
 }
+const emojis=['❤️','🥺','😘','😊','😂','🥰','😭','😴','🤍','🫶','👀','😡','🙈','✨','🌙','☀️','🍚','🧋','🐻','🦌','🌸','☔','🎧','💤'];
 
 function Bubble({m,p,gap,top,bottom,quoted,onReply,onMenu}:{m:Msg;p:Persona;gap:boolean;top:boolean;bottom:boolean;quoted?:Msg;onReply:()=>void;onMenu:()=>void}){
   const [dx,setDx]=useState(0);
@@ -194,6 +212,7 @@ function Bubble({m,p,gap,top,bottom,quoted,onReply,onMenu}:{m:Msg;p:Persona;gap:
     if(e.pointerType!=='mouse'&&Math.abs(x)>Math.abs(y))setDx(Math.max(-72,Math.min(72,mine?Math.min(0,x):Math.max(0,x))));
   };
   const up=()=>{const s=g.current;clearTimeout(s.held);if(s.on&&Math.abs(dx)>52)onReply();s.on=false;setDx(0);};
+  if(m.kind==='tip')return <>{gap&&<time className="stamp">{dayLabel(m.at)}</time>}<p className="tip" onContextMenu={e=>{e.preventDefault();onMenu();}} onDoubleClick={onMenu}>{m.text}</p></>;
   return <>
     {gap&&<time className="stamp">{dayLabel(m.at)}</time>}
     <div className={`row ${m.from}${top?' top':''}${bottom?' bottom':''}`}>

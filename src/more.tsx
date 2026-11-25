@@ -1,0 +1,299 @@
+import {useEffect,useMemo,useRef,useState} from 'react';
+import {Aperture,Bookmark,CalendarHeart,ChevronLeft,ClipboardList,Dices,Droplet,Headphones,Heart,Image as ImageIcon,Images,Mail,MapPin,MessageCircle,NotebookPen,Pause,Play,Plus,Puzzle,Quote,
+  SlidersHorizontal,Sparkles,SquarePen,Timer,Trash2,type LucideIcon} from 'lucide-react';
+import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Letter,type Persona} from './db';
+import {lines,sent} from './engine';
+import {Avatar,Pic,dayLabel} from './App';
+import {Num,Sheet,say,todayLine} from './pages';
+
+// 主页上摆出来的全部功能。顺序就是宫格里的顺序
+export const feats:{id:string;name:string;icon:LucideIcon}[]=[
+  {id:'mail',name:'信箱',icon:Mail},{id:'diary',name:'日记',icon:NotebookPen},{id:'days',name:'纪念日',icon:CalendarHeart},{id:'today',name:'今日一句',icon:Quote},
+  {id:'pick',name:'帮我选',icon:Dices},{id:'ask',name:'问卷',icon:ClipboardList},{id:'draw',name:'占卜',icon:Sparkles},{id:'match',name:'默契',icon:Puzzle},
+  {id:'check',name:'报备',icon:MapPin},{id:'listen',name:'一起听',icon:Headphones},{id:'focus',name:'专注',icon:Timer},{id:'cycle',name:'经期',icon:Droplet},
+  {id:'feed',name:'动态',icon:Aperture},{id:'fav',name:'收藏',icon:Bookmark},{id:'album',name:'相册',icon:Images},{id:'pace',name:'节奏',icon:SlidersHorizontal},
+];
+
+const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const at0=(s:string)=>new Date(s+'T00:00:00').getTime();
+const gap=(a:string,b:string)=>Math.round((at0(b)-at0(a))/864e5);
+const md=(t:number)=>{const d=new Date(t);return `${d.getMonth()+1}月${d.getDate()}日 周${'日一二三四五六'[d.getDay()]}`;};
+const mmss=(s:number)=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+
+function Sub({p,title,act,children,cls=''}:{p:Persona;title:string;act?:React.ReactNode;children:React.ReactNode;cls?:string}){
+  return <main className={`page sub ${cls}`} style={{'--accent':p.accent} as React.CSSProperties}>
+    <header className="bar"><a className="ico" href={'#/us/'+p.id} aria-label="回到主页"><ChevronLeft size={28} strokeWidth={1.8}/></a><h1>{title}</h1>{act}</header>
+    {children}
+  </main>;
+}
+const AddBtn=({on,label,pen}:{on:()=>void;label:string;pen?:boolean})=><button className="ico" onClick={on} aria-label={label}>{pen?<SquarePen size={23} strokeWidth={1.7}/>:<Plus size={26} strokeWidth={1.7}/>}</button>;
+
+/* 信箱 */
+function MailBox({p}:{p:Persona}){
+  const b=box(p.id),me=S().prefs;
+  const [w,setW]=useState(false),[t,setT]=useState(''),[open,setOpen]=useState<Letter|null>(null);
+  const send=()=>{const x=t.trim();if(!x)return;
+    setBox(p.id,{letters:[...b.letters,{id:uid(),from:'me',text:x,at:Date.now(),read:true}],mailDue:b.mailDue||Date.now()+(20+Math.random()*160)*60000});
+    setT('');setW(false);say('寄出去了');};
+  const read=(l:Letter)=>{setOpen(l);if(l.from==='ta'&&!l.read)setBox(p.id,{letters:b.letters.map(x=>x.id===l.id?{...x,read:true}:x)});};
+  return <Sub p={p} title="信箱" act={<AddBtn on={()=>setW(true)} label="写一封信" pen/>}>
+    {b.letters.length?<ul className="rows">{[...b.letters].reverse().map(l=><li key={l.id}><button onClick={()=>read(l)} className={l.from==='ta'&&!l.read?'new':''}>
+      <Avatar id={l.from==='me'?me.myAvatar:p.avatar} name={l.from==='me'?me.myName:p.name} size={48}/>
+      <span className="who"><b>{l.from==='me'?`寄给 ${p.name}`:`${p.name} 的来信`}</b><span>{l.text.split('\n')[0]}</span></span>
+      <small>{dayLabel(l.at).split(' ')[0]}</small>{l.from==='ta'&&!l.read&&<i className="dot"/>}
+    </button></li>)}</ul>:<p className="empty">还没有信。写一封寄给他，过一阵他会回你一封。</p>}
+    {w&&<Sheet title={`写给 ${p.name}`} close={()=>setW(false)}>
+      <textarea className="bulk tall" rows={8} value={t} onChange={e=>setT(e.target.value)} placeholder="想说的话，慢慢写" aria-label="信的内容" autoFocus/>
+      <button className="btn" onClick={send} disabled={!t.trim()}>寄出</button>
+    </Sheet>}
+    {open&&<Sheet title={open.from==='me'?`寄给 ${p.name}`:`${p.name} 的来信`} close={()=>setOpen(null)}>
+      <p className="letter">{open.text}</p><small className="when">{dayLabel(open.at)}</small>
+      <div className="rowbtn"><button className="chip danger" onClick={()=>{setBox(p.id,{letters:b.letters.filter(x=>x.id!==open.id)});setOpen(null);}}>删掉这封</button></div>
+    </Sheet>}
+  </Sub>;
+}
+
+/* 日记 */
+const moods=['开心','平静','想你','累','难过'];
+function DiaryPage({p}:{p:Persona}){
+  const b=box(p.id);
+  const [w,setW]=useState(false),[t,setT]=useState(''),[mood,setMood]=useState(moods[1]);
+  const save=()=>{const x=t.trim();if(!x)return;setBox(p.id,{diary:[...b.diary,{id:uid(),at:Date.now(),text:x,mood,note:lines(p,1)[0]}]});setT('');setW(false);};
+  return <Sub p={p} title="日记" act={<AddBtn on={()=>setW(true)} label="写今天的日记" pen/>}>
+    {b.diary.length?<ul className="entries">{[...b.diary].reverse().map(d=><li key={d.id}>
+      <header><b>{md(d.at)}</b><em>{d.mood}</em><button className="ico sm" onClick={()=>setBox(p.id,{diary:b.diary.filter(x=>x.id!==d.id)})} aria-label="删掉这篇"><Trash2 size={16} strokeWidth={1.6}/></button></header>
+      <p>{d.text}</p>{d.note&&<small>{p.name}：{d.note}</small>}
+    </li>)}</ul>:<p className="empty">今天过得怎么样？写下来，他会看。</p>}
+    {w&&<Sheet title={md(Date.now())} close={()=>setW(false)}>
+      <div className="chips">{moods.map(m=><button key={m} className="chip" aria-pressed={mood===m} onClick={()=>setMood(m)}>{m}</button>)}</div>
+      <textarea className="bulk tall" rows={7} value={t} onChange={e=>setT(e.target.value)} placeholder="今天…" aria-label="日记内容" autoFocus/>
+      <button className="btn" onClick={save} disabled={!t.trim()}>存下</button>
+    </Sheet>}
+  </Sub>;
+}
+
+/* 纪念日 */
+function count(d:{date:string;yearly:boolean}){
+  const today=ymd();
+  if(d.yearly){const n=new Date(),o=new Date(d.date+'T00:00:00');let next=new Date(n.getFullYear(),o.getMonth(),o.getDate());
+    if(ymd(next)<today)next=new Date(n.getFullYear()+1,o.getMonth(),o.getDate());const k=gap(today,ymd(next));return {n:k,label:k?'天后':'就是今天'};}
+  const k=gap(d.date,today);return k>=0?{n:k+1,label:'天了'}:{n:-k,label:'天后'};
+}
+function DaysPage({p}:{p:Persona}){
+  const b=box(p.id);
+  const [ed,setEd]=useState<Day|null>(null);
+  const all:(Day&{fixed?:boolean})[]=[...(p.since?[{id:'since',name:'在一起',date:p.since,yearly:false,fixed:true}]:[]),...b.days];
+  const save=()=>{if(!ed||!ed.name.trim()||!ed.date)return;setBox(p.id,{days:b.days.some(x=>x.id===ed.id)?b.days.map(x=>x.id===ed.id?ed:x):[...b.days,ed]});setEd(null);};
+  return <Sub p={p} title="纪念日" act={<AddBtn on={()=>setEd({id:uid(),name:'',date:ymd(),yearly:true})} label="添加一个日子"/>}>
+    {all.length?<ul className="days">{all.map(d=>{const c=count(d);return <li key={d.id}><button onClick={()=>{if(d.fixed)say('这个日子在「编辑主页」里改');else setEd(d);}}>
+      <span className="who"><b>{d.name}</b><span>{d.date.replace(/-/g,'.')}{d.yearly?' · 每年':''}</span></span>
+      <span className="big">{c.n>0&&<b>{c.n}</b>}<small>{c.label}</small></span>
+    </button></li>;})}</ul>:<p className="empty">生日、第一次见面、想一起倒数的日子，都可以放在这里。</p>}
+    {ed&&<Sheet title="日子" close={()=>setEd(null)}>
+      <label className="field"><span>名字</span><input value={ed.name} onChange={e=>setEd({...ed,name:e.target.value})} placeholder="比如 他的生日" autoFocus/></label>
+      <label className="field"><span>哪一天</span><input type="date" value={ed.date} onChange={e=>setEd({...ed,date:e.target.value})}/></label>
+      <label className="line"><span>每年都过</span><input type="checkbox" className="switch" checked={ed.yearly} onChange={e=>setEd({...ed,yearly:e.target.checked})}/></label>
+      <button className="btn" onClick={save} disabled={!ed.name.trim()||!ed.date}>存下</button>
+      {b.days.some(x=>x.id===ed.id)&&<div className="rowbtn"><button className="chip danger" onClick={()=>{setBox(p.id,{days:b.days.filter(x=>x.id!==ed.id)});setEd(null);}}>删掉</button></div>}
+    </Sheet>}
+  </Sub>;
+}
+
+/* 今日一句 */
+function TodayPage({p}:{p:Persona}){
+  const b=box(p.id),line=todayLine(p),today=ymd();
+  useEffect(()=>{if(line&&!b.lines.some(x=>x.date===today))setBox(p.id,{lines:[...b.lines,{date:today,text:line}].slice(-120)});},[line,today]);
+  const past=b.lines.filter(x=>x.date!==today).reverse();
+  return <Sub p={p} title="今日一句">
+    {line?<figure className="quotebig"><blockquote>{line}</blockquote><figcaption>{p.name} · {md(Date.now())}</figcaption>
+      <button className="chip" onClick={()=>{void navigator.clipboard?.writeText(line);say('复制了');}}>复制</button></figure>
+      :<p className="empty">给他加了字卡之后，这里每天会有他的一句话。<br/><a className="linkish" href="#/cards">去加字卡</a></p>}
+    {past.length>0&&<><h3>往日</h3><ul className="entries plain">{past.map(x=><li key={x.date}><p>{x.text}</p><small>{x.date.replace(/-/g,'.')}</small></li>)}</ul></>}
+  </Sub>;
+}
+
+/* 帮我选 */
+function PickPage({p}:{p:Persona}){
+  const [opts,setOpts]=useState<string[]>([]),[t,setT]=useState(''),[hi,setHi]=useState(-1),[done,setDone]=useState(''),[spin,setSpin]=useState(false);
+  const add=()=>{const x=t.trim();if(!x||opts.includes(x))return;setOpts([...opts,x]);setT('');setDone('');setHi(-1);};
+  const run=()=>{if(opts.length<2||spin)return;setSpin(true);setDone('');let k=0;const end=10+Math.floor(Math.random()*opts.length)+opts.length;
+    const id=setInterval(()=>{setHi(k%opts.length);k++;if(k>end){clearInterval(id);setSpin(false);setDone(lines(p,1)[0]??'就这个');}},110);};
+  return <Sub p={p} title="帮我选">
+    <p className="lede">纠结的时候，把选项写下来，让他替你挑一个。</p>
+    <div className="newdeck"><input value={t} onChange={e=>setT(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add();}} placeholder="写一个选项，比如 奶茶" aria-label="一个选项"/><button className="btn sm" onClick={add} disabled={!t.trim()}>加上</button></div>
+    <ul className="opts">{opts.map((o,i)=><li key={o} className={i===hi?'on':''}><span>{o}</span><button className="ico sm" onClick={()=>{setOpts(opts.filter(x=>x!==o));setHi(-1);setDone('');}} aria-label={`去掉 ${o}`}><Trash2 size={16} strokeWidth={1.6}/></button></li>)}</ul>
+    <button className="btn wide" onClick={run} disabled={opts.length<2||spin}>{spin?'他在想…':'让他选'}</button>
+    {done&&hi>=0&&<div className="said" role="status"><Avatar id={p.avatar} name={p.name} size={28}/><div><span>{opts[hi]}</span><span>{done}</span></div></div>}
+  </Sub>;
+}
+
+/* 问卷 */
+const asks=['我们是怎么认识的','第一次说话是哪一天','他最常叫我什么','我最喜欢他哪一点','他生气的时候是什么样子','他最常说的一句话','最想和他一起去的地方','一首像他的歌','他让我改变了什么','还没来得及对他说的话'];
+function AskPage({p}:{p:Persona}){
+  const b=box(p.id);
+  const n=asks.filter((_,i)=>(b.answers[i]??'').trim()).length;
+  return <Sub p={p} title="问卷" act={<span className="count">{n} / {asks.length}</span>}>
+    <p className="lede">关于你们的十个问题。写多少算多少，随时可以回来改。</p>
+    <ol className="qa">{asks.map((q,i)=><li key={i}><label><b>{q}</b>
+      <textarea rows={2} value={b.answers[i]??''} onChange={e=>setBox(p.id,{answers:{...b.answers,[i]:e.target.value}})} placeholder="写在这里"/></label></li>)}</ol>
+  </Sub>;
+}
+
+/* 占卜 */
+const lucks=['大吉','中吉','小吉','吉','末吉'];
+function DrawPage({p}:{p:Persona}){
+  const b=box(p.id),today=ymd(),got=b.draw?.date===today?b.draw:undefined;
+  const pull=(i:number)=>{if(got)return;setBox(p.id,{draw:{date:today,i,luck:lucks[Math.floor(Math.random()*lucks.length)],text:lines(p,1)[0]??''}});};
+  return <Sub p={p} title="占卜">
+    <p className="lede">{got?'今天的签抽过了，明天再来。':'一天一签。选一张翻开。'}</p>
+    <div className="tarot">{[0,1,2].map(i=><button key={i} className={got?.i===i?'open':got?'dim':''} onClick={()=>pull(i)} disabled={!!got} aria-label={got?.i===i?`今天的签：${got.luck}`:`第 ${i+1} 张`}>
+      {got?.i===i?<><b>{got.luck}</b><small>{md(Date.now()).split(' ')[0]}</small></>:<Sparkles size={22} strokeWidth={1.3}/>}</button>)}</div>
+    {got?.text&&<div className="said"><Avatar id={p.avatar} name={p.name} size={28}/><span>{got.text}</span></div>}
+  </Sub>;
+}
+
+/* 默契 */
+const pairs=[['猫','狗'],['山','海'],['早起','熬夜'],['甜的','咸的'],['电影','音乐'],['夏天','冬天'],['出门','待在家'],['咖啡','茶'],['打字','语音'],['计划好','随便走']];
+function MatchPage({p}:{p:Persona}){
+  const me=S().prefs;
+  const [i,setI]=useState(0),[hit,setHit]=useState(0),[pk,setPk]=useState<{me:number;ta:number}|null>(null);
+  const choose=(k:number)=>{if(pk)return;const ta=Math.random()<.62?k:1-k;setPk({me:k,ta});if(ta===k)setHit(h=>h+1);setTimeout(()=>{setPk(null);setI(x=>x+1);},1100);};
+  const over=i>=pairs.length;
+  return <Sub p={p} title="默契" act={<span className="count">{Math.min(i+1,pairs.length)} / {pairs.length}</span>}>
+    {over?<div className="score"><b>{Math.round(hit/pairs.length*100)}%</b><span>十题里有 {hit} 题选得一样</span><button className="btn" onClick={()=>{setI(0);setHit(0);}}>再来一次</button></div>
+    :<><p className="lede">二选一。你选完，看他选的是不是同一个。</p>
+      <div className="duel">{pairs[i].map((o,k)=><button key={o} onClick={()=>choose(k)} className={pk?(pk.me===k||pk.ta===k?'on':'dim'):''}>
+        <b>{o}</b>{pk&&<span className="pickers">{pk.me===k&&<Avatar id={me.myAvatar} name={me.myName} size={26}/>}{pk.ta===k&&<Avatar id={p.avatar} name={p.name} size={26}/>}</span>}
+      </button>)}</div>
+      <p className="hint center" role="status">{pk?(pk.me===pk.ta?'一样':'不一样'):'　'}</p></>}
+  </Sub>;
+}
+
+/* 报备 */
+const quick=['起床了','出门了','到了','在吃饭','在忙','下班了','到家了','要睡了'];
+function CheckPage({p}:{p:Persona}){
+  const b=box(p.id);
+  const [t,setT]=useState('');
+  const tell=(x:string)=>{x=x.trim();if(!x)return;const now=Date.now();pushMsg({pid:p.id,from:'me',kind:'text',text:x,at:now});sent(p.id);
+    setBox(p.id,{checks:[...b.checks,{at:now,text:x}].slice(-200)});setT('');say('告诉他了');};
+  const today=b.checks.filter(c=>ymd(new Date(c.at))===ymd()).reverse();
+  return <Sub p={p} title="报备" act={<a className="ico" href={'#/c/'+p.id} aria-label="去聊天"><MessageCircle size={23} strokeWidth={1.7}/></a>}>
+    <p className="lede">点一下就告诉他你在做什么，会直接发到聊天里。</p>
+    <div className="chips roomy">{quick.map(q=><button key={q} className="chip" onClick={()=>tell(q)}>{q}</button>)}</div>
+    <div className="newdeck"><input value={t} onChange={e=>setT(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')tell(t);}} placeholder="或者自己写" aria-label="自己写一句报备"/><button className="btn sm" onClick={()=>tell(t)} disabled={!t.trim()}>发送</button></div>
+    <h3>今天</h3>
+    {today.length?<ul className="timeline">{today.map(c=><li key={c.at}><time>{new Date(c.at).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false})}</time><span>{c.text}</span></li>)}</ul>:<p className="hint">今天还没有报备。</p>}
+  </Sub>;
+}
+
+/* 一起听 */
+function ListenPage({p}:{p:Persona}){
+  const me=S().prefs,b=box(p.id);
+  const au=useRef<HTMLAudioElement>(null),file=useRef<HTMLInputElement>(null),acc=useRef(0);
+  const [song,setSong]=useState<{url:string;name:string}|null>(null),[on,setOn]=useState(false),[sec,setSec]=useState(0);
+  useEffect(()=>{if(!on)return;const id=setInterval(()=>{setSec(s=>s+1);acc.current++;},1000);return()=>clearInterval(id);},[on]);
+  // 离开或暂停时，把这次听的时间记进总数
+  const bank=()=>{if(acc.current>0){setBox(p.id,{listen:box(p.id).listen+acc.current});acc.current=0;}};
+  useEffect(()=>()=>{bank();},[]);
+  useEffect(()=>()=>{if(song)URL.revokeObjectURL(song.url);},[song]);
+  const load=(f?:File)=>{if(!f)return;setSong({url:URL.createObjectURL(f),name:f.name.replace(/\.[^.]+$/,'')});setSec(0);setTimeout(()=>{void au.current?.play().catch(()=>{});},60);};
+  return <Sub p={p} title="一起听">
+    <div className="player">
+      <div className={`pairav${on?' on':''}`}><Avatar id={me.myAvatar} name={me.myName} size={84}/><Avatar id={p.avatar} name={p.name} size={84}/></div>
+      <b>{song?song.name:'还没有选歌'}</b>
+      <span>{song?`这次一起听了 ${mmss(sec)}`:'从手机里选一首，和他一起听'}</span>
+      {song&&<button className="playbtn" onClick={()=>{const a=au.current;if(!a)return;if(a.paused)void a.play();else a.pause();}} aria-label={on?'暂停':'播放'}>{on?<Pause size={26} fill="currentColor" strokeWidth={0}/>:<Play size={26} fill="currentColor" strokeWidth={0}/>}</button>}
+      <button className="chip" onClick={()=>file.current?.click()}>{song?'换一首':'选一首歌'}</button>
+      <input ref={file} type="file" accept="audio/*" hidden onChange={e=>{load(e.target.files?.[0]);e.target.value='';}}/>
+      {song&&<audio ref={au} src={song.url} loop onPlay={()=>setOn(true)} onPause={()=>{setOn(false);bank();}}/>}
+    </div>
+    <p className="hint center">一共一起听了 {Math.floor((b.listen+acc.current)/60)} 分钟</p>
+  </Sub>;
+}
+
+/* 专注 */
+function FocusPage({p}:{p:Persona}){
+  const b=box(p.id);
+  const [mins,setMins]=useState(25),[end,setEnd]=useState(0),[left,setLeft]=useState(0),[said,setSaid]=useState('');
+  useEffect(()=>{if(!end)return;const id=setInterval(()=>{const l=Math.max(0,Math.round((end-Date.now())/1000));setLeft(l);
+    if(!l){clearInterval(id);setEnd(0);const f=box(p.id).focus;setBox(p.id,{focus:{n:f.n+1,min:f.min+mins}});setSaid(lines(p,1)[0]??'辛苦了');}},500);return()=>clearInterval(id);},[end]);
+  const total=mins*60,show=end?left:total,done=end?1-left/total:0;
+  return <Sub p={p} title="专注">
+    <div className="timer" style={{'--k':done} as React.CSSProperties} role="timer" aria-live="off"><div><b>{mmss(show)}</b><small>{end?`${p.name} 陪着你`:'选个时长'}</small></div></div>
+    {!end&&<div className="chips center">{[15,25,45,60].map(m=><button key={m} className="chip" aria-pressed={mins===m} onClick={()=>{setMins(m);setSaid('');}}>{m} 分钟</button>)}</div>}
+    <button className="btn wide" onClick={()=>{if(end){setEnd(0);say('这次没有记上');}else{setSaid('');setLeft(total);setEnd(Date.now()+total*1000);}}}>{end?'放弃这次':'开始'}</button>
+    {said&&<div className="said" role="status"><Avatar id={p.avatar} name={p.name} size={28}/><span>{said}</span></div>}
+    <p className="hint center">一共专注了 {b.focus.n} 次 · {b.focus.min} 分钟</p>
+  </Sub>;
+}
+
+/* 经期 */
+function CyclePage({p}:{p:Persona}){
+  const b=box(p.id),c=b.cycle,today=ymd(),last=[...c.starts].sort().at(-1);
+  const day=last?gap(last,today)+1:0,inside=!!last&&day>=1&&day<=c.len;
+  const next=last?(()=>{const d=new Date(at0(last));d.setDate(d.getDate()+c.gap);return ymd(d);})():'';
+  const wait=next?gap(today,next):0;
+  const care=useMemo(()=>inside?lines(p,1)[0]:'',[inside,p.id]);
+  const set=(patch:Partial<typeof c>)=>setBox(p.id,{cycle:{...c,...patch}});
+  return <Sub p={p} title="经期">
+    <div className="cyc"><b>{!last?'—':inside?`第 ${day} 天`:wait>0?`${wait}`:wait===0?'今天':`晚了 ${-wait} 天`}</b>
+      <span>{!last?'还没有记录':inside?'经期中':wait>0?'天后可能会来':wait===0?'可能今天来':`预计 ${next.replace(/-/g,'.')}`}</span></div>
+    <button className="btn wide" onClick={()=>{if(c.starts.includes(today))say('今天已经记过了');else{set({starts:[...c.starts,today]});say('记下了');}}}>今天来了</button>
+    {care&&<div className="said"><Avatar id={p.avatar} name={p.name} size={28}/><span>{care}</span></div>}
+    <h3>我的周期</h3>
+    <Num label="一次大概" value={c.len} set={n=>set({len:n})} min={1} max={15} unit="天"/>
+    <Num label="两次相隔" value={c.gap} set={n=>set({gap:n})} min={15} max={60} unit="天"/>
+    {c.starts.length>0&&<><h3>记录</h3><ul className="timeline">{[...c.starts].sort().reverse().map(s=><li key={s}><span>{s.replace(/-/g,'.')}</span>
+      <button className="ico sm" onClick={()=>set({starts:c.starts.filter(x=>x!==s)})} aria-label={`删掉 ${s} 这次`}><Trash2 size={16} strokeWidth={1.6}/></button></li>)}</ul></>}
+    <p className="foot">只存在这台设备上。预测只是按你填的天数往后数，不是医学判断。</p>
+  </Sub>;
+}
+
+/* 动态 */
+function FeedPage({p}:{p:Persona}){
+  const b=box(p.id),me=S().prefs;
+  const [w,setW]=useState(false),[t,setT]=useState(''),[img,setImg]=useState('');
+  const file=useRef<HTMLInputElement>(null);
+  const post=()=>{if(!t.trim()&&!img)return;setBox(p.id,{posts:[...b.posts,{id:uid(),text:t.trim(),img:img||undefined,at:Date.now(),liked:true,cmt:lines(p,1)[0]}]});setT('');setImg('');setW(false);};
+  return <Sub p={p} title="动态" act={<AddBtn on={()=>setW(true)} label="发一条动态"/>} cls="flush">
+    {b.posts.length?<ul className="posts">{[...b.posts].reverse().map(x=><li key={x.id}>
+      <header><Avatar id={me.myAvatar} name={me.myName} size={32}/><b>{me.myName}</b><button className="ico sm" onClick={()=>setBox(p.id,{posts:b.posts.filter(y=>y.id!==x.id)})} aria-label="删掉这条"><Trash2 size={16} strokeWidth={1.6}/></button></header>
+      {x.img&&<Pic id={x.img} alt="动态里的图片"/>}
+      <div className="pbody">
+        <div className="picons"><Heart size={24} strokeWidth={1.7} fill={x.liked?'var(--red)':'none'} color={x.liked?'var(--red)':'currentColor'}/><MessageCircle size={24} strokeWidth={1.7}/></div>
+        {x.liked&&<p><b>{p.name}</b> 赞了</p>}
+        {x.text&&<p><b>{me.myName}</b> {x.text}</p>}
+        {x.cmt&&<p><b>{p.name}</b> {x.cmt}</p>}
+        <small>{dayLabel(x.at)}</small>
+      </div>
+    </li>)}</ul>:<p className="empty">发一条只有他看得到的动态。他会来点赞、留一句话。</p>}
+    {w&&<Sheet title="新动态" close={()=>setW(false)}>
+      {img?<button className="thumb" onClick={()=>setImg('')} aria-label="拿掉这张图片"><Pic id={img}/></button>:<button className="chip" onClick={()=>file.current?.click()}><ImageIcon size={16} strokeWidth={1.7}/>加一张图片</button>}
+      <input ref={file} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(f)try{setImg(await putImage(f));}catch{say('这张图片读不了，换一张试试');}}}/>
+      <textarea className="bulk tall" rows={4} value={t} onChange={e=>setT(e.target.value)} placeholder="写点什么…" aria-label="动态的文字"/>
+      <button className="btn" onClick={post} disabled={!t.trim()&&!img}>发布</button>
+    </Sheet>}
+  </Sub>;
+}
+
+/* 收藏、相册：都是聊天里攒下来的 */
+function FavPage({p}:{p:Persona}){
+  const me=S().prefs,favs=list(p.id).filter(m=>m.fav).reverse();
+  return <Sub p={p} title="收藏">{favs.length?<ul className="entries plain">{favs.map(m=><li key={m.id}>{m.kind==='img'?<Pic id={m.text} className="favpic"/>:<p>{m.text}</p>}<small>{m.from==='me'?me.myName:p.name} · {dayLabel(m.at)}</small></li>)}</ul>
+    :<p className="empty">在聊天里长按一条消息，选「收藏」，它就会留在这里。</p>}</Sub>;
+}
+function AlbumPage({p}:{p:Persona}){
+  const pics=[...list(p.id).filter(m=>m.kind==='img').map(m=>m.text),...box(p.id).posts.filter(x=>x.img).map(x=>x.img!)].reverse();
+  return <Sub p={p} title="相册" cls="flush">{pics.length?<div className="grid">{pics.map(id=><Pic key={id} id={id}/>)}</div>:<p className="empty">聊天和动态里发过的图片会排在这里。</p>}</Sub>;
+}
+
+export function Feature({id,p}:{id:string;p:Persona}){
+  useVer();
+  switch(id){
+    case 'mail':return <MailBox p={p}/>;case 'diary':return <DiaryPage p={p}/>;case 'days':return <DaysPage p={p}/>;case 'today':return <TodayPage p={p}/>;
+    case 'pick':return <PickPage p={p}/>;case 'ask':return <AskPage p={p}/>;case 'draw':return <DrawPage p={p}/>;case 'match':return <MatchPage p={p}/>;
+    case 'check':return <CheckPage p={p}/>;case 'listen':return <ListenPage p={p}/>;case 'focus':return <FocusPage p={p}/>;case 'cycle':return <CyclePage p={p}/>;
+    case 'feed':return <FeedPage p={p}/>;case 'fav':return <FavPage p={p}/>;case 'album':return <AlbumPage p={p}/>;
+    default:return <Sub p={p} title="功能"><p className="empty">没有这个页面。</p></Sub>;
+  }
+}

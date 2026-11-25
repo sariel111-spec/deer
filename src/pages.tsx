@@ -1,10 +1,11 @@
 import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
-import {Bookmark,ChevronLeft,ChevronRight,Clock,EyeOff,Grid3x3,Heart,Image as ImageIcon,Layers,MessageCircle,Plus,Search,Trash2,X} from 'lucide-react';
-import {S,accents,addCards,addDeck,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,uses,useVer,whens,wipe,
+import {Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Menu,Plus,Search,Trash2,X} from 'lucide-react';
+import {S,accents,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
 import {askNotify,audioLive,audioOn,notify,status} from './alive';
 import {nudge} from './engine';
-import {Avatar,Pic,dayLabel,go} from './App';
+import {Avatar,Pic,go} from './App';
+import {feats} from './more';
 
 /* ───────── 小零件 ───────── */
 
@@ -27,7 +28,7 @@ export function Sheet({title,close,plain,children}:{title:string;close:()=>void;
 function Switch({on,set,label,note}:{on:boolean;set:(v:boolean)=>void;label:string;note?:string}){
   return <label className="line"><span>{label}{note&&<small>{note}</small>}</span><input type="checkbox" className="switch" checked={on} onChange={e=>set(e.target.checked)}/></label>;
 }
-function Num({label,value,set,min=0,max=9999,unit}:{label:string;value:number;set:(n:number)=>void;min?:number;max?:number;unit:string}){
+export function Num({label,value,set,min=0,max=9999,unit}:{label:string;value:number;set:(n:number)=>void;min?:number;max?:number;unit:string}){
   return <label className="line"><span>{label}</span><span className="num"><input type="number" inputMode="numeric" value={value} min={min} max={max}
     onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))set(Math.max(min,Math.min(max,n)));}}/>{unit}</span></label>;
 }
@@ -40,7 +41,8 @@ const download=(name:string,text:string,type='application/json')=>{
 export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
   useVer();
   const st=S();
-  const pick=useRef<HTMLInputElement>(null),wall=useRef<HTMLInputElement>(null);
+  const pick=useRef<HTMLInputElement>(null),wall=useRef<HTMLInputElement>(null),bg=useRef<HTMLInputElement>(null);
+  const preset=backs.some(x=>x[0]===(p.homeBg??''));
   const [sure,setSure]=useState(false);
   const set=(patch:Partial<Persona>)=>setPersona(p.id,patch);
   const hours=Array.from({length:24},(_,h)=>h);
@@ -57,6 +59,11 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
       <button className="chip" onClick={()=>wall.current?.click()}>{p.wall?'换一张':'放一张照片'}</button>
       {p.wall&&<button className="chip" onClick={()=>set({wall:undefined})}>不要背景</button>}
       <input ref={wall} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)set({wall:await putImage(f,1600)});}}/>
+    </div></div>
+    <div className="field"><span>主页背景</span><div className="rowbtn">
+      {backs.map(([id,n])=><button key={id} className="chip" aria-pressed={(p.homeBg??'')===id} onClick={()=>set({homeBg:id||undefined})}>{n}</button>)}
+      <button className="chip" aria-pressed={!!p.homeBg&&!preset} onClick={()=>bg.current?.click()}>照片</button>
+      <input ref={bg} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)set({homeBg:await putImage(f,1600)});}}/>
     </div></div>
 
     <h3>他回复的节奏</h3>
@@ -92,9 +99,8 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
 
 /* ───────── 主页 ───────── */
 
-const sleeping=(p:Persona)=>{const h=new Date().getHours();return p.quietFrom===p.quietTo?false:p.quietFrom<p.quietTo?h>=p.quietFrom&&h<p.quietTo:h>=p.quietFrom||h<p.quietTo;};
 // 今日一句：每天从他的字卡里固定抽一张，当天不变
-function todayLine(p:Persona){
+export function todayLine(p:Persona){
   const all=S().decks.filter(d=>p.decks.includes(d.id)).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t));
   if(!all.length)return '';
   const key=new Date().toDateString()+p.id;let h=0;for(const ch of key)h=(h*31+ch.charCodeAt(0))>>>0;
@@ -102,87 +108,67 @@ function todayLine(p:Persona){
 }
 const backs=[['','纯色'],['dots','点阵'],['mist','雾']] as const;
 
+function Switcher({p,close}:{p:Persona;close:()=>void}){
+  const st=S();
+  const [name,setName]=useState('');
+  const add=()=>{const n=name.trim();if(!n)return;const x=addPersona(n);close();go('#/us/'+x.id);};
+  return <Sheet title="换一位" close={close}>
+    <ul className="people">{st.personas.map(x=>{const n=unread(x);
+      return <li key={x.id}><a href={'#/us/'+x.id} onClick={close} aria-current={x.id===p.id?'true':undefined}>
+        <Avatar id={x.avatar} name={x.name} size={48}/><span className="who"><b>{x.name}</b><span>{n?`${n} 条新消息`:x.bio||'　'}</span></span>
+        {x.id===p.id&&<Check size={20} strokeWidth={2}/>}
+      </a></li>;})}</ul>
+    <div className="newdeck"><input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add();}} placeholder="再添加一位，写下他的名字" aria-label="新一位的名字"/><button className="btn sm" onClick={add} disabled={!name.trim()}>添加</button></div>
+  </Sheet>;
+}
+
 export function Home({p}:{p:Persona}){
   useVer();
-  const st=S(),ms=list(p.id);
-  const [tab,setTab]=useState<'fav'|'pic'>('fav');
+  const st=S(),ms=list(p.id),b=box(p.id);
   const [edit,setEdit]=useState(false);
-  const [now,setNow]=useState(new Date());
-  const mine=useRef<HTMLInputElement>(null),photo=useRef<HTMLInputElement>(null),bg=useRef<HTMLInputElement>(null);
-  useEffect(()=>{const t=setInterval(()=>setNow(new Date()),20000);return()=>clearInterval(t);},[]);
+  const [sw,setSw]=useState(false);
+  const mine=useRef<HTMLInputElement>(null);
   useEffect(()=>{if(st.prefs.last!==p.id)setPrefs({last:p.id});},[p.id]);
   const days=p.since?Math.max(1,Math.floor((Date.now()-new Date(p.since+'T00:00:00').getTime())/864e5)+1):0;
-  const favs=ms.filter(m=>m.fav).reverse(),pics=ms.filter(m=>m.kind==='img').reverse();
-  const tail=ms.slice(-2),line=todayLine(p),asleep=sleeping(p);
-  const lastTa=[...ms].reverse().find(m=>m.from==='ta');
-  const shot=p.photo??pics[0]?.text;
-  const preset=backs.some(b=>b[0]===(p.homeBg??''));
-  const top=useRef<HTMLDivElement>(null);
-  const jump=(t:'fav'|'pic')=>{setTab(t);setTimeout(()=>top.current?.scrollIntoView({behavior:'smooth',block:'start'}),30);};
+  const favN=ms.filter(m=>m.fav).length,chatN=ms.filter(m=>m.kind!=='tip').length;
+  const line=todayLine(p);
+  const preset=backs.some(x=>x[0]===(p.homeBg??''));
+  const others=st.personas.filter(x=>x.id!==p.id).reduce((n,x)=>n+unread(x),0);
+  const dot:Record<string,boolean>={mail:b.letters.some(l=>l.from==='ta'&&!l.read)};
   return <main className={`page home${p.homeBg?' has-bg':''}${preset?' bg-'+(p.homeBg||'none'):''}`} style={{'--accent':p.accent} as React.CSSProperties}>
     {p.homeBg&&!preset&&<Pic id={p.homeBg} className="home-bg"/>}
     <header className="bar">
-      <h1>{p.name}</h1>
-      <span className="clock">{now.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false})}<small>{now.getMonth()+1}月{now.getDate()}日 周{'日一二三四五六'[now.getDay()]}</small></span>
+      <button className="namebtn" onClick={()=>setSw(true)} aria-label={`现在是 ${p.name}，点开换一位`}><b>{p.name}</b><ChevronDown size={18} strokeWidth={2}/>{others>0&&<i/>}</button>
+      <button className="ico" onClick={()=>setEdit(true)} aria-label="资料与节奏"><Menu size={25} strokeWidth={1.7}/></button>
     </header>
 
-    <ul className="stories" aria-label="换一位">
-      {st.personas.map(x=>{const n=list(x.id).filter(m=>m.from==='ta'&&m.at>x.readAt).length;
-        return <li key={x.id}><a href={'#/us/'+x.id} className={`${n?'ring':''}${x.id===p.id?' on':''}`} aria-current={x.id===p.id?'true':undefined}><Avatar id={x.avatar} name={x.name} size={60}/><span>{x.name}</span></a></li>;})}
-      <li><a href="#/inbox" className="add"><span className="avatar" style={{width:60,height:60}}><Plus size={24} strokeWidth={1.5}/></span><span>添加</span></a></li>
-    </ul>
-
     <section className="profile">
-      <div className="duo">
-        <button className="pick" onClick={()=>mine.current?.click()} aria-label="换我的头像"><Avatar id={st.prefs.myAvatar} name={st.prefs.myName} size={72}/></button>
+      <div className="face">
+        {line&&<a className="note" href={`#/f/today/${p.id}`} aria-label={`今日一句：${line}`}>{line}</a>}
+        <button onClick={()=>setEdit(true)} aria-label="换他的头像和资料"><Avatar id={p.avatar} name={p.name} size={86}/></button>
+        <button className="mebadge" onClick={()=>mine.current?.click()} aria-label="换我的头像"><Avatar id={st.prefs.myAvatar} name={st.prefs.myName} size={32}/></button>
         <input ref={mine} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)setPrefs({myAvatar:await putImage(f,512)});}}/>
-        <Heart className="duo-heart" size={14} fill="currentColor" strokeWidth={0}/>
-        <button className="pick" onClick={()=>setEdit(true)} aria-label="换他的头像和资料"><Avatar id={p.avatar} name={p.name} size={72}/></button>
       </div>
-      <dl className="stats">
-        <div><dd>{days||'—'}</dd><dt>天</dt></div>
-        <div><dd>{ms.length}</dd><dt>消息</dt></div>
-        <div><dd>{favs.length}</dd><dt>收藏</dt></div>
-      </dl>
+      <div className="pinfo">
+        <b>{st.prefs.myName} &amp; {p.name}</b>
+        <dl className="stats">
+          <div><dd>{days||'—'}</dd><dt>天</dt></div>
+          <div><dd>{chatN}</dd><dt>消息</dt></div>
+          <div><dd>{favN}</dd><dt>收藏</dt></div>
+        </dl>
+      </div>
     </section>
-    <p className="names"><b>{st.prefs.myName}</b> &amp; <b>{p.name}</b></p>
     {p.bio&&<p className="bio">{p.bio}</p>}
     <p className="bio">{p.since?`${p.since.replace(/-/g,'.')} 起`:<button className="linkish" onClick={()=>setEdit(true)}>写下在一起的日子</button>}</p>
     <div className="rowbtn two"><a className="btn ghost" href={'#/c/'+p.id}>发消息</a><button className="btn ghost" onClick={()=>setEdit(true)}>编辑主页</button></div>
 
-    <ul className="lights" aria-label="快捷入口">
-      <li><a href={'#/c/'+p.id}><span><MessageCircle size={24} strokeWidth={1.5}/></span>聊天</a></li>
-      <li><button onClick={()=>jump('fav')}><span><Bookmark size={24} strokeWidth={1.5}/></span>收藏</button></li>
-      <li><button onClick={()=>jump('pic')}><span><ImageIcon size={24} strokeWidth={1.5}/></span>图片</button></li>
-      <li><a href="#/cards"><span><Layers size={24} strokeWidth={1.5}/></span>字卡</a></li>
-      <li><button onClick={()=>setEdit(true)}><span><Clock size={24} strokeWidth={1.5}/></span>节奏</button></li>
+    <ul className="apps" aria-label="功能">
+      {feats.map(f=><li key={f.id}>{f.id==='pace'
+        ?<button onClick={()=>setEdit(true)}><span><f.icon size={23} strokeWidth={1.5}/></span>{f.name}</button>
+        :<a href={`#/f/${f.id}/${p.id}`}><span><f.icon size={23} strokeWidth={1.5}/>{dot[f.id]&&<i/>}</span>{f.name}</a>}</li>)}
     </ul>
-
-    <section className="widgets">
-      <a className="w wide chatw" href={'#/c/'+p.id}>
-        <small>messages</small>
-        {tail.length?tail.map(m=><span key={m.id} className={`mini ${m.from}`}>{m.kind==='img'?'[图片]':m.text}</span>):<span className="w-empty">还没有说过话，去打个招呼</span>}
-      </a>
-      <div className="w quote"><small>today</small><p>{line||'加了字卡之后，这里每天会有他的一句话'}</p></div>
-      <div className="w big"><small>together</small><b>{days||'—'}</b><span>{days?'天':'还没写日子'}</span></div>
-      <button className="w photo" onClick={()=>photo.current?.click()} aria-label="换主页上的照片">
-        {shot?<span className="polaroid"><Pic id={shot}/></span>:<span className="w-empty"><ImageIcon size={22} strokeWidth={1.4}/>放一张照片</span>}
-      </button>
-      <input ref={photo} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)setPersona(p.id,{photo:await putImage(f,900)});}}/>
-      <div className="w state2"><small>right now</small><b>{asleep?'他睡了':'他醒着'}</b><span>{lastTa?`上次找你 ${dayLabel(lastTa.at)}`:'还没找过你'}</span></div>
-    </section>
-
-    <div className="bgrow"><small>主页背景</small>
-      {backs.map(([id,n])=><button key={id} className="chip" aria-pressed={(p.homeBg??'')===id} onClick={()=>setPersona(p.id,{homeBg:id||undefined})}>{n}</button>)}
-      <button className="chip" aria-pressed={!!p.homeBg&&!preset} onClick={()=>bg.current?.click()}>照片</button>
-      <input ref={bg} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)setPersona(p.id,{homeBg:await putImage(f,1600)});}}/>
-    </div>
-
-    <div ref={top} className="seg" role="tablist"><button role="tab" aria-selected={tab==='fav'} onClick={()=>setTab('fav')} aria-label="收藏"><Bookmark size={22} strokeWidth={1.6}/></button><button role="tab" aria-selected={tab==='pic'} onClick={()=>setTab('pic')} aria-label="图片"><Grid3x3 size={22} strokeWidth={1.6}/></button></div>
-    {tab==='fav'&&(favs.length?<ul className="favs">{favs.map(m=><li key={m.id}><p>{m.kind==='img'?<Pic id={m.text}/>:m.text}</p><small>{m.from==='me'?st.prefs.myName:p.name} · {dayLabel(m.at)}</small></li>)}</ul>
-      :<p className="empty">长按一条消息，选「收藏」，它就会留在这里。</p>)}
-    {tab==='pic'&&(pics.length?<div className="grid">{pics.map(m=><Pic key={m.id} id={m.text}/>)}</div>:<p className="empty">聊天里发过的图片会排在这里。</p>)}
     {edit&&<PersonaSheet p={p} close={()=>setEdit(false)}/>}
+    {sw&&<Switcher p={p} close={()=>setSw(false)}/>}
   </main>;
 }
 

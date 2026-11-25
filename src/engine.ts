@@ -1,4 +1,4 @@
-import {S,list,mapMsgs,poke,pushMsg,setPersona,who,whens,unread,type Persona,type When} from './db';
+import {S,box,list,mapMsgs,poke,pushMsg,setBox,setPersona,uid,who,whens,unread,type Persona,type When} from './db';
 import {notify,blip,badge} from './alive';
 
 const rand=(a:number,b:number)=>a+Math.random()*Math.max(0,b-a);
@@ -25,6 +25,22 @@ function draw(p:Persona,mode:'reply'|'pro',t:number):{text:string;src:string}|nu
   const cs=Array.from({length:Math.min(n,all.length)},one);
   recent.set(p.id,rec);
   return {text:cs.map(c=>c.t).reduce((a,b)=>a+glue[Math.floor(Math.random()*glue.length)]+b),src:cs.map(c=>c.id).join(',')};
+}
+
+// 小功能里用：从他所有能用的字卡里随手抽 n 句（不分时段、不记重复）
+export function lines(p:Persona,n=1):string[]{
+  const all=S().decks.filter(d=>p.decks.includes(d.id)).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t));
+  const out:string[]=[];
+  while(out.length<n&&all.length)out.push(all.splice(Math.floor(Math.random()*all.length),1)[0]);
+  return out;
+}
+// 你写了信之后，过一阵他回一封：几句字卡连成一封
+function mail(p:Persona,now:number){
+  const b=box(p.id);if(!b.mailDue||now<b.mailDue)return;
+  const ls=lines(p,3+Math.floor(Math.random()*3));
+  if(!ls.length){setBox(p.id,{mailDue:0});return;}
+  setBox(p.id,{mailDue:0,letters:[...b.letters,{id:uid(),from:'ta',text:ls.join('\n'),at:now}]});
+  notify(p,'给你回了一封信');
 }
 
 /* 正在输入、当前打开的是谁 */
@@ -69,7 +85,7 @@ function reply(p:Persona){
   if(busy.has(p.id))return;busy.add(p.id);
   seen(p.id);
   const n=1+Math.floor(Math.random()*Math.max(1,p.burst));
-  const mine=list(p.id).filter(m=>m.from==='me');
+  const mine=list(p.id).filter(m=>m.from==='me'&&m.kind!=='tip');
   const quote=mine.length&&Math.random()<.12?mine[mine.length-1].id:undefined;
   let i=0;
   const step=()=>{
@@ -111,6 +127,7 @@ export function tick(){
       else if(p.replyAt-now<Math.min(6000,(p.min*1000)*.8+1200))setTyping(p.id,true);
     }
     if(!busy.has(p.id)&&!p.replyAt)proactive(p,now);
+    mail(p,now);
   }
 }
 // 立刻让他说一句（设置里试一试用）

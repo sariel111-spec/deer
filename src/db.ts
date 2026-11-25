@@ -19,9 +19,18 @@ export type Persona={
   pro:boolean;proMin:number;proMax:number;quietFrom:number;quietTo:number;        // 主动：间隔（分钟）、他睡觉的钟点
   nextAt:number;replyAt:number;readAt:number;created:number;updated:number;
 };
-export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string};
+export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string};
 export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean};
 export type State={personas:Persona[];decks:Deck[];prefs:Prefs};
+// 每一位各自的小功能数据，单独存一份（x:<pid>），不和聊天记录混在一起
+export type Letter={id:string;from:'me'|'ta';text:string;at:number;read?:boolean};
+export type Diary={id:string;at:number;text:string;mood:string;note?:string};
+export type Day={id:string;name:string;date:string;yearly:boolean};
+export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt?:string};
+export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string}[];answers:Record<string,string>;
+  draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string}[];listen:number;focus:{n:number;min:number};
+  cycle:{starts:string[];len:number;gap:number};posts:Post[]};
+export const blankBox=():Box=>({letters:[],mailDue:0,diary:[],days:[],lines:[],answers:{},checks:[],listen:0,focus:{n:0,min:0},cycle:{starts:[],len:5,gap:28},posts:[]});
 
 export const accents=['#8A6A52','#000000','#3D6BE0','#D4526E','#5B8C6A','#8B6FD1','#E08A3C'];
 const APP='cx-site';
@@ -47,6 +56,7 @@ export const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,
 const blank=():State=>({personas:[],decks:[],prefs:{theme:'auto',bubble:'ins',v:2,myName:'我',last:'',audio:false,notify:false,sound:false}});
 let state:State=blank();
 const msgs=new Map<string,Msg[]>();
+const boxes=new Map<string,Box>();
 let ver=0;
 const subs=new Set<()=>void>();
 const emit=()=>{ver++;subs.forEach(f=>f());};
@@ -56,20 +66,25 @@ export const poke=emit;
 export const S=()=>state;
 export const list=(pid:string)=>msgs.get(pid)??[];
 export const who=(pid:string)=>state.personas.find(p=>p.id===pid);
+const empty=blankBox();
+export const box=(pid:string):Box=>boxes.get(pid)??empty;
 
 const bc=typeof BroadcastChannel==='function'?new BroadcastChannel('cx-site'):null;
 let saveT=0;
 const save=()=>{emit();clearTimeout(saveT);saveT=window.setTimeout(()=>{void setKey('state',state).then(()=>bc?.postMessage('state'));},120);};
 const saveMsgs=(pid:string)=>{emit();void setKey('m:'+pid,list(pid)).then(()=>bc?.postMessage('m:'+pid));};
+export const setBox=(pid:string,patch:Partial<Box>)=>{const b={...blankBox(),...boxes.get(pid),...patch};boxes.set(pid,b);emit();void setKey('x:'+pid,b).then(()=>bc?.postMessage('x:'+pid));};
+const loadBox=async(pid:string)=>{boxes.set(pid,{...blankBox(),...(await getKey<Box>('x:'+pid))});};
 
 export async function boot(){
   const s=await getKey<State>('state');
   if(s&&Array.isArray(s.personas))state={...blank(),...s,prefs:{...blank().prefs,...s.prefs,...(s.prefs?.v?{}:{bubble:'ins' as const,v:2})}};
-  for(const p of state.personas)msgs.set(p.id,(await getKey<Msg[]>('m:'+p.id))??[]);
+  for(const p of state.personas){msgs.set(p.id,(await getKey<Msg[]>('m:'+p.id))??[]);await loadBox(p.id);}
   // 别的标签页或后台线程改了东西，这边跟着读
   if(bc)bc.onmessage=async e=>{
     if(e.data==='state'){const n=await getKey<State>('state');if(n){state=n;emit();}}
     else if(typeof e.data==='string'&&e.data.startsWith('m:')){msgs.set(e.data.slice(2),(await getKey<Msg[]>(e.data))??[]);emit();}
+    else if(typeof e.data==='string'&&e.data.startsWith('x:')){await loadBox(e.data.slice(2));emit();}
   };
   addEventListener('pagehide',()=>{void setKey('state',state);});
   void navigator.storage?.persist?.();
@@ -77,7 +92,7 @@ export async function boot(){
 }
 export async function reload(){
   const n=await getKey<State>('state');if(n&&Array.isArray(n.personas))state={...blank(),...n,prefs:{...blank().prefs,...n.prefs}};
-  for(const p of state.personas)msgs.set(p.id,(await getKey<Msg[]>('m:'+p.id))??[]);
+  for(const p of state.personas){msgs.set(p.id,(await getKey<Msg[]>('m:'+p.id))??[]);await loadBox(p.id);}
   emit();
 }
 
@@ -94,7 +109,7 @@ export function addPersona(name:string):Persona{
 export const setPersona=(id:string,patch:Partial<Persona>)=>{state={...state,personas:state.personas.map(p=>p.id===id?{...p,...patch,updated:Date.now()}:p)};save();};
 export function dropPersona(id:string){
   state={...state,personas:state.personas.filter(p=>p.id!==id),prefs:{...state.prefs,last:state.prefs.last===id?'':state.prefs.last}};
-  msgs.delete(id);void delKey('m:'+id);save();
+  msgs.delete(id);boxes.delete(id);void delKey('m:'+id);void delKey('x:'+id);save();
 }
 export function addDeck(name:string):Deck{
   const now=Date.now();
@@ -176,13 +191,13 @@ export async function getImage(id:string):Promise<string>{
 
 export async function exportAll():Promise<string>{
   const out:Record<string,unknown>={app:APP,v:1,state};
-  for(const k of await allKeys())if(typeof k==='string'&&(k.startsWith('m:')||k.startsWith('a:')))out[k]=await getKey(k);
+  for(const k of await allKeys())if(typeof k==='string'&&(k.startsWith('m:')||k.startsWith('a:')||k.startsWith('x:')))out[k]=await getKey(k);
   return JSON.stringify(out);
 }
 export async function importAll(text:string){
   const j=JSON.parse(text) as Record<string,unknown>;
   if(j.app!==APP||!j.state)throw new Error('这不是这个网站的备份文件');
-  for(const [k,v] of Object.entries(j))if(k.startsWith('m:')||k.startsWith('a:'))await setKey(k,v);
+  for(const [k,v] of Object.entries(j))if(k.startsWith('m:')||k.startsWith('a:')||k.startsWith('x:'))await setKey(k,v);
   await setKey('state',j.state);pics.clear();await reload();
 }
-export async function wipe(){for(const k of await allKeys())await delKey(String(k));state=blank();msgs.clear();pics.clear();emit();}
+export async function wipe(){for(const k of await allKeys())await delKey(String(k));state=blank();msgs.clear();boxes.clear();pics.clear();emit();}
