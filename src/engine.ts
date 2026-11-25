@@ -1,4 +1,4 @@
-import {S,box,list,mapMsgs,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Persona,type When} from './db';
+import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Persona,type When} from './db';
 import {notify,blip,badge,clearNotes} from './alive';
 import {pushWas,type Ahead} from './push';
 
@@ -102,7 +102,7 @@ function seen(pid:string){
 const reacts=['❤️','❤️','😂','🥺','👍','😮'];
 const busy=new Set<string>();
 function replyLine(p:Persona,i:number,t:number):Line|null{
-  const packs=(S().packs??[]).filter(k=>k.his!==false).flatMap(k=>k.ids);
+  const packs=packsFor(p.id).filter(k=>k.his!==false).flatMap(k=>k.ids);
   // 有表情包的话，他偶尔回一张（不会连着第一句就发）
   if(i>0&&p.stick!==false&&packs.length&&Math.random()<.22)return {text:packs[Math.floor(Math.random()*packs.length)],src:'',st:true};
   return draw(p,'reply',t);

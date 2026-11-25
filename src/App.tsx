@@ -58,7 +58,7 @@ export function App(){
       <a href="#/cards" aria-current={a==='cards'?'page':undefined} aria-label="字卡"><Layers size={25} strokeWidth={a==='cards'?2.2:1.6}/></a>
       <a href="#/set" aria-current={a==='set'?'page':undefined} aria-label="设置"><Settings2 size={25} strokeWidth={a==='set'?2.2:1.6}/></a>
     </nav>}
-    <CallLayer hash={hash}/>
+    <CallLayer/>
     <Toast/>
   </div>;
 }

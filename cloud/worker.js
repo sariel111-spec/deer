@@ -85,6 +85,8 @@ async function push(env, sub, payload, ttl = 6 * 3600) {
     },
     body,
   });
+  // 记一笔发到了哪家的推送服务、对方回了什么（不记地址和内容），出问题时在 Cloudflare 的日志里看得到
+  console.log(JSON.stringify({ push: new URL(sub.endpoint).hostname, status: res.status }));
   return res.status;
 }
 

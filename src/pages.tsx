@@ -308,9 +308,9 @@ export function Settings(){
     <h3>云端推送</h3>
     <p className="hint">他要说的话，到点由云端推到手机。小鹿不用留在后台，也不占声音：听歌、刷视频、锁屏、把小鹿划掉，都收得到。</p>
     {pushSet()?<>
-      <Switch on={pl} set={async v=>{const e=v?await pushOn():(await pushOff(),'');setPl(pushLive());setS(status());say(e||(v?'云端推送开好了':'云端推送关掉了'));}} label="云端推送" note={pl?'开着。离开小鹿时，他接下来的几句话会交给云端按时送到':'开了之后，下面的后台保活可以不用开'}/>
+      <Switch on={pl} set={async v=>{const e=v?await pushOn():(await pushOff(),'');const had=v&&!e&&S().prefs.audio;if(had)await audioOn(false);setPl(pushLive());setS(status());say(e||(v?(had?'云端推送开好了，后台保活替你关掉了':'云端推送开好了'):'云端推送关掉了'));}} label="云端推送" note={pl?'开着。离开小鹿时，他接下来的几句话会交给云端按时送到':'开了之后，下面的后台保活可以不用开'}/>
       {pl&&<div className="rowbtn"><button className="chip" onClick={async()=>{const p=st.personas.find(x=>x.id===pf.last)??st.personas[0];if(!p)return;say(await pushTest(p.name,lines(p,1)[0]??'在吗',p.id)?'发出去了，几秒内会弹出来':'没发出去，过一会儿再试');}}>推一条试试</button></div>}
-      {pl&&pf.audio&&<p className="hint">云端推送开着，下面的后台保活可以关掉了：不占声音，也更省电。</p>}
+      {pl&&pf.audio&&<p className="hint">云端推送不需要后台保活，下面那个可以关掉：不占声音，也更省电。</p>}
       {!pl&&<div className="rowbtn"><button className="linkish" onClick={async()=>{await pushUnlink();setPl(false);}}>换一个云端地址</button></div>}
     </>:<>
       <div className="newdeck"><input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="云端服务的地址，https:// 开头" inputMode="url" autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="云端服务的地址"/>

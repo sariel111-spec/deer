@@ -1,6 +1,6 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {Bookmark,Camera,ChevronDown,ChevronLeft,Copy,Dices,EyeOff,Hand,Heart,Image as ImageIcon,Info,Mail,MapPin,Plus,RefreshCw,Reply,Search,Smile,Trash2,Undo2,Video,X} from 'lucide-react';
-import {S,addPack,dropPack,list,pushMsg,putImage,setCard,setMsg,setPack,setPrefs,useVer,type Msg,type Pack,type Persona} from './db';
+import {S,addPack,dropPack,list,packsFor,pushMsg,putImage,setCard,setMsg,setPack,setPrefs,useVer,type Msg,type Pack,type Persona} from './db';
 import {isTyping,onCall,pool,read,redraw,sent,setActive} from './engine';
 import {callOpen} from './call';
 import {PersonaSheet,Sheet,say} from './pages';
@@ -13,6 +13,23 @@ const quick=['❤️','😂','😮','😢','😡','👍'];
 const emojis=['❤️','🥺','😘','😊','😂','🥰','😭','😴','🤍','🫶','👀','😡','🙈','✨','🌙','☀️','🍚','🧋','🐻','🦌','🌸','☔','🎧','💤'];
 const PAGE=120;
 const draftKey=(pid:string)=>'cx-draft-'+pid;
+
+// ins 气泡的颜色：整屏一条上紫下蓝的渐变，每个气泡按它此刻在屏幕上的高低取其中一段
+const STOPS:[number,number,number,number][]=[[0,0xB3,0x2B,0xF7],[.42,0x7B,0x45,0xF6],[1,0x3A,0x82,0xF7]];
+const tint=(t:number)=>{
+  t=Math.max(0,Math.min(1,t));
+  const i=t<=STOPS[1][0]?0:1,a=STOPS[i],b=STOPS[i+1],k=(t-a[0])/(b[0]-a[0]);
+  return `rgb(${Math.round(a[1]+(b[1]-a[1])*k)},${Math.round(a[2]+(b[2]-a[2])*k)},${Math.round(a[3]+(b[3]-a[3])*k)})`;
+};
+function paint(host:HTMLElement|null){
+  if(!host||document.documentElement.dataset.bubble!=='ins')return;
+  const r=host.getBoundingClientRect();if(!r.height)return;
+  for(const el of host.querySelectorAll<HTMLElement>('.row.me .bubble:not(.pic)')){
+    const b=el.getBoundingClientRect();
+    if(b.bottom<r.top-240||b.top>r.bottom+240)continue;
+    el.style.setProperty('--b1',tint((b.top-r.top)/r.height));el.style.setProperty('--b2',tint((b.bottom-r.top)/r.height));
+  }
+}
 
 export function Chat({p}:{p:Persona}){
   useVer();
@@ -29,7 +46,7 @@ export function Chat({p}:{p:Persona}){
   const [away,setAway]=useState(0),[up,setUp]=useState(false),[flash,setFlash]=useState('');
   const sc=useRef<HTMLDivElement>(null),end=useRef<HTMLDivElement>(null),file=useRef<HTMLInputElement>(null),box=useRef<HTMLTextAreaElement>(null);
   const near=useRef(true),keep=useRef(0),count=useRef(all.length),inner=useRef<HTMLDivElement>(null);
-  const packs=st.packs??[],shown=packs.find(k=>k.id===panel);
+  const packs=packsFor(p.id),shown=packs.find(k=>k.id===panel);
 
   useEffect(()=>{setActive(p.id);if(S().prefs.last!==p.id)setPrefs({last:p.id});return()=>setActive('');},[p.id]);
   // 新消息：人在底部（或是自己发的）就跟到底；在翻旧记录就不打扰，只在角上记个数
@@ -40,10 +57,13 @@ export function Chat({p}:{p:Persona}){
     else if(fresh>0&&last?.from==='ta')setAway(n=>n+fresh);
   },[all.length,typing,p.id]);
   useLayoutEffect(()=>{end.current?.scrollIntoView({block:'end'});},[p.id]);
+  const raf=useRef(0);
+  const repaint=()=>{cancelAnimationFrame(raf.current);raf.current=requestAnimationFrame(()=>paint(sc.current));};
+  useLayoutEffect(()=>{paint(sc.current);repaint();});
   // 图片载出来、表情面板打开，内容会变高或窗口变矮：原本贴着底的话继续贴着
   useEffect(()=>{
     if(typeof ResizeObserver!=='function')return;
-    const ro=new ResizeObserver(()=>{if(near.current&&!keep.current)end.current?.scrollIntoView({block:'end'});});
+    const ro=new ResizeObserver(()=>{if(near.current&&!keep.current)end.current?.scrollIntoView({block:'end'});repaint();});
     if(inner.current)ro.observe(inner.current);if(sc.current)ro.observe(sc.current);
     return()=>ro.disconnect();
   },[p.id,q===null]);
@@ -53,6 +73,7 @@ export function Chat({p}:{p:Persona}){
     try{if(text)localStorage.setItem(draftKey(p.id),text);else localStorage.removeItem(draftKey(p.id));}catch{/* 存不了草稿不要紧 */}},[text,p.id]);
   const onScroll=()=>{
     const el=sc.current;if(!el)return;
+    repaint();
     const d=el.scrollHeight-el.scrollTop-el.clientHeight;
     near.current=d<140;setUp(d>480);if(near.current&&away)setAway(0);
     if(el.scrollTop<120&&limit<all.length&&!keep.current){keep.current=el.scrollHeight;setLimit(l=>l+PAGE);}
@@ -150,7 +171,7 @@ export function Chat({p}:{p:Persona}){
         <div className="ptabs" role="tablist" aria-label="表情">
           <button role="tab" aria-selected={panel==='emo'} onClick={()=>setPanel('emo')}>Emoji</button>
           {packs.map(k=><button key={k.id} role="tab" aria-selected={panel===k.id} onClick={()=>setPanel(k.id)}>{k.name}</button>)}
-          <button className="ico sm" onClick={()=>{const k=addPack(`表情包 ${packs.length+1}`);setPanel(k.id);setManage(k.id);}} aria-label="新建一个表情包分组"><Plus size={20} strokeWidth={1.7}/></button>
+          <button className="ico sm" onClick={()=>{const k=addPack(`表情包 ${packs.length+1}`,[p.id]);setPanel(k.id);setManage(k.id);}} aria-label="新建一个表情包分组"><Plus size={20} strokeWidth={1.7}/></button>
           {shown&&<button className="tidy" onClick={()=>setManage(shown.id)}>管理</button>}
         </div>
         {panel==='emo'||!shown?<div className="emos" role="group" aria-label="Emoji">{emojis.map(e=><button key={e} onClick={()=>{setText(t=>t+e);}}>{e}</button>)}</div>
@@ -162,7 +183,7 @@ export function Chat({p}:{p:Persona}){
     </footer>}
 
     {menu&&<Ctx m={menu} close={()=>setMenu(null)} act={act}/>}
-    {manage&&packs.some(k=>k.id===manage)&&<PackSheet k={packs.find(k=>k.id===manage)!} close={()=>setManage('')} gone={()=>{setManage('');setPanel('emo');}}/>}
+    {manage&&(st.packs??[]).some(k=>k.id===manage)&&<PackSheet k={(st.packs??[]).find(k=>k.id===manage)!} close={()=>setManage('')} gone={()=>{setManage('');setPanel('emo');}}/>}
     {view&&<button className="viewer" onClick={()=>setView('')} aria-label="关掉大图"><Pic id={view} alt="大图"/></button>}
     {more&&<Sheet title="" close={()=>setMore(false)} plain>
       <ul className="apps tools">
@@ -182,7 +203,7 @@ const Item=({on,label,icon,red}:{on:()=>void;label:string;icon:React.ReactNode;r
 
 /* 管理一个表情包分组：改名、批量上传、贴链接导入、删 */
 function PackSheet({k,close,gone}:{k:Pack;close:()=>void;gone:()=>void}){
-  const file=useRef<HTMLInputElement>(null);
+  const file=useRef<HTMLInputElement>(null),people=S().personas;
   const [links,setLinks]=useState<string|null>(null),[sure,setSure]=useState(false),[busy,setBusy]=useState(false);
   const upload=async(fs:FileList|null)=>{
     setBusy(true);const got:string[]=[];
@@ -198,6 +219,11 @@ function PackSheet({k,close,gone}:{k:Pack;close:()=>void;gone:()=>void}){
     <div className="rowbtn"><button className="chip" onClick={()=>file.current?.click()} disabled={busy}>{busy?'正在加…':'批量上传'}</button><button className="chip" aria-pressed={links!==null} onClick={()=>setLinks(v=>v===null?'':null)}>链接导入</button></div>
     <input ref={file} type="file" accept="image/*" multiple hidden onChange={e=>{void upload(e.target.files);e.target.value='';}}/>
     {links!==null&&<><textarea className="bulk tall" rows={4} value={links} onChange={e=>setLinks(e.target.value)} placeholder={'一行一个图片链接\nhttps://…/1.png'} aria-label="图片链接，一行一个" autoFocus/><button className="btn" onClick={paste} disabled={!links.trim()}>导入</button></>}
+    <div className="field"><span>谁在用</span><div className="chips">{people.map(x=>{const on=!k.who||k.who.includes(x.id);return <button key={x.id} className="chip who-chip" aria-pressed={on} onClick={()=>{
+      const now=new Set(k.who??people.map(y=>y.id));if(on)now.delete(x.id);else now.add(x.id);
+      setPack(k.id,{who:people.filter(y=>now.has(y.id)).map(y=>y.id)});
+    }}><Avatar id={x.avatar} name={x.name} size={22}/>{x.name}</button>;})}</div></div>
+    <p className="hint">点亮谁，谁的聊天里就有这一组；在谁的聊天里新建的，默认只给谁用。</p>
     <label className="line"><span>他也会发这一组</span><input type="checkbox" className="switch" checked={k.his!==false} onChange={e=>setPack(k.id,{his:e.target.checked})}/></label>
     {k.ids.length>0&&<div className="packs edit">{k.ids.map(id=><button key={id} onClick={()=>setPack(k.id,{ids:k.ids.filter(x=>x!==id)})} aria-label="删掉这张"><Pic id={id}/><i><X size={12} strokeWidth={2.4}/></i></button>)}</div>}
     <div className="rowbtn"><button className="chip danger" onClick={()=>{if(!sure){setSure(true);return;}dropPack(k.id);gone();}}>{sure?'再点一次，删掉这一组':'删掉这一组'}</button></div>

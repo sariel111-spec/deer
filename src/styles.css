@@ -198,7 +198,9 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 
 /* ins 私信的气泡：我这边从紫到蓝，跟着滚动的位置变；他那边浅灰 */
 :root[data-bubble=ins]{--mine-fg:#fff;--ig:linear-gradient(180deg,#B32BF7 0%,#7B45F6 42%,#3A82F7 100%)}
-:root[data-bubble=ins] .row.me .bubble:not(.pic){background:var(--ig) fixed;color:#fff}
+/* ins 气泡：整屏一条上紫下蓝的渐变，每个气泡取自己所在高度的那一段（--b1/--b2 由聊天页按位置算好）。
+   不用 background-attachment:fixed：它在 iPhone 上不可靠，气泡带着入场动画时颜色还会跳一下 */
+:root[data-bubble=ins] .row.me .bubble:not(.pic){background:linear-gradient(var(--b1,#4A74F6),var(--b2,#3A82F7));color:#fff}
 :root[data-bubble=ins] .cam{background:linear-gradient(135deg,#7B45F6,#3A82F7)}
 :root[data-bubble=ins] .send{color:#3A82F7}
 
@@ -470,7 +472,10 @@ img{-webkit-user-drag:none;-webkit-touch-callout:none}
 .call-keys button:disabled{opacity:.4}
 .call-keys .end{background:var(--red)}
 .call-keys .end svg,.ringkeys .no svg{transform:rotate(135deg)}
-.callpill{position:fixed;z-index:55;top:calc(env(safe-area-inset-top) + 10px);left:50%;transform:translateX(-50%);height:30px;padding:0 12px;border-radius:99px;display:flex;align-items:center;gap:6px;background:#34C759;color:#fff;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(52,199,89,.35)}
+.callmini{position:fixed;z-index:55;top:calc(env(safe-area-inset-top) + 64px);right:max(12px,calc(50vw - 308px));width:92px;height:124px;padding:0;border-radius:16px;overflow:hidden;background:#1C1C1E;color:#fff;display:grid;place-items:center;box-shadow:0 10px 30px rgba(0,0,0,.28),0 0 0 1px rgba(255,255,255,.08);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.callmini img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.callmini time{position:absolute;left:0;right:0;bottom:0;padding:18px 0 7px;display:flex;justify-content:center;align-items:center;gap:5px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;background:linear-gradient(transparent,rgba(0,0,0,.6))}
+.callmini time::before{content:"";width:6px;height:6px;border-radius:50%;background:#34C759}
 .ringveil{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.4);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
 .ringcard{width:min(320px,100%);padding:34px 24px 28px;border-radius:28px;display:grid;justify-items:center;gap:6px;background:color-mix(in srgb,var(--bg) 92%,transparent);box-shadow:0 20px 60px rgba(0,0,0,.25);animation:subin .3s ease both}
 .ringcard b{margin-top:12px;font-size:20px;font-weight:600}

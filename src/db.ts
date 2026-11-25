@@ -22,7 +22,7 @@ export type Persona={
 export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean};   // react：贴在这条上的表情；st：这是一张表情包
 export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number;
   mode?:'pip'|'loop'|'osc'|'both';pipAuto?:boolean;awake?:boolean;cloud?:string};   // 保活方式、画中画自动进入、屏幕常亮（都只管这台设备）；cloud：云端推送服务的地址（跟着同步走）
-export type Pack={id:string;name:string;ids:string[];his?:boolean;created:number;updated:number};   // 一组表情包；ids 里是本机图片或图片链接；his=false 表示他不发这一组
+export type Pack={id:string;name:string;ids:string[];his?:boolean;who?:string[];created:number;updated:number};   // 一组表情包；ids 里是本机图片或图片链接；his=false 表示他不发这一组；who：只给这几位用（不写就是所有人）
 export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>;stickers?:string[];packs?:Pack[]};   // dead：删掉的人和分组，同步时别的设备也跟着删
 export type Grave={dead:string[];cleared:number};   // 一位的聊天里删掉的消息、清空的时刻
 // 每一位各自的小功能数据，单独存一份（x:<pid>），不和聊天记录混在一起
@@ -81,8 +81,11 @@ let saveT=0;
 let rev=0;const hooks=new Set<()=>void>();
 const touch=()=>{rev++;hooks.forEach(f=>f());};
 export const onChange=(f:()=>void)=>{hooks.add(f);return()=>{hooks.delete(f);};};
-const flush=()=>{if(!saveT)return;clearTimeout(saveT);saveT=0;void setKey('state',state).then(()=>bc?.postMessage('state'));};
-const save=()=>{touch();emit();clearTimeout(saveT);saveT=window.setTimeout(flush,120);};
+// 存盘：第一下改动立刻写，紧跟着的一连串改动合成一次再写（刚做完一件事就刷新、被系统收走，也不会丢）
+let dirty=false;
+const write=()=>{void setKey('state',state).then(()=>bc?.postMessage('state'));};
+const flush=()=>{if(!saveT)return;clearTimeout(saveT);saveT=0;if(dirty){dirty=false;write();}};
+const save=()=>{touch();emit();if(saveT){dirty=true;return;}write();saveT=window.setTimeout(flush,120);};
 // 页面要被收走（切到后台、关掉、刷新）的那一下，把还没落盘的改动立刻写下去
 if(typeof document!=='undefined'){addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();});}
 const saveMsgs=(pid:string)=>{touch();emit();void setKey('m:'+pid,list(pid)).then(()=>bc?.postMessage('m:'+pid));};
@@ -137,8 +140,9 @@ export const setDeck=(id:string,patch:Partial<Deck>)=>{state={...state,decks:sta
 export function dropDeck(id:string){
   state={...state,decks:state.decks.filter(d=>d.id!==id),personas:state.personas.map(p=>({...p,decks:p.decks.filter(x=>x!==id)})),dead:{...state.dead,[id]:Date.now()}};save();
 }
-export const addPack=(name:string):Pack=>{const now=Date.now(),k:Pack={id:uid(),name:name.trim()||'表情包',ids:[],created:now,updated:now};state={...state,packs:[...(state.packs??[]),k]};save();return k;};
+export const addPack=(name:string,who?:string[]):Pack=>{const now=Date.now(),k:Pack={id:uid(),name:name.trim()||'表情包',ids:[],...(who?{who}:{}),created:now,updated:now};state={...state,packs:[...(state.packs??[]),k]};save();return k;};
 export const setPack=(id:string,patch:Partial<Pack>)=>{state={...state,packs:(state.packs??[]).map(k=>k.id===id?{...k,...patch,updated:Date.now()}:k)};save();};
+export const packsFor=(pid:string)=>(state.packs??[]).filter(k=>!k.who||k.who.includes(pid));
 export const dropPack=(id:string)=>{state={...state,packs:(state.packs??[]).filter(k=>k.id!==id),dead:{...state.dead,[id]:Date.now()}};save();};
 export const shareDeck=(deckId:string,pid:string,on:boolean)=>{
   const p=who(pid);if(!p)return;

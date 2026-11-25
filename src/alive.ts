@@ -72,9 +72,41 @@ export const pipCan=()=>{
   return can=!!(document.pictureInPictureEnabled||v.webkitSupportsPresentationMode?.('picture-in-picture'))&&typeof HTMLCanvasElement.prototype.captureStream==='function';
 };
 let beat=0;
+/* 视频通话的系统小窗：画他的通话画面、名字和通话时长，切到别的 app 也浮着 */
+let calling:{name:string;pic?:string;at:number}|null=null;
+export function pipCall(v:{name:string;pic?:string;at:number}|null){
+  const was=!!calling;calling=v;
+  if(!pipCan())return;
+  if(!v&&!was)return;
+  pipSetup();
+  const [w,h]=v?[360,480]:[640,200];
+  if(pc&&(pc.width!==w||pc.height!==h)){pc.width=w;pc.height=h;}
+  pipDraw();
+  if(v)void pv?.play().catch(()=>{});
+  else if(!S().prefs.audio){if(pipLive)void pipLeave();pv?.pause();}
+}
+const clock=(ms:number)=>{const s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),pad=(n:number)=>String(n).padStart(2,'0');return (h?h+':'+pad(m):pad(m))+':'+pad(s%60);};
+function drawCall(c:CanvasRenderingContext2D,W:number,H:number){
+  const v=calling!;
+  c.fillStyle='#1C1C1E';c.fillRect(0,0,W,H);
+  const im=v.pic?face.get(v.pic):undefined;
+  if(im?.complete&&im.naturalWidth){const k=Math.max(W/im.naturalWidth,H/im.naturalHeight),w=im.naturalWidth*k,h=im.naturalHeight*k;c.drawImage(im,(W-w)/2,(H-h)/2,w,h);}
+  else{
+    c.fillStyle='#2C2C2E';c.beginPath();c.arc(W/2,H/2-30,78,0,Math.PI*2);c.fill();
+    c.fillStyle='#fff';c.font='600 66px system-ui,-apple-system,"PingFang SC",sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText([...v.name][0]??'·',W/2,H/2-26);
+    if(v.pic&&!face.has(v.pic)){const i=new Image();face.set(v.pic,i);void getImage(v.pic).then(u=>{i.src=u;});}
+  }
+  const g=c.createLinearGradient(0,H-170,0,H);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.72)');c.fillStyle=g;c.fillRect(0,H-170,W,170);
+  c.textAlign='center';c.textBaseline='alphabetic';c.fillStyle='#fff';
+  c.font='600 30px system-ui,-apple-system,"PingFang SC",sans-serif';c.fillText(v.name,W/2,H-62,W-40);
+  c.font='500 24px system-ui,-apple-system,sans-serif';c.fillText(clock(Date.now()-v.at),W/2+10,H-26);
+  c.fillStyle='#34C759';c.beginPath();c.arc(W/2-c.measureText(clock(Date.now()-v.at)).width/2-8,H-34,6,0,Math.PI*2);c.fill();
+  beat^=1;c.fillStyle=beat?'#000':'#010101';c.fillRect(W-2,H-2,2,2);
+}
 function pipDraw(){
   if(!pc)return;
   const c=pc.getContext('2d');if(!c)return;
+  if(calling){drawCall(c,pc.width,pc.height);return;}
   const W=pc.width,H=pc.height,dark=document.documentElement.dataset.theme==='dark'||(document.documentElement.dataset.theme!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);
   const st=S();
   // 画谁：最近说过话的那位，没有就画上次打开的那位
@@ -105,7 +137,7 @@ export function pipSlot(el:HTMLElement|null){
   if(!pipCan()||(!el&&!pv))return;
   pipSetup();const v=pv!;
   if(el){v.style.cssText='display:block;width:100%;border-radius:14px;pointer-events:none';el.appendChild(v);void v.play().catch(()=>{});}
-  else{v.style.cssText=HIDE;document.body.appendChild(v);if(S().prefs.audio)void v.play().catch(()=>{});else v.pause();}
+  else{v.style.cssText=HIDE;document.body.appendChild(v);if(S().prefs.audio||calling)void v.play().catch(()=>{});else v.pause();}
 }
 const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/macintosh/i.test(navigator.userAgent));
 const standalone=()=>matchMedia('(display-mode: standalone)').matches||!!(navigator as Navigator&{standalone?:boolean}).standalone;
@@ -121,7 +153,7 @@ function pipSetup(){
   v.addEventListener('enterpictureinpicture',()=>pipSet(true));
   v.addEventListener('leavepictureinpicture',()=>{pipSet(false);void v.play().catch(()=>{});});
   v.addEventListener('webkitpresentationmodechanged',()=>pipSet(v.webkitPresentationMode==='picture-in-picture'));
-  v.addEventListener('pause',()=>{if(pipLive&&S().prefs.audio)setTimeout(()=>{void v.play().catch(()=>{});},300);});
+  v.addEventListener('pause',()=>{if(pipLive&&(S().prefs.audio||calling))setTimeout(()=>{void v.play().catch(()=>{});},300);});
   try{v.autoPictureInPicture=true;}catch{/* */}
   document.body.appendChild(v);pv=v;void v.play().catch(()=>{});
 }
@@ -178,7 +210,7 @@ export async function apply():Promise<boolean>{
   const w=want(),on=S().prefs.audio;
   const a=await loopOn(w.loop),b=await oscOn(w.osc);
   // 总开关关掉：小窗也收起来，备着的视频也停
-  if(!on){if(pipLive)await pipLeave();pv?.pause();}
+  if(!on&&!calling){if(pipLive)await pipLeave();pv?.pause();}
   else if(w.pip||S().prefs.pipAuto)pipSetup();
   void wakeOn(!!S().prefs.awake);
   return a&&b;
@@ -210,7 +242,7 @@ export async function start(tick:()=>void){
     const w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),1000)'],{type:'text/javascript'})));
     w.onmessage=()=>{heartbeat();onTick();if(pv)pipDraw();};
   }catch{setInterval(()=>{heartbeat();onTick();if(pv)pipDraw();},1000);}
-  const wake=()=>{onTick();const w=want();if(w.loop&&audio&&audio.paused)void audio.play().catch(()=>{});if(w.osc&&oc&&oc.state!=='running')void oc.resume().catch(()=>{});if(S().prefs.audio&&pv&&pv.paused)void pv.play().catch(()=>{});if(S().prefs.awake&&!document.hidden)void wakeOn(true);};
+  const wake=()=>{onTick();const w=want();if(w.loop&&audio&&audio.paused)void audio.play().catch(()=>{});if(w.osc&&oc&&oc.state!=='running')void oc.resume().catch(()=>{});if((S().prefs.audio||calling)&&pv&&pv.paused)void pv.play().catch(()=>{});if(S().prefs.awake&&!document.hidden)void wakeOn(true);};
   document.addEventListener('visibilitychange',()=>{seen();if(!document.hidden)armed=true;});
   document.addEventListener('visibilitychange',wake);document.addEventListener('resume',wake);
   addEventListener('pageshow',wake);addEventListener('focus',wake);addEventListener('online',wake);
@@ -261,14 +293,17 @@ export function badge(){
   const n=S().personas.reduce((a,p)=>a+unread(p),0);
   try{const nav=navigator as Navigator&{setAppBadge?:(n:number)=>Promise<void>;clearAppBadge?:()=>Promise<void>};if(n)void nav.setAppBadge?.(n);else void nav.clearAppBadge?.();}catch{/* */}
 }
-let ac:AudioContext|null=null;
+let ac:AudioContext|null=null,acT=0;
 export function blip(){
   if(!S().prefs.sound)return;
   try{
-    ac??=new AudioContext();const t=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();
+    ac??=new AudioContext();void ac.resume().catch(()=>{});
+    const t=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();
     o.type='sine';o.frequency.setValueAtTime(880,t);o.frequency.exponentialRampToValueAtTime(1320,t+.08);
     g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.08,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+.22);
     o.connect(g).connect(ac.destination);o.start(t);o.stop(t+.24);
+    // 响完就把声音通道放掉：不留一个一直开着的音频在那儿（iPhone 会把它当成这页在放声音）
+    clearTimeout(acT);acT=window.setTimeout(()=>{const c=ac;ac=null;void c?.close().catch(()=>{});},700);
   }catch{/* 没声音也不要紧 */}
 }
 export const status=()=>({
