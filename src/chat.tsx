@@ -1,6 +1,6 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {Bookmark,Camera,ChevronDown,ChevronLeft,Copy,Dices,EyeOff,Hand,Heart,Image as ImageIcon,Info,Mail,MapPin,Plus,RefreshCw,Reply,Search,Smile,Trash2,Undo2,X} from 'lucide-react';
-import {S,addSticker,dropSticker,list,pushMsg,putImage,setCard,setMsg,setPrefs,useVer,type Msg,type Persona} from './db';
+import {S,addPack,dropPack,list,pushMsg,putImage,setCard,setMsg,setPack,setPrefs,useVer,type Msg,type Pack,type Persona} from './db';
 import {isTyping,pool,read,redraw,sent,setActive} from './engine';
 import {PersonaSheet,Sheet,say} from './pages';
 import {Avatar,Pic,dayLabel} from './App';
@@ -22,13 +22,13 @@ export function Chat({p}:{p:Persona}){
   const [re,setRe]=useState<Msg|null>(null);
   const [menu,setMenu]=useState<Msg|null>(null);
   const [edit,setEdit]=useState(false),[more,setMore]=useState(false);
-  const [panel,setPanel]=useState<''|'st'|'emo'>(''),[tidy,setTidy]=useState(false);
+  const [panel,setPanel]=useState(''),[manage,setManage]=useState('');   // panel：''关着、'emo' 或某个表情包分组的 id
   const [q,setQ]=useState<string|null>(null);
   const [view,setView]=useState('');
   const [away,setAway]=useState(0),[up,setUp]=useState(false),[flash,setFlash]=useState('');
-  const sc=useRef<HTMLDivElement>(null),end=useRef<HTMLDivElement>(null),file=useRef<HTMLInputElement>(null),pack=useRef<HTMLInputElement>(null),box=useRef<HTMLTextAreaElement>(null);
+  const sc=useRef<HTMLDivElement>(null),end=useRef<HTMLDivElement>(null),file=useRef<HTMLInputElement>(null),box=useRef<HTMLTextAreaElement>(null);
   const near=useRef(true),keep=useRef(0),count=useRef(all.length),inner=useRef<HTMLDivElement>(null);
-  const stickers=st.stickers??[];
+  const packs=st.packs??[],shown=packs.find(k=>k.id===panel);
 
   useEffect(()=>{setActive(p.id);if(S().prefs.last!==p.id)setPrefs({last:p.id});return()=>setActive('');},[p.id]);
   // 新消息：人在底部（或是自己发的）就跟到底；在翻旧记录就不打扰，只在角上记个数
@@ -69,10 +69,8 @@ export function Chat({p}:{p:Persona}){
     if(!f)return;
     try{push({kind:'img',text:await putImage(f)});}catch{say('这张图片读不了，换一张试试');}
   };
-  const addPacks=async(fs:FileList|null)=>{
-    let n=0;for(const f of Array.from(fs??[])){try{addSticker(await putImage(f,480));n++;}catch{/* 跳过读不了的 */}}
-    say(n?`加了 ${n} 张表情包`:'这些图片读不了');
-  };
+  const openMenu=(m:Msg)=>{try{getSelection()?.removeAllRanges();}catch{/* */}(document.activeElement as HTMLElement|null)?.blur?.();setMenu(m);};
+  useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key!=='Escape'||manage||menu||more||edit)return;if(view)setView('');else if(re)setRe(null);else if(panel)setPanel('');};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[view,re,panel,manage,menu,more,edit]);
   const pat=()=>{pushMsg({pid:p.id,from:'me',kind:'tip',text:`你拍了拍 ${p.name}`,at:Date.now()});setMore(false);sent(p.id);};
   const lastTa=[...all].reverse().find(m=>m.from==='ta');
   const status=typing?'正在输入…':lastTa&&Date.now()-lastTa.at<5*60000?'在线':lastTa?brief(lastTa.at)+'在线':p.bio||'在线';
@@ -107,10 +105,10 @@ export function Chat({p}:{p:Persona}){
     {q!==null?<div className="thread results">
       {q.trim()?found.length?<ul>{found.map(m=><li key={m.id}><button onClick={()=>jump(m.id)}>
         <Avatar id={m.from==='me'?st.prefs.myAvatar:p.avatar} name={m.from==='me'?st.prefs.myName:p.name} size={36}/>
-        <span className="who"><b>{m.from==='me'?st.prefs.myName:p.name}<small>{dayLabel(m.at)}</small></b><span>{m.text}</span></span></button></li>)}</ul>
+        <span className="who"><b>{m.from==='me'?st.prefs.myName:p.name}<small>{dayLabel(m.at)}</small></b><span>{mark(m.text,q.trim())}</span></span></button></li>)}</ul>
         :<p className="empty">没有搜到「{q.trim()}」。</p>:<p className="empty">输入一个词，找你们说过的话。</p>}
     </div>
-    :<div className="thread" ref={sc} onScroll={onScroll}><div ref={inner}>
+    :<div className="mid"><div className="thread" ref={sc} onScroll={onScroll} onClick={()=>{if(panel)setPanel('');}}><div ref={inner}>
       {limit>=all.length&&<div className="hello">
         <Avatar id={p.avatar} name={p.name} size={84}/>
         <b>{p.name}</b>{p.bio&&<span>{p.bio}</span>}
@@ -121,14 +119,14 @@ export function Chat({p}:{p:Persona}){
         const gap=!prev||m.at-prev.at>10*60000;
         const top=gap||prev.from!==m.from||prev.kind==='tip',bottom=!next||next.from!==m.from||next.kind==='tip'||next.at-m.at>10*60000;
         return <Bubble key={m.id} m={m} p={p} gap={gap} top={top} bottom={bottom} lit={flash===m.id} quoted={m.re?all.find(x=>x.id===m.re):undefined}
-          onReply={()=>{setRe(m);box.current?.focus();}} onMenu={()=>setMenu(m)} onView={()=>setView(m.text)} onJump={jump}/>;
+          onReply={()=>{setRe(m);box.current?.focus();}} onMenu={()=>openMenu(m)} onView={()=>setView(m.text)} onJump={jump}/>;
       })}
       {typing&&<div className="row ta bottom top"><Avatar id={p.avatar} name={p.name} size={28}/><div className="bubble dots" aria-label={`${p.name}正在输入`}><i/><i/><i/></div></div>}
       {last?.from==='me'&&!typing&&<p className="seen">{last.seen?`已读 ${hhmm(last.seen)}`:'已送达'}</p>}
       {empty&&<div className="nudge"><p>他还没有能用的字卡，现在说不了话。</p><a className="chip" href="#/cards">去加字卡</a></div>}
       <div ref={end}/>
-    </div></div>}
-    {q===null&&(up||away>0)&&<button className="down" onClick={bottom} aria-label={away?`${away} 条新消息，回到底部`:'回到底部'}><ChevronDown size={22} strokeWidth={1.8}/>{away>0&&<i>{away}</i>}</button>}
+    </div></div>
+    {(up||away>0)&&<button className="down" onClick={bottom} aria-label={away?`${away} 条新消息，回到底部`:'回到底部'}><ChevronDown size={22} strokeWidth={1.8}/>{away>0&&<i>{away}</i>}</button>}</div>}
 
     {q===null&&<footer className="composer">
       {re&&<div className="replying"><span>回复 {re.from==='me'?'自己':p.name}<em>{peek(re)}</em></span><button className="ico sm" onClick={()=>setRe(null)} aria-label="取消回复"><X size={18}/></button></div>}
@@ -137,27 +135,31 @@ export function Chat({p}:{p:Persona}){
         <input ref={file} type="file" accept="image/*" hidden onChange={e=>{void sendPic(e.target.files?.[0]);e.target.value='';}}/>
         <textarea ref={box} rows={1} value={text} onChange={e=>setText(e.target.value)} placeholder="发消息…" aria-label={`给${p.name}发消息`}
           onPaste={e=>{const f=Array.from(e.clipboardData.files).find(x=>x.type.startsWith('image/'));if(f){e.preventDefault();void sendPic(f);}}}
-          onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing&&matchMedia('(hover:hover)').matches){e.preventDefault();send();}}}/>
-        <button className="ico sm" onClick={()=>setPanel(v=>v?'':stickers.length&&!text.trim()?'st':'emo')} aria-label="表情" aria-pressed={!!panel}><Smile size={23} strokeWidth={1.7}/></button>
+          enterKeyHint="send" onFocus={()=>setPanel('')}
+          onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();send();}}}/>
+        <button className="ico sm" onClick={()=>{box.current?.blur();setPanel(v=>v?'':packs.length&&!text.trim()?packs[0].id:'emo');}} aria-label="表情" aria-pressed={!!panel}><Smile size={23} strokeWidth={1.7}/></button>
         {text.trim()?<button className="send" onClick={send}>发送</button>:<>
           <button className="ico sm" onClick={()=>setMore(true)} aria-label="更多"><Plus size={25} strokeWidth={1.7}/></button>
           <button className="ico sm" onClick={()=>push({kind:'text',text:'❤️'})} aria-label="发一颗心"><Heart size={23} strokeWidth={1.7}/></button>
         </>}
       </div>
       {panel&&<div className="panel">
-        <div className="ptabs"><button aria-pressed={panel==='st'} onClick={()=>setPanel('st')}>表情包</button><button aria-pressed={panel==='emo'} onClick={()=>setPanel('emo')}>Emoji</button>
-          {panel==='st'&&stickers.length>0&&<button className="tidy" aria-pressed={tidy} onClick={()=>setTidy(v=>!v)}>{tidy?'好了':'整理'}</button>}</div>
-        {panel==='emo'?<div className="emos" role="group" aria-label="Emoji">{emojis.map(e=><button key={e} onClick={()=>{setText(t=>t+e);}}>{e}</button>)}</div>
-        :<div className="packs" role="group" aria-label="表情包">
-          <button className="addpack" onClick={()=>pack.current?.click()} aria-label="添加表情包"><Plus size={24} strokeWidth={1.5}/></button>
-          <input ref={pack} type="file" accept="image/*" multiple hidden onChange={e=>{void addPacks(e.target.files);e.target.value='';}}/>
-          {stickers.map(id=><button key={id} onClick={()=>{if(tidy)dropSticker(id);else push({kind:'img',text:id,st:true});}} aria-label={tidy?'删掉这张表情包':'发这张表情包'}><Pic id={id}/>{tidy&&<i><X size={12} strokeWidth={2.4}/></i>}</button>)}
-          {!stickers.length&&<p className="hint">把常用的表情包加进来，你能发，他也会发。</p>}
+        <div className="ptabs" role="tablist" aria-label="表情">
+          <button role="tab" aria-selected={panel==='emo'} onClick={()=>setPanel('emo')}>Emoji</button>
+          {packs.map(k=><button key={k.id} role="tab" aria-selected={panel===k.id} onClick={()=>setPanel(k.id)}>{k.name}</button>)}
+          <button className="ico sm" onClick={()=>{const k=addPack(`表情包 ${packs.length+1}`);setPanel(k.id);setManage(k.id);}} aria-label="新建一个表情包分组"><Plus size={20} strokeWidth={1.7}/></button>
+          {shown&&<button className="tidy" onClick={()=>setManage(shown.id)}>管理</button>}
+        </div>
+        {panel==='emo'||!shown?<div className="emos" role="group" aria-label="Emoji">{emojis.map(e=><button key={e} onClick={()=>{setText(t=>t+e);}}>{e}</button>)}</div>
+        :<div className="packs" role="group" aria-label={shown.name}>
+          {shown.ids.map(id=><button key={id} onClick={()=>push({kind:'img',text:id,st:true})} aria-label="发这张表情包"><Pic id={id}/></button>)}
+          {!shown.ids.length&&<p className="hint">这一组还是空的。点右上角「管理」加表情包。</p>}
         </div>}
       </div>}
     </footer>}
 
     {menu&&<Ctx m={menu} close={()=>setMenu(null)} act={act}/>}
+    {manage&&packs.some(k=>k.id===manage)&&<PackSheet k={packs.find(k=>k.id===manage)!} close={()=>setManage('')} gone={()=>{setManage('');setPanel('emo');}}/>}
     {view&&<button className="viewer" onClick={()=>setView('')} aria-label="关掉大图"><Pic id={view} alt="大图"/></button>}
     {more&&<Sheet title="" close={()=>setMore(false)} plain>
       <ul className="apps tools">
@@ -172,12 +174,38 @@ export function Chat({p}:{p:Persona}){
   </main>;
 }
 
+const mark=(t:string,q:string)=>{const i=t.indexOf(q);return i<0?t:<>{t.slice(0,i)}<mark>{q}</mark>{t.slice(i+q.length)}</>;};
+const Item=({on,label,icon,red}:{on:()=>void;label:string;icon:React.ReactNode;red?:boolean})=><button className={red?'danger':''} onClick={on}>{label}{icon}</button>;
+
+/* 管理一个表情包分组：改名、批量上传、贴链接导入、删 */
+function PackSheet({k,close,gone}:{k:Pack;close:()=>void;gone:()=>void}){
+  const file=useRef<HTMLInputElement>(null);
+  const [links,setLinks]=useState<string|null>(null),[sure,setSure]=useState(false),[busy,setBusy]=useState(false);
+  const upload=async(fs:FileList|null)=>{
+    setBusy(true);const got:string[]=[];
+    for(const f of Array.from(fs??[])){try{got.push(await putImage(f,480));}catch{/* 跳过读不了的 */}}
+    setBusy(false);if(got.length)setPack(k.id,{ids:[...k.ids,...got]});say(got.length?`加了 ${got.length} 张`:'这些图片读不了');
+  };
+  const paste=()=>{
+    const got=[...new Set((links??'').split(/[\s,，]+/).map(x=>x.trim()).filter(x=>/^https?:\/\/\S+$/.test(x)))].filter(x=>!k.ids.includes(x));
+    if(got.length)setPack(k.id,{ids:[...k.ids,...got]});setLinks(null);say(got.length?`加了 ${got.length} 张`:'没有找到能用的图片链接');
+  };
+  return <Sheet title="表情包分组" close={close}>
+    <label className="field"><span>名字</span><input value={k.name} onChange={e=>setPack(k.id,{name:e.target.value})} maxLength={12}/></label>
+    <div className="rowbtn"><button className="chip" onClick={()=>file.current?.click()} disabled={busy}>{busy?'正在加…':'批量上传'}</button><button className="chip" aria-pressed={links!==null} onClick={()=>setLinks(v=>v===null?'':null)}>链接导入</button></div>
+    <input ref={file} type="file" accept="image/*" multiple hidden onChange={e=>{void upload(e.target.files);e.target.value='';}}/>
+    {links!==null&&<><textarea className="bulk tall" rows={4} value={links} onChange={e=>setLinks(e.target.value)} placeholder={'一行一个图片链接\nhttps://…/1.png'} aria-label="图片链接，一行一个" autoFocus/><button className="btn" onClick={paste} disabled={!links.trim()}>导入</button></>}
+    <label className="line"><span>他也会发这一组</span><input type="checkbox" className="switch" checked={k.his!==false} onChange={e=>setPack(k.id,{his:e.target.checked})}/></label>
+    {k.ids.length>0&&<div className="packs edit">{k.ids.map(id=><button key={id} onClick={()=>setPack(k.id,{ids:k.ids.filter(x=>x!==id)})} aria-label="删掉这张"><Pic id={id}/><i><X size={12} strokeWidth={2.4}/></i></button>)}</div>}
+    <div className="rowbtn"><button className="chip danger" onClick={()=>{if(!sure){setSure(true);return;}dropPack(k.id);gone();}}>{sure?'再点一次，删掉这一组':'删掉这一组'}</button></div>
+  </Sheet>;
+}
+
 /* 长按一条消息：背景虚掉，上面一条表情，下面一张小菜单 */
 type Acts=Record<'reply'|'copy'|'fav'|'again'|'mute'|'unsend'|'drop',(m:Msg)=>void>&{react:(m:Msg,e:string)=>void};
 function Ctx({m,close,act}:{m:Msg;close:()=>void;act:Acts}){
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[close]);
   const mine=m.from==='me',tip=m.kind==='tip',now=m.react??(m.like?'❤️':'');
-  const Item=({on,label,icon,red}:{on:()=>void;label:string;icon:React.ReactNode;red?:boolean})=><button className={red?'danger':''} onClick={on}>{label}{icon}</button>;
   return <div className={`ctx ${m.from}`} role="dialog" aria-modal="true" aria-label="消息操作" onPointerDown={e=>{if(e.target===e.currentTarget)close();}}>
     {!tip&&<div className="reacts" role="group" aria-label="贴一个表情">{quick.map(e=><button key={e} aria-pressed={now===e} onClick={()=>act.react(m,e)}>{e}</button>)}</div>}
     <div className={`bubble ghost${m.kind==='img'?' pic':''}${m.st?' st':''}${tip?' tipb':''}`}>{m.kind==='img'?<Pic id={m.text}/>:m.text}</div>

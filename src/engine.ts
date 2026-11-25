@@ -95,7 +95,7 @@ function reply(p:Persona){
   const quote=mine.length&&Math.random()<.12?mine[mine.length-1].id:undefined;
   let i=0;
   const step=()=>{
-    const now=who(p.id)??p,packs=S().stickers??[];
+    const now=who(p.id)??p,packs=(S().packs??[]).filter(k=>k.his!==false).flatMap(k=>k.ids);
     // 有表情包的话，他偶尔回一张（不会连着第一句就发）
     const got=i>0&&now.stick!==false&&packs.length&&Math.random()<.22?{text:packs[Math.floor(Math.random()*packs.length)],src:'',st:true}:draw(now,'reply',Date.now());
     if(got)arrive(now,got.text,got.src,Date.now(),i===0?quote:undefined,'st' in got);

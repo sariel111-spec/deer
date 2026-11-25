@@ -2,10 +2,10 @@ import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Menu,Plus,Search,Trash2,X} from 'lucide-react';
 import {S,accents,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
-import {askNotify,audioLive,audioOn,notify,status} from './alive';
+import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,setMode,status} from './alive';
 import {nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
-import {Avatar,Pic,dayLabel,go} from './App';
+import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
 import {feats} from './more';
 
 /* ───────── 小零件 ───────── */
@@ -140,6 +140,7 @@ export function Home({p}:{p:Persona}){
   return <main className={`page home${p.homeBg?' has-bg':''}${preset?' bg-'+(p.homeBg||'none'):''}`} style={{'--accent':p.accent} as React.CSSProperties}>
     {p.homeBg&&!preset&&<Pic id={p.homeBg} className="home-bg"/>}
     <header className="bar">
+      {nav.from.startsWith('#/c/')&&<a className="ico back" href={nav.from} onClick={backTo(nav.from)} aria-label="回到聊天"><ChevronLeft size={28} strokeWidth={1.8}/></a>}
       <button className="namebtn" onClick={()=>setSw(true)} aria-label={`现在是 ${p.name}，点开换一位`}><b>{p.name}</b><ChevronDown size={18} strokeWidth={2}/>{others>0&&<i/>}</button>
       <button className="ico" onClick={()=>setEdit(true)} aria-label="资料与节奏"><Menu size={25} strokeWidth={1.7}/></button>
     </header>
@@ -268,6 +269,15 @@ export function SyncPanel(){
 }
 
 /* ───────── 设置 ───────── */
+const Dot=({ok,text}:{ok:boolean;text:string})=><span className={`state${ok?' ok':''}`}><i/>{text}</span>;
+const modes=[['pip','画中画'],['loop','静音音频'],['osc','振荡器'],['both','两者都开']] as const;
+const modeNote={
+  pip:'开一个系统小窗，页面在后台就不会被停掉。完全不占声音，听歌、刷视频都不受影响。需要点一下「进入画中画」。',
+  loop:'循环放一段听不见的声音。最通用；锁屏上会多一个播放条，也可能把你正在听的歌停掉。',
+  osc:'用一个小到听不见的持续音保持活跃，锁屏上不出现播放条；部分机型切到后台仍会被系统收回。',
+  both:'静音音频和振荡器一起开，最不容易掉。',
+};
+const span=(ms:number)=>{const s=Math.round(ms/1000);return s<60?`${s} 秒`:s<3600?`${Math.floor(s/60)} 分 ${s%60} 秒`:`${Math.floor(s/3600)} 小时 ${Math.floor(s%3600/60)} 分`;};
 
 export function Settings(){
   useVer();
@@ -276,7 +286,9 @@ export function Settings(){
   const file=useRef<HTMLInputElement>(null);
   const [sure,setSure]=useState(false);
   useEffect(()=>{const t=setInterval(()=>setS(status()),1500);return()=>clearInterval(t);},[]);
-  const Dot=({ok,text}:{ok:boolean;text:string})=><span className={`state${ok?' ok':''}`}><i/>{text}</span>;
+  useEffect(()=>onPip(()=>setS(status())),[]);
+  const [check,setCheck]=useState(false);
+  const mode=st.prefs.mode??'loop',away=lastAway();
   return <main className="page">
     <header className="bar"><h1>设置</h1></header>
 
@@ -292,15 +304,33 @@ export function Settings(){
     <p className="hint">为了让他在你没盯着页面的时候也能找到你，这里一层一层兜着。哪一层在这台设备上不亮，就靠别的层。</p>
     <div className="line"><span>消息通知<small>他找你时弹系统通知</small></span>
       {s.notify==='granted'&&pf.notify?<Dot ok text="已开"/>:<button className="chip" onClick={async()=>{const ok=await askNotify();setS(status());say(ok?'通知开好了':s.ios&&!s.installed?'iPhone 上要先加到主屏幕，再从主屏幕打开来开通知':'浏览器没有同意，去浏览器的网站设置里允许通知');}}>开启</button>}</div>
-    <Switch on={pf.audio} set={async v=>{const ok=await audioOn(v);setS(status());if(v&&!ok)say('点一下页面任意位置，它就会接上');}} label="后台保持运行" note="放一段听不见的声音，让系统别把页面停掉；锁屏上会显示一个播放条"/>
-    <div className="states">
-      <Dot ok={s.installed} text={s.installed?'已加到主屏幕':'还没加到主屏幕'}/>
-      <Dot ok={s.sw} text="后台线程"/>
-      <Dot ok={s.audio||audioLive()} text="保持运行"/>
-      <Dot ok={s.lock} text="防冻结锁"/>
-      <Dot ok={s.periodic} text="定时唤醒"/>
-      <Dot ok={s.persisted} text="数据不被清理"/>
-    </div>
+    <Switch on={pf.audio} set={async v=>{const ok=await audioOn(v);setS(status());if(v&&!ok)say('点一下页面任意位置，它就会接上');}} label="后台保活" note="让页面在你切到别的 app、锁屏的时候不被系统停掉"/>
+    {pf.audio&&<>
+      <div className="chips" role="radiogroup" aria-label="保活方式">{modes.map(([id,n])=><button key={id} role="radio" aria-checked={mode===id} aria-pressed={mode===id} className="chip" onClick={async()=>{await setMode(id);setS(status());}}>{n}</button>)}</div>
+      <p className="hint">{modeNote[mode]}</p>
+    </>}
+    {s.pipCan?<>
+      <div className="line"><span>画中画小窗<small>{s.pip?'小窗开着，可以放心切出去':'一个系统小窗，上面是他的头像和最新一句'}</small></span>
+        <button className="chip" aria-pressed={s.pip} onClick={async()=>{if(s.pip){await pipLeave();}else{const e=await pipEnter();if(e)say(e);}setS(status());}}>{s.pip?'关掉小窗':'进入画中画'}</button></div>
+      <Switch on={!!pf.pipAuto} set={v=>{setPrefs({pipAuto:v});void apply();}} label="画中画自动开启" note="打开小鹿后的第一下点按，顺手进小窗；关掉小窗、离开再回来，下一次点按会再进"/>
+    </>:<p className="hint">这个浏览器不支持画中画。</p>}
+    <Switch on={!!pf.awake} set={v=>{setPrefs({awake:v});void apply().then(()=>setS(status()));}} label="屏幕常亮" note="停在小鹿里的时候屏幕不自动熄灭，比较费电"/>
+    <div className="rowbtn"><button className="linkish" onClick={()=>{setS(status());setCheck(v=>!v);}} aria-expanded={check}>查看后台保活是否在运行</button></div>
+    {check&&<div className="checkup">
+      <div className="states">
+        <Dot ok={s.installed} text={s.installed?'已加到主屏幕':'还没加到主屏幕'}/>
+        <Dot ok={s.sw} text="后台线程"/>
+        <Dot ok={s.audio||audioLive()} text="静音音频"/>
+        <Dot ok={s.osc} text="振荡器"/>
+        <Dot ok={s.pip} text="画中画小窗"/>
+        <Dot ok={s.wake} text="屏幕常亮"/>
+        <Dot ok={s.lock} text="防冻结锁"/>
+        <Dot ok={s.periodic} text="定时唤醒"/>
+        <Dot ok={s.persisted} text="数据不被清理"/>
+      </div>
+      <p className="hint">{away?`上次切出去 ${span(away.away)}，其中 ${span(away.alive)} 页面还在运行（${Math.round(away.alive/away.away*100)}%）。${away.alive/away.away>.9?'保活是有效的。':away.alive/away.away>.3?'中途被系统停过，换一种保活方式试试。':'基本被系统停掉了，换一种保活方式试试。'}`:'还没有记录。切到别的 app 待上十几秒再回来，这里会告诉你那段时间页面有没有活着。'}</p>
+      <p className="hint">{s.ios?'iPhone：设置 → 通用 → 画中画，把「自动开启画中画」打开，小窗更稳。':'安卓：把浏览器加进系统的后台白名单、电池设成不限制，后台才留得住。'}</p>
+    </div>}
     {!s.installed&&<p className="hint">{s.ios?'iPhone：用 Safari 打开，点分享 → 添加到主屏幕。加了之后才能收通知。':'在浏览器菜单里选「添加到主屏幕」或「安装应用」，后台会稳很多。'}</p>}
     <div className="rowbtn">
       <button className="chip" onClick={()=>{const p=st.personas[0];if(p){notify(p,'这是一条测试通知');say(pf.notify?'发了，看看有没有弹出来':'先把上面的通知打开');}}}>发一条测试通知</button>

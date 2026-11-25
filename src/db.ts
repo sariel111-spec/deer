@@ -20,8 +20,10 @@ export type Persona={
   nextAt:number;replyAt:number;readAt:number;created:number;updated:number;
 };
 export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean};   // react：贴在这条上的表情；st：这是一张表情包
-export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number};
-export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>;stickers?:string[]};   // dead：删掉的人和分组，同步时别的设备也跟着删
+export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number;
+  mode?:'pip'|'loop'|'osc'|'both';pipAuto?:boolean;awake?:boolean};   // 保活方式、画中画自动进入、屏幕常亮（都只管这台设备）
+export type Pack={id:string;name:string;ids:string[];his?:boolean;created:number;updated:number};   // 一组表情包；ids 里是本机图片或图片链接；his=false 表示他不发这一组
+export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>;stickers?:string[];packs?:Pack[]};   // dead：删掉的人和分组，同步时别的设备也跟着删
 export type Grave={dead:string[];cleared:number};   // 一位的聊天里删掉的消息、清空的时刻
 // 每一位各自的小功能数据，单独存一份（x:<pid>），不和聊天记录混在一起
 export type Letter={id:string;from:'me'|'ta';text:string;at:number;read?:boolean};
@@ -84,9 +86,11 @@ export const setBox=(pid:string,patch:Partial<Box>)=>{const b={...blankBox(),...
 const loadBox=async(pid:string)=>{boxes.set(pid,{...blankBox(),...(await getKey<Box>('x:'+pid))});const g=await getKey<Grave>('d:'+pid);if(g)graves.set(pid,g);};
 const bury=(pid:string,g:Grave)=>{graves.set(pid,g);void setKey('d:'+pid,g);};
 
+const tidyUp=(st:State):State=>st.stickers?.length?{...st,stickers:[],packs:[...(st.packs??[]),{id:uid(),name:'默认',ids:st.stickers,created:Date.now(),updated:Date.now()}]}:st;
 export async function boot(){
   const s=await getKey<State>('state');
   if(s&&Array.isArray(s.personas))state={...blank(),...s,prefs:{...blank().prefs,...s.prefs,...(s.prefs?.v?{}:{bubble:'ins' as const,v:2})}};
+  state=tidyUp(state);
   for(const p of state.personas){msgs.set(p.id,(await getKey<Msg[]>('m:'+p.id))??[]);await loadBox(p.id);}
   // 别的标签页或后台线程改了东西，这边跟着读
   if(bc)bc.onmessage=async e=>{
@@ -129,8 +133,9 @@ export const setDeck=(id:string,patch:Partial<Deck>)=>{state={...state,decks:sta
 export function dropDeck(id:string){
   state={...state,decks:state.decks.filter(d=>d.id!==id),personas:state.personas.map(p=>({...p,decks:p.decks.filter(x=>x!==id)})),dead:{...state.dead,[id]:Date.now()}};save();
 }
-export const addSticker=(id:string)=>{state={...state,stickers:[...(state.stickers??[]),id]};save();};
-export const dropSticker=(id:string)=>{state={...state,stickers:(state.stickers??[]).filter(x=>x!==id),dead:{...state.dead,[id]:Date.now()}};save();};
+export const addPack=(name:string):Pack=>{const now=Date.now(),k:Pack={id:uid(),name:name.trim()||'表情包',ids:[],created:now,updated:now};state={...state,packs:[...(state.packs??[]),k]};save();return k;};
+export const setPack=(id:string,patch:Partial<Pack>)=>{state={...state,packs:(state.packs??[]).map(k=>k.id===id?{...k,...patch,updated:Date.now()}:k)};save();};
+export const dropPack=(id:string)=>{state={...state,packs:(state.packs??[]).filter(k=>k.id!==id),dead:{...state.dead,[id]:Date.now()}};save();};
 export const shareDeck=(deckId:string,pid:string,on:boolean)=>{
   const p=who(pid);if(!p)return;
   setPersona(pid,{decks:on?[...new Set([...p.decks,deckId])]:p.decks.filter(x=>x!==deckId)});
@@ -229,6 +234,7 @@ export async function putImage(file:Blob,max=1280):Promise<string>{
   const id=uid();await setKey('a:'+id,c.toDataURL('image/jpeg',.86));return id;
 }
 export async function getImage(id:string):Promise<string>{
+  if(/^https?:\/\//.test(id))return id;
   if(pics.has(id))return pics.get(id)!;
   const v=(await getKey<string>('a:'+id))??'';if(v)pics.set(id,v);return v;
 }

@@ -412,3 +412,34 @@ button.quote{display:block;text-align:left;border:0}
 .emos{max-height:216px;overflow-y:auto}
 .liked{bottom:-13px}
 .row:has(.liked){margin-bottom:13px}
+
+/* ── 第七次：稳住版面、聊天细节、表情包分组 ── */
+html,body{overflow:hidden}
+button,a,label{touch-action:manipulation}
+img{-webkit-user-drag:none;-webkit-touch-callout:none}
+/* 聊天里长按是出菜单，不是选字：除了输入框，哪儿都不让选 */
+.chat,.ctx,.chat *:not(textarea):not(input),.ctx *{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.chat textarea,.chat input{user-select:text;-webkit-user-select:text}
+.bubble img{pointer-events:none}
+/* 抽屉：只上下滚，不左右晃，也不带着后面的页面一起动 */
+.veil{overscroll-behavior:contain}
+.sheet{max-height:88dvh;overflow-x:hidden;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch}
+.sheet>*{max-width:100%;min-width:0}
+.sheet .line>span:first-child{min-width:0}
+.thread{overscroll-behavior:contain}
+.mid{position:relative;z-index:1;flex:1;min-height:0;display:flex;flex-direction:column}
+.mid .down{bottom:12px}
+.results mark{background:none;color:#3A82F7;font-weight:600}
+.bar .back{margin-left:-8px}
+/* 表情面板的分组标签 */
+.ptabs{overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}.ptabs::-webkit-scrollbar{display:none}
+.ptabs button{flex:none;white-space:nowrap}
+.ptabs [aria-selected=true]{background:var(--soft);color:var(--fg)}
+.ptabs .ico{width:30px;min-width:30px;padding:0;display:grid;place-items:center}
+.ptabs .tidy{position:sticky;right:0;margin-left:auto;background:var(--bg);color:#3A82F7}
+.packs .hint{grid-column:1/-1;padding:18px 4px}
+.packs.edit{max-height:none;margin-top:14px}
+.packs.edit button{box-shadow:inset 0 0 0 1px var(--line)}
+.checkup{margin-top:6px;padding:12px 14px;border-radius:14px;background:var(--soft)}
+.checkup .states{margin-top:0}
+.checkup .hint{margin-top:8px}

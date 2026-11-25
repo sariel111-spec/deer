@@ -1,5 +1,5 @@
 import {useSyncExternalStore} from 'react';
-import {adopt,delKey,dropImageCache,dump,getKey,onChange,setKey,type Box,type Deck,type Dump,type Grave,type Msg,type Persona,type State} from './db';
+import {adopt,delKey,dropImageCache,dump,getKey,onChange,setKey,type Box,type Deck,type Dump,type Grave,type Msg,type Pack,type Persona,type State} from './db';
 
 /* 同步：把数据放进你自己的一个私有 GitHub 仓库。
    不是整包覆盖——每台设备先把云端的拿下来和本机的合并，再把合并后的结果传上去；
@@ -49,12 +49,12 @@ async function blobSha(text:string){
   return [...new Uint8Array(await crypto.subtle.digest('SHA-1',all))].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 const unb64=(c:string)=>dec.decode(Uint8Array.from(atob(c.replace(/\s/g,'')),ch=>ch.charCodeAt(0)));
-type Shared={personas:Persona[];decks:Deck[];stickers?:string[];dead:Record<string,number>;prefs:{myName:string;myAvatar?:string;bubble:State['prefs']['bubble'];at?:number}};
+type Shared={personas:Persona[];decks:Deck[];packs?:Pack[];dead:Record<string,number>;prefs:{myName:string;myAvatar?:string;bubble:State['prefs']['bubble'];at?:number}};
 type Chat={msgs:Msg[];grave:Grave};
 const F={state:'data/state.json',m:(id:string)=>`data/m/${id}.json`,x:(id:string)=>`data/x/${id}.json`,a:(id:string)=>`data/a/${id}.txt`};
 function files(d:Dump):Record<string,string>{
   const pf=d.state.prefs,out:Record<string,string>={};
-  out[F.state]=canon({personas:d.state.personas,decks:d.state.decks,stickers:d.state.stickers??[],dead:d.state.dead??{},prefs:{myName:pf.myName,myAvatar:pf.myAvatar,bubble:pf.bubble,at:pf.at}} satisfies Shared);
+  out[F.state]=canon({personas:d.state.personas,decks:d.state.decks,packs:d.state.packs??[],dead:d.state.dead??{},prefs:{myName:pf.myName,myAvatar:pf.myAvatar,bubble:pf.bubble,at:pf.at}} satisfies Shared);
   for(const p of d.state.personas){
     out[F.m(p.id)]=canon({msgs:d.msgs[p.id]??[],grave:d.graves[p.id]??{dead:[],cleared:0}} satisfies Chat);
     if(d.boxes[p.id]?.at)out[F.x(p.id)]=canon(d.boxes[p.id]);
@@ -63,8 +63,8 @@ function files(d:Dump):Record<string,string>{
 }
 const presets=new Set(['dots','mist']);
 function imageIds(d:Dump){
-  const ids=new Set<string>();const add=(x?:string)=>{if(x&&!presets.has(x))ids.add(x);};
-  add(d.state.prefs.myAvatar);for(const x of d.state.stickers??[])add(x);
+  const ids=new Set<string>();const add=(x?:string)=>{if(x&&!presets.has(x)&&!/^https?:/.test(x))ids.add(x);};
+  add(d.state.prefs.myAvatar);for(const k of d.state.packs??[])for(const x of k.ids)add(x);
   for(const p of d.state.personas){
     add(p.avatar);add(p.wall);add(p.photo);add(p.homeBg);
     for(const m of d.msgs[p.id]??[])if(m.kind==='img')add(m.text);
@@ -89,8 +89,8 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
     const mine=(r.state.prefs?.at??0)>(l.state.prefs.at??0)?{myName:r.state.prefs.myName,myAvatar:r.state.prefs.myAvatar,bubble:r.state.prefs.bubble,at:r.state.prefs.at}:{};
     const prefs={...l.state.prefs,...mine};
     if(prefs.last&&!personas.some(p=>p.id===prefs.last))prefs.last='';
-    const stickers=[...new Set([...(l.state.stickers??[]),...(r.state.stickers??[])])].filter(x=>!dead[x]);
-    state={...l.state,personas,decks,stickers,dead,prefs};
+    const packs=pick(l.state.packs??[],r.state.packs??[]);
+    state={...l.state,personas,decks,packs,dead,prefs};
   }
   const msgs:Record<string,Msg[]>={},boxes:Record<string,Box>={},graves:Record<string,Grave>={};
   for(const p of state.personas){

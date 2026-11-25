@@ -16,10 +16,13 @@ export const dayLabel=(t:number)=>{
 };
 const brief=(t:number)=>{const s=(Date.now()-t)/1000;return s<60?'刚刚':s<3600?Math.floor(s/60)+' 分钟前':s<86400?Math.floor(s/3600)+' 小时前':Math.floor(s/86400)+' 天前';};
 
+// 上一页是哪儿。从聊天点进功能页、主页，返回时回到聊天而不是一律回主页
+export const nav={from:''};
+export const backTo=(fallback:string)=>(e:React.MouseEvent)=>{if(nav.from&&nav.from!==location.hash){e.preventDefault();history.back();}else if(!fallback)e.preventDefault();};
 export function Pic({id,className,alt=''}:{id?:string;className?:string;alt?:string}){
   const [src,setSrc]=useState('');
   useEffect(()=>{let on=true;setSrc('');if(id)void getImage(id).then(v=>{if(on)setSrc(v);});return()=>{on=false;};},[id]);
-  return src?<img className={className} src={src} alt={alt}/>:null;
+  return src?<img className={className} src={src} alt={alt} draggable={false} referrerPolicy="no-referrer"/>:null;
 }
 export function Avatar({id,name,size=40}:{id?:string;name:string;size?:number}){
   return <span className="avatar" style={{width:size,height:size,fontSize:size*.42}} aria-hidden="true">
@@ -30,7 +33,7 @@ export function Avatar({id,name,size=40}:{id?:string;name:string;size?:number}){
 export function App(){
   useVer();
   const [hash,setHash]=useState(location.hash);
-  useEffect(()=>{const on=()=>setHash(location.hash);addEventListener('hashchange',on);return()=>removeEventListener('hashchange',on);},[]);
+  useEffect(()=>{const on=(e:HashChangeEvent)=>{try{nav.from=new URL(e.oldURL).hash;}catch{nav.from='';}setHash(location.hash);};addEventListener('hashchange',on);return()=>removeEventListener('hashchange',on);},[]);
   const st=S(),theme=st.prefs.theme;
   useEffect(()=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.bubble=st.prefs.bubble;},[theme,st.prefs.bubble]);
 

@@ -3,7 +3,7 @@ import {Aperture,Bookmark,CalendarHeart,ChevronLeft,ClipboardList,Dices,Droplet,
   SlidersHorizontal,Sparkles,SquarePen,Timer,Trash2,type LucideIcon} from 'lucide-react';
 import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Letter,type Persona} from './db';
 import {lines,sent} from './engine';
-import {Avatar,Pic,dayLabel} from './App';
+import {Avatar,Pic,backTo,dayLabel} from './App';
 import {Num,Sheet,say,todayLine} from './pages';
 
 // 主页上摆出来的全部功能。顺序就是宫格里的顺序
@@ -22,7 +22,7 @@ const mmss=(s:number)=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(Mat
 
 function Sub({p,title,act,children,cls=''}:{p:Persona;title:string;act?:React.ReactNode;children:React.ReactNode;cls?:string}){
   return <main className={`page sub ${cls}`} style={{'--accent':p.accent} as React.CSSProperties}>
-    <header className="bar"><a className="ico" href={'#/us/'+p.id} aria-label="回到主页"><ChevronLeft size={28} strokeWidth={1.8}/></a><h1>{title}</h1>{act}</header>
+    <header className="bar"><a className="ico" href={'#/us/'+p.id} onClick={backTo('#/us/'+p.id)} aria-label="返回"><ChevronLeft size={28} strokeWidth={1.8}/></a><h1>{title}</h1>{act}</header>
     {children}
   </main>;
 }
