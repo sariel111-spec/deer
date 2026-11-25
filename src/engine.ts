@@ -13,8 +13,21 @@ export function pool(p:Persona,mode:'reply'|'pro',t=Date.now()){
 }
 const recent=new Map<string,string[]>();
 const glue=['，',' ','…'];
-function draw(p:Persona,mode:'reply'|'pro',t:number):{text:string;src:string}|null{
+// 同一个人、同一个时刻，在哪台设备上算出来的都是同一句、同一个下一次：手机和电脑各自替他排话，也不会说成两句
+const seeded=(key:string)=>{
+  let h=2166136261;for(let i=0;i<key.length;i++){h^=key.charCodeAt(i);h=Math.imul(h,16777619);}
+  let a=h>>>0;
+  return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+};
+const proId=(p:Persona,at:number)=>'p'+p.id.slice(-5)+Math.round(at).toString(36);
+// rnd：给了就按它来抽（主动消息用，结果只由「谁、几点」决定）；不给就随手抽，并避开最近说过的
+function draw(p:Persona,mode:'reply'|'pro',t:number,rnd?:()=>number):{text:string;src:string}|null{
   const all=pool(p,mode,t);if(!all.length)return null;
+  if(rnd){
+    const left=[...all],n=Math.min(left.length,p.join?1+Math.floor(rnd()*Math.max(1,p.joinMax)):1);
+    const cs=Array.from({length:n},()=>left.splice(Math.floor(rnd()*left.length),1)[0]);
+    return {text:cs.map(c=>c.t).reduce((a,b)=>a+glue[Math.floor(rnd()*glue.length)]+b),src:cs.map(c=>c.id).join(',')};
+  }
   const rec=recent.get(p.id)??[];
   const keep=Math.min(12,Math.floor(all.length/2));
   const one=()=>{
@@ -69,11 +82,13 @@ export function read(pid:string){
 }
 
 // late：这句是离开期间该到的、现在补上的。云端推送开着的话当时已经推过，不再弹一遍通知
-function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=false,late=false){
+function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=false,late=false,id?:string){
+  // 这一句别的设备已经替他说过、同步过来了：不再说一遍
+  if(id&&list(p.id).some(m=>m.id===id))return;
   // 补发的话不能排到已有消息的前面
   at=Math.max(at,(list(p.id).at(-1)?.at??0)+1);
   if(sticker){pushMsg({pid:p.id,from:'ta',kind:'img',text,at,st:true});text='[表情]';}
-  else pushMsg({pid:p.id,from:'ta',kind:'text',text,at,src,re});
+  else pushMsg({pid:p.id,from:'ta',kind:'text',text,at,src,re,...(id?{id}:{})});
   const here=!document.hidden&&active===p.id;
   if(here){setPersona(p.id,{readAt:Math.max(Date.now(),at)});blip();}
   else if(!(late&&pushWas()))notify(p,text);
@@ -161,13 +176,18 @@ function ring(p:Persona,at:number){
   setBox(p.id,{ring:{at}});
   if(!(at<backAt&&pushWas()))notify(p,'邀请你视频通话');
 }
-const maybeCall=(p:Persona)=>p.calls!==false&&!onCall()&&!box(p.id).ring&&Math.random()<.08?{text:'',src:'',call:true as const}:null;
+// 他在某个时刻主动做的那件事：多数时候是一句话，偶尔是一通视频。只由「谁、几点」决定
+const proLine=(p:Persona,at:number,noCall:boolean)=>{
+  const call=!noCall&&p.calls!==false&&!onCall()&&!box(p.id).ring&&seeded(p.id+'|c|'+Math.round(at))()<.08;
+  return call?{text:'',src:'',call:true as const}:draw(p,'pro',at,seeded(p.id+'|d|'+Math.round(at)));
+};
 
 /* 他主动找你 */
 export function nextTime(p:Persona,from:number){
-  let t=from+rand(p.proMin,Math.max(p.proMin,p.proMax))*60000;
-  for(let k=0;k<30&&asleep(p,t);k++){const d=new Date(t);d.setMinutes(0,0,0);d.setHours(d.getHours()+1);t=d.getTime()+rand(2,40)*60000;}
-  return t;
+  const r=seeded(p.id+'|n|'+Math.round(from)),between=(a:number,b:number)=>a+r()*Math.max(0,b-a);
+  let t=from+between(p.proMin,Math.max(p.proMin,p.proMax))*60000;
+  for(let k=0;k<30&&asleep(p,t);k++){const d=new Date(t);d.setMinutes(0,0,0);d.setHours(d.getHours()+1);t=d.getTime()+between(2,40)*60000;}
+  return Math.round(t);
 }
 function proactive(p:Persona,now:number){
   if(!p.pro){if(p.nextAt)setPersona(p.id,{nextAt:0});return;}
@@ -179,9 +199,9 @@ function proactive(p:Persona,now:number){
   // 离开很久回来：最多补三条，时间按他本来要发的时刻记
   let at=p.nextAt,sentN=0;
   while(at<=now&&sentN<3){
-    const got=q.length&&q[0].at===at?q.shift()!:maybeCall(p)??draw(p,'pro',at);
+    const got=q.length&&q[0].at===at?q.shift()!:proLine(p,at,false);
     if(got&&'call' in got&&got.call)ring(p,at);
-    else if(got)arrive(p,got.text,got.src,Math.min(at,now),undefined,false,at<backAt);
+    else if(got)arrive(p,got.text,got.src,Math.min(at,now),undefined,false,at<backAt,proId(p,at));
     sentN++;at=q.length?q[0].at:nextTime(p,at);
   }
   if(at<=now){q=[];at=nextTime(p,now);}
@@ -207,7 +227,7 @@ export function ahead():Ahead[]{
       while(q.length<3){
         const at=q.length?nextTime(p,q[q.length-1].at):p.nextAt;
         if(at>now+48*3600e3)break;
-        const got=(q.some(x=>x.call)?null:maybeCall(p))??draw(p,'pro',at);if(!got)break;
+        const got=proLine(p,at,q.some(x=>x.call));if(!got)break;
         q.push({at,...got});
       }
       if(q.length)plans.pq[p.id]=q;else delete plans.pq[p.id];
