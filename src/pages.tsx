@@ -2,7 +2,7 @@ import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Menu,Plus,Search,Trash2,X} from 'lucide-react';
 import {S,accents,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
-import {apply,askNotify,audioLive,audioOn,lastAway,nativeShare,notify,onPip,pipEnter,pipLeave,pipSlot,setMode,status,wakeLive} from './alive';
+import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,pipSlot,setMode,status,wakeLive} from './alive';
 import {nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
@@ -35,7 +35,6 @@ export function Num({label,value,set,min=0,max=9999,unit}:{label:string;value:nu
 }
 const shareable=(f:File)=>{try{return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!!navigator.canShare?.({files:[f]});}catch{return false;}};
 const download=(name:string,text:string,type='application/json')=>{
-  if(nativeShare(name,text))return;
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 };
 
@@ -273,12 +272,12 @@ export function SyncPanel(){
 /* ───────── 设置 ───────── */
 const Dot=({ok,text}:{ok:boolean;text:string})=><span className={`state${ok?' ok':''}`}><i/>{text}</span>;
 const modes=[['pip','画中画'],['loop','静音音频'],['osc','振荡器'],['both','两者都开']] as const;
-const modeNote={
+const modeNote=(ios:boolean)=>({
   pip:'开一个系统小窗，页面在后台就不会被停掉。完全不占声音，听歌、刷视频都不受影响。需要点一下「进入画中画」。',
-  loop:'循环放一段听不见的声音。最通用；锁屏上会多一个播放条，也可能把你正在听的歌停掉。',
-  osc:'用一个小到听不见的持续音保持活跃，锁屏上不出现播放条；部分机型切到后台仍会被系统收回。',
-  both:'静音音频和振荡器一起开，最不容易掉。',
-};
+  loop:ios?'循环放一段听不见的声音，锁屏上会多一个播放条。iPhone 上它和别的声音不能同时在：它一开，你正在听的歌会停；你在别的 app 一放歌或视频，它就被系统停掉，保活也跟着断。':'循环放一段听不见的声音。最通用；锁屏上会多一个播放条，也可能把你正在听的歌停掉。',
+  osc:ios?'一个小到听不见的持续音，不会打断你听的歌，锁屏上也没有播放条。但 iPhone 一切到后台就会把它停掉，基本留不住。':'用一个小到听不见的持续音保持活跃，锁屏上不出现播放条；部分机型切到后台仍会被系统收回。',
+  both:ios?'静音音频和振荡器一起开。和静音音频一样，会和你听的歌、看的视频抢声音。':'静音音频和振荡器一起开，最不容易掉。',
+});
 const span=(ms:number)=>{const s=Math.round(ms/1000);return s<60?`${s} 秒`:s<3600?`${Math.floor(s/60)} 分 ${s%60} 秒`:`${Math.floor(s/3600)} 小时 ${Math.floor(s%3600/60)} 分`;};
 
 export function Settings(){
@@ -308,11 +307,11 @@ export function Settings(){
     <h3>后台保活</h3>
     <p className="hint">为了让他在你没盯着页面的时候也能找到你，这里一层一层兜着。哪一层在这台设备上不亮，就靠别的层。</p>
     <div className="line"><span>消息通知<small>他找你时弹系统通知</small></span>
-      {s.notify==='granted'&&pf.notify?<Dot ok text="已开"/>:<button className="chip" onClick={async()=>{const ok=await askNotify();setS(status());say(ok?'通知开好了':s.native?'去 iPhone 的 设置 → 通知 → 小鹿 里允许通知':s.ios&&!s.installed?'iPhone 上要先加到主屏幕，再从主屏幕打开来开通知':'浏览器没有同意，去浏览器的网站设置里允许通知');}}>开启</button>}</div>
+      {s.notify==='granted'&&pf.notify?<Dot ok text="已开"/>:<button className="chip" onClick={async()=>{const ok=await askNotify();setS(status());say(ok?'通知开好了':s.ios&&!s.installed?'iPhone 上要先加到主屏幕，再从主屏幕打开来开通知':'浏览器没有同意，去浏览器的网站设置里允许通知');}}>开启</button>}</div>
     <Switch on={pf.audio} set={async v=>{const ok=await audioOn(v);setS(status());if(v&&!ok)say('点一下页面任意位置，它就会接上');}} label="后台保活" note="让页面在你切到别的 app、锁屏的时候不被系统停掉"/>
     {pf.audio&&<>
       <div className="chips" role="radiogroup" aria-label="保活方式">{modes.map(([id,n])=><button key={id} role="radio" aria-checked={mode===id} aria-pressed={mode===id} className="chip" onClick={async()=>{await setMode(id);setS(status());}}>{n}</button>)}</div>
-      <p className="hint">{modeNote[mode]}</p>
+      <p className="hint">{modeNote(s.ios)[mode]}</p>
     {s.pipBlocked&&<p className="hint">现在是从主屏幕打开的。iPhone 只让 Safari 和真正装进系统的 app 开画中画，添加到主屏幕的网页不行。要用画中画就在 Safari 里打开小鹿（两边的数据靠同步对齐）；在这里用静音音频或振荡器。<button className="linkish" onClick={()=>{void navigator.clipboard?.writeText(location.origin+location.pathname);say('网址复制了，去 Safari 里粘贴打开');}}>复制小鹿的网址</button></p>}
       {s.pipCan&&!s.pipBlocked?<>
       <div className="line"><span>画中画小窗<small>{s.pip?'小窗开着，可以放心切出去':'一个系统小窗，上面是他的头像和最新一句'}</small></span>
@@ -349,7 +348,7 @@ export function Settings(){
       <button className="chip" aria-pressed={!!bak} onClick={async()=>{
         if(bak){try{await navigator.share({files:[bak]});}catch{/* 她取消了 */}setBak(null);return;}
         const name=`备份-${new Date().toISOString().slice(0,10)}.json`,text=await exportAll(),f=new File([text],name,{type:'application/json'});
-        if(!s.native&&shareable(f)){setBak(f);say('备份准备好了，再点一次存到「文件」');}else{download(name,text);say('备份文件下载了');}
+        if(shareable(f)){setBak(f);say('备份准备好了，再点一次存到「文件」');}else{download(name,text);say('备份文件下载了');}
       }}>{bak?'存到「文件」':'导出备份'}</button>
       <button className="chip" onClick={()=>file.current?.click()}>导入备份</button>
       <input ref={file} type="file" accept="application/json,.json" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{await importAll(await f.text());say('导入好了');}catch(x){say(x instanceof Error?x.message:'这个文件读不了');}}}/>
