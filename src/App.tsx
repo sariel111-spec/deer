@@ -1,8 +1,8 @@
 import {useEffect,useRef,useState} from 'react';
-import {ChevronLeft,Heart,Image as ImageIcon,Info,Layers,MessageCircle,Settings2,SquarePen,User,X} from 'lucide-react';
+import {ChevronLeft,Heart,House,Image as ImageIcon,Info,Layers,MessageCircle,Settings2,SquarePen,X} from 'lucide-react';
 import {S,addPersona,getImage,list,pushMsg,putImage,setMsg,setPrefs,unread,useVer,who,type Msg,type Persona} from './db';
 import {isTyping,pool,read,sent,setActive} from './engine';
-import {Cards,Settings,Us,PersonaSheet,Sheet,say,Toast} from './pages';
+import {Cards,Settings,Home,PersonaSheet,Sheet,say,Toast} from './pages';
 
 export const go=(h:string)=>{location.hash=h;};
 const hhmm=(t:number)=>new Date(t).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -38,16 +38,17 @@ export function App(){
   else if(a==='inbox')page=<Inbox/>;
   else if(a==='cards')page=<Cards deckId={b}/>;
   else if(a==='set')page=<Settings/>;
-  else if(a==='us'){const p=who(b)??who(st.prefs.last)??st.personas[0];page=<Us p={p}/>;}
-  else{const p=(a==='c'?who(b):undefined)??who(st.prefs.last)??st.personas[0];page=<Chat key={p.id} p={p}/>;}
-  const tabs=st.personas.length>0&&(a==='inbox'||a==='cards'&&!b||a==='set'||a==='us');
+  else if(a==='c'){const p=who(b)??who(st.prefs.last)??st.personas[0];page=<Chat key={p.id} p={p}/>;}
+  else{const p=(a==='us'?who(b):undefined)??who(st.prefs.last)??st.personas[0];page=<Home key={p.id} p={p}/>;}
+  const home=a!=='inbox'&&a!=='cards'&&a!=='set'&&a!=='c';
+  const tabs=st.personas.length>0&&a!=='c'&&!(a==='cards'&&b);
   const n=st.personas.reduce((x,p)=>x+unread(p),0);
   return <div className="app">
     {page}
     {tabs&&<nav className="tabs" aria-label="主导航">
+      <a href="#/" aria-current={home?'page':undefined} aria-label="主页"><House size={25} strokeWidth={home?2.2:1.6}/></a>
       <a href="#/inbox" aria-current={a==='inbox'?'page':undefined} aria-label={`消息${n?`，${n} 条未读`:''}`}><MessageCircle size={25} strokeWidth={a==='inbox'?2.2:1.6}/>{n>0&&<i/>}</a>
       <a href="#/cards" aria-current={a==='cards'?'page':undefined} aria-label="字卡"><Layers size={25} strokeWidth={a==='cards'?2.2:1.6}/></a>
-      <a href="#/us" aria-current={a==='us'?'page':undefined} aria-label="我们"><User size={25} strokeWidth={a==='us'?2.2:1.6}/></a>
       <a href="#/set" aria-current={a==='set'?'page':undefined} aria-label="设置"><Settings2 size={25} strokeWidth={a==='set'?2.2:1.6}/></a>
     </nav>}
     <Toast/>
@@ -56,7 +57,7 @@ export function App(){
 
 function Welcome(){
   const [name,setName]=useState('');
-  const start=()=>{const n=name.trim();if(!n)return;const p=addPersona(n);go('#/c/'+p.id);};
+  const start=()=>{const n=name.trim();if(!n)return;const p=addPersona(n);go('#/us/'+p.id);};
   return <main className="welcome">
     <img src="./icon-192.png" alt="" width={84} height={84}/>
     <h1>想和谁说话</h1>
@@ -130,7 +131,7 @@ function Chat({p}:{p:Persona}){
     <header className="bar chat-bar">
       <a className="ico" href="#/inbox" aria-label="回到消息列表"><ChevronLeft size={28} strokeWidth={1.8}/></a>
       <a className="peer" href={'#/us/'+p.id}><Avatar id={p.avatar} name={p.name} size={34}/><span><b>{p.name}</b><small>{status}</small></span></a>
-      <a className="ico" href={'#/us/'+p.id} aria-label="我们的主页"><Info size={24} strokeWidth={1.7}/></a>
+      <a className="ico" href={'#/us/'+p.id} aria-label="回到主页"><Info size={24} strokeWidth={1.7}/></a>
     </header>
 
     <div className="thread">
@@ -168,7 +169,7 @@ function Chat({p}:{p:Persona}){
       <div className="actions">
         <button onClick={()=>{setRe(menu);setMenu(null);box.current?.focus();}}>回复</button>
         <button onClick={()=>{setMsg(p.id,menu.id,{like:!menu.like});setMenu(null);}}>{menu.like?'取消喜欢':'喜欢'}</button>
-        <button onClick={()=>{setMsg(p.id,menu.id,{fav:!menu.fav});say(menu.fav?'已从收藏里拿掉':'收藏了，在「我们」里能看到');setMenu(null);}}>{menu.fav?'取消收藏':'收藏'}</button>
+        <button onClick={()=>{setMsg(p.id,menu.id,{fav:!menu.fav});say(menu.fav?'已从收藏里拿掉':'收藏了，在主页能看到');setMenu(null);}}>{menu.fav?'取消收藏':'收藏'}</button>
         {menu.kind==='text'&&<button onClick={()=>{void navigator.clipboard?.writeText(menu.text);say('复制了');setMenu(null);}}>复制</button>}
         <button className="danger" onClick={()=>{setMsg(p.id,menu.id,null);setMenu(null);}}>{menu.from==='me'?'撤回':'删除'}</button>
       </div>

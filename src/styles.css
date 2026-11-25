@@ -206,3 +206,69 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .newdeck .btn{flex:none;white-space:nowrap;height:44px}
 .newdeck input{min-width:0;flex:1}
 .btn,.chip,.send{white-space:nowrap}
+
+/* ins 私信的气泡：我这边从紫到蓝，跟着滚动的位置变；他那边浅灰 */
+:root[data-bubble=ins]{--mine-fg:#fff;--ig:linear-gradient(180deg,#B32BF7 0%,#7B45F6 42%,#3A82F7 100%)}
+:root[data-bubble=ins] .row.me .bubble:not(.pic){background:var(--ig) fixed;color:#fff}
+:root[data-bubble=ins] .cam{background:linear-gradient(135deg,#7B45F6,#3A82F7)}
+:root[data-bubble=ins] .send{color:#3A82F7}
+:root[data-bubble=ins] .mini.me{background:linear-gradient(135deg,#8A3FF6,#3A82F7);color:#fff}
+
+/* 主页 */
+.home{position:relative}
+.home-bg{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;max-width:640px;margin:0 auto}
+.home>*:not(.home-bg){position:relative;z-index:1}
+.home.bg-dots{background-image:radial-gradient(var(--line) 1.2px,transparent 1.3px);background-size:18px 18px}
+.home.bg-mist{background-image:radial-gradient(120% 60% at 20% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 70%),radial-gradient(90% 50% at 100% 30%,color-mix(in srgb,var(--fg) 6%,transparent),transparent 70%)}
+.clock{display:grid;justify-items:end;font-size:20px;font-weight:300;letter-spacing:.02em;line-height:1.1;padding-right:6px;font-variant-numeric:tabular-nums}
+.clock small{font-size:11px;font-weight:400;color:var(--mute);letter-spacing:0}
+.stories{display:flex;gap:14px;overflow-x:auto;padding:6px 16px 12px;scrollbar-width:none;margin:0!important}
+.stories::-webkit-scrollbar{display:none}
+.stories a{display:grid;justify-items:center;gap:5px;width:68px;font-size:12px;color:var(--mute)}
+.stories a>span:last-child{max-width:68px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stories .avatar{box-shadow:0 0 0 2.5px var(--bg),0 0 0 3.5px var(--line)}
+.stories .on{color:var(--fg);font-weight:600}
+.stories .on .avatar{box-shadow:0 0 0 2.5px var(--bg),0 0 0 4px var(--fg)}
+/* 有没读的消息：头像外面一圈 ins 的渐变环 */
+.stories .ring .avatar{box-shadow:0 0 0 2.5px var(--bg);position:relative;overflow:visible}
+.stories .ring .avatar::before{content:'';position:absolute;inset:-5px;border-radius:50%;z-index:-1;background:conic-gradient(from 210deg,#FEDA75,#FA7E1E,#D62976,#962FBF,#4F5BD5,#FEDA75)}
+.stories .ring .avatar img,.stories .ring .avatar b{border-radius:50%}
+.stories .ring .avatar{background:var(--soft)}
+.stories .ring .avatar img{position:relative}
+.stories .add .avatar{box-shadow:inset 0 0 0 1px var(--line);background:none;color:var(--fg)}
+.profile{display:flex;align-items:center;gap:18px;padding-top:6px}
+.duo{display:flex;align-items:center;flex:none}
+.duo .pick:last-of-type{margin-left:-14px}
+.duo .avatar{box-shadow:0 0 0 3px var(--bg)}
+.duo-heart{position:relative;z-index:2;margin-left:-11px;margin-right:-3px;color:var(--red);filter:drop-shadow(0 0 0 2px var(--bg));align-self:flex-end;margin-bottom:6px;background:var(--bg);border-radius:50%;padding:2px;box-sizing:content-box}
+.profile .stats{flex:1;margin:0}
+.home .names{text-align:left;margin-top:12px;font-size:14.5px}
+.home .bio{text-align:left;margin-top:2px}
+.linkish{color:#3A82F7;font-size:13.5px}
+.lights{display:flex;gap:16px;overflow-x:auto;padding:18px 16px 4px;scrollbar-width:none;margin:0!important}
+.lights::-webkit-scrollbar{display:none}
+.lights a,.lights button{display:grid;justify-items:center;gap:6px;width:62px;font-size:12px;color:var(--fg)}
+.lights span{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 0 0 1px var(--line);background:var(--bg)}
+.widgets{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.w{position:relative;display:flex;flex-direction:column;gap:4px;min-height:132px;padding:13px 14px;border-radius:22px;background:var(--soft);text-align:left;overflow:hidden}
+.has-bg .w,.has-bg .lights span{background:color-mix(in srgb,var(--bg) 72%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.w.wide{grid-column:1/-1;min-height:0;gap:5px}
+.w small{font-size:11px;color:var(--mute);letter-spacing:.02em}
+.w.quote p{margin:auto 0;font-size:16px;line-height:1.5;font-weight:500;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+.w.big b{font-size:46px;font-weight:200;line-height:1;margin-top:auto;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.w.big span,.w.state2 span{font-size:12.5px;color:var(--mute)}
+.w.state2 b{font-size:20px;font-weight:600;margin-top:auto}
+.w.photo{align-items:center;justify-content:center;padding:12px}
+.polaroid{display:block;width:78%;padding:6px 6px 20px;background:#fff;border-radius:3px;box-shadow:0 6px 16px -6px rgba(0,0,0,.35);transform:rotate(-4deg)}
+.polaroid img{display:block;width:100%;aspect-ratio:1;object-fit:cover}
+.w-empty{margin:auto;display:grid;justify-items:center;gap:6px;font-size:13px;color:var(--mute);text-align:center}
+.mini{max-width:82%;padding:6px 11px;border-radius:16px;font-size:14px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--bg);align-self:flex-start}
+.mini.me{align-self:flex-end;background:var(--mine-bg);color:var(--mine-fg)}
+.bgrow{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:18px}
+.bgrow small{font-size:12.5px;color:var(--mute);margin-right:4px}
+.home .seg button{display:grid;place-items:center}
+.seg.sm button{padding:0 9px}
+.tabs{z-index:5}
+.w.quote p{color:var(--fg)}
+.has-bg .w,.has-bg .lights span{background:color-mix(in srgb,var(--soft) 80%,transparent)}
+.has-bg.bg-dots .w,.has-bg.bg-dots .lights span{background:var(--soft);backdrop-filter:none;-webkit-backdrop-filter:none}

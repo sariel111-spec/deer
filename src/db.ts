@@ -14,13 +14,13 @@ export type Card={id:string;t:string;off?:boolean};
 // 一个字卡分组。分组是公用的：哪几位在用，记在每个人自己的 decks 里
 export type Deck={id:string;name:string;when:When;use:Use;cards:Card[];created:number;updated:number};
 export type Persona={
-  id:string;name:string;bio:string;avatar?:string;accent:string;wall?:string;since:string;decks:string[];
+  id:string;name:string;bio:string;avatar?:string;accent:string;wall?:string;photo?:string;homeBg?:string;since:string;decks:string[];
   min:number;max:number;burst:number;ghost:number;join:boolean;joinMax:number;   // 回复：最快/最慢（秒）、一次最多几条、已读不回的概率、是否拼接
   pro:boolean;proMin:number;proMax:number;quietFrom:number;quietTo:number;        // 主动：间隔（分钟）、他睡觉的钟点
   nextAt:number;replyAt:number;readAt:number;created:number;updated:number;
 };
 export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string};
-export type Prefs={theme:'auto'|'light'|'dark';bubble:'mono'|'accent'|'line';myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean};
+export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean};
 export type State={personas:Persona[];decks:Deck[];prefs:Prefs};
 
 export const accents=['#8A6A52','#000000','#3D6BE0','#D4526E','#5B8C6A','#8B6FD1','#E08A3C'];
@@ -44,7 +44,7 @@ export const delKey=(k:string)=>tx('readwrite',s=>s.delete(k)).catch(()=>undefin
 const allKeys=()=>tx<IDBValidKey[]>('readonly',s=>s.getAllKeys()).catch(()=>[] as IDBValidKey[]);
 
 export const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-const blank=():State=>({personas:[],decks:[],prefs:{theme:'auto',bubble:'mono',myName:'我',last:'',audio:false,notify:false,sound:false}});
+const blank=():State=>({personas:[],decks:[],prefs:{theme:'auto',bubble:'ins',v:2,myName:'我',last:'',audio:false,notify:false,sound:false}});
 let state:State=blank();
 const msgs=new Map<string,Msg[]>();
 let ver=0;
@@ -64,7 +64,7 @@ const saveMsgs=(pid:string)=>{emit();void setKey('m:'+pid,list(pid)).then(()=>bc
 
 export async function boot(){
   const s=await getKey<State>('state');
-  if(s&&Array.isArray(s.personas))state={...blank(),...s,prefs:{...blank().prefs,...s.prefs}};
+  if(s&&Array.isArray(s.personas))state={...blank(),...s,prefs:{...blank().prefs,...s.prefs,...(s.prefs?.v?{}:{bubble:'ins' as const,v:2})}};
   for(const p of state.personas)msgs.set(p.id,(await getKey<Msg[]>('m:'+p.id))??[]);
   // 别的标签页或后台线程改了东西，这边跟着读
   if(bc)bc.onmessage=async e=>{
