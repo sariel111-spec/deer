@@ -94,12 +94,25 @@ function pipDraw(){
   // 每一拍动一个像素，画面在变，系统才当它是一段在放的视频
   beat^=1;c.fillStyle=dark?(beat?'#000':'#010101'):(beat?'#fff':'#fefefe');c.fillRect(W-2,H-2,2,2);
 }
+const HIDE='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-1';
+/** 设置页里给小窗留一块预览的位置：视频真的显示在页面上，iPhone 才更愿意让它进小窗 */
+export function pipSlot(el:HTMLElement|null){
+  if(!pipCan())return;
+  pipSetup();const v=pv!;
+  if(el){v.style.cssText='display:block;width:100%;border-radius:14px;pointer-events:none';el.appendChild(v);}
+  else{v.style.cssText=HIDE;document.body.appendChild(v);}
+  void v.play().catch(()=>{});
+}
+const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/macintosh/i.test(navigator.userAgent));
+const standalone=()=>matchMedia('(display-mode: standalone)').matches||!!(navigator as Navigator&{standalone?:boolean}).standalone;
+/** iPhone 上「添加到主屏幕」的 app 里，系统不让网页开画中画（Safari 里可以） */
+export const pipBlocked=()=>isIOS()&&standalone();
 function pipSetup(){
   if(pv)return;
   pc=document.createElement('canvas');pc.width=640;pc.height=200;pipDraw();
   const v=document.createElement('video') as PV;
   v.muted=true;v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('muted','');v.loop=true;
-  v.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-1';
+  v.style.cssText=HIDE;
   try{v.srcObject=pc.captureStream(8);}catch{/* 这台设备给不了画布视频 */}
   v.addEventListener('enterpictureinpicture',()=>pipSet(true));
   v.addEventListener('leavepictureinpicture',()=>{pipSet(false);void v.play().catch(()=>{});});
@@ -120,7 +133,7 @@ function makeClip(){
 }
 /** 进入画中画。必须在一次点按里调用。返回空串是成功，否则是给人看的原因 */
 export async function pipEnter():Promise<string>{
-  if(!pipCan())return '这个浏览器不支持画中画';
+  if(!pipCan())return pipBlocked()?'主屏幕的 app 里 iPhone 不让开画中画，在 Safari 里打开小鹿就可以':'这个浏览器不支持画中画';
   pipSetup();const v=pv!;
   if(pipLive)return '';
   void v.play().catch(()=>{});
@@ -132,6 +145,7 @@ export async function pipEnter():Promise<string>{
     else return '这个浏览器不支持画中画';
     return '';
   }catch(e){
+    if(pipBlocked())return '主屏幕的 app 里 iPhone 不让开画中画，在 Safari 里打开小鹿就可以';
     if(!clip){makeClip();return '小窗没开出来，正在换一种方式，过两秒再点一次';}
     return /gesture|activation|NotAllowed/i.test(String(e))?'要在点按的那一下才能进入，再点一次':'系统没有让小窗打开';
   }
@@ -243,6 +257,6 @@ export function blip(){
 export const status=()=>({
   installed:matchMedia('(display-mode: standalone)').matches||!!(navigator as Navigator&{standalone?:boolean}).standalone,
   notify:'Notification' in window?Notification.permission:'unsupported',
-  sw:!!reg,audio:audioLive(),osc:oscLive(),pip:pipLive,pipCan:pipCan(),wake:wakeLive(),lock:locked,persisted,periodic,
+  sw:!!reg,audio:audioLive(),osc:oscLive(),pip:pipLive,pipCan:pipCan(),pipBlocked:pipBlocked(),wake:wakeLive(),lock:locked,persisted,periodic,
   ios:/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/macintosh/i.test(navigator.userAgent)),
 });

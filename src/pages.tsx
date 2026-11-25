@@ -2,7 +2,7 @@ import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Menu,Plus,Search,Trash2,X} from 'lucide-react';
 import {S,accents,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
-import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,pipReady,setMode,status} from './alive';
+import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,pipSlot,setMode,status,wakeLive} from './alive';
 import {nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
@@ -33,6 +33,7 @@ export function Num({label,value,set,min=0,max=9999,unit}:{label:string;value:nu
   return <label className="line"><span>{label}</span><span className="num"><input type="number" inputMode="numeric" value={value} min={min} max={max}
     onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))set(Math.max(min,Math.min(max,n)));}}/>{unit}</span></label>;
 }
+const shareable=(f:File)=>{try{return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!!navigator.canShare?.({files:[f]});}catch{return false;}};
 const download=(name:string,text:string,type='application/json')=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 };
@@ -286,7 +287,9 @@ export function Settings(){
   const file=useRef<HTMLInputElement>(null);
   const [sure,setSure]=useState(false);
   useEffect(()=>{const t=setInterval(()=>setS(status()),1500);return()=>clearInterval(t);},[]);
-  useEffect(()=>{pipReady();return onPip(()=>setS(status()));},[]);
+  const slot=useRef<HTMLDivElement>(null);
+  useEffect(()=>{pipSlot(slot.current);const off=onPip(()=>setS(status()));return()=>{off();pipSlot(null);};},[]);
+  const [bak,setBak]=useState<File|null>(null);
   const [check,setCheck]=useState(false);
   const mode=st.prefs.mode??'loop',away=lastAway();
   return <main className="page">
@@ -309,12 +312,14 @@ export function Settings(){
       <div className="chips" role="radiogroup" aria-label="保活方式">{modes.map(([id,n])=><button key={id} role="radio" aria-checked={mode===id} aria-pressed={mode===id} className="chip" onClick={async()=>{await setMode(id);setS(status());}}>{n}</button>)}</div>
       <p className="hint">{modeNote[mode]}</p>
     </>}
-    {s.pipCan?<>
+    {s.pipBlocked&&<p className="hint">现在是从主屏幕打开的。iPhone 不让主屏幕 app 里的网页开画中画（系统的限制，Safari 里可以）。要用画中画：在 Safari 里打开小鹿，两边的数据靠下面的同步对齐。在这里就用静音音频或振荡器。<button className="linkish" onClick={()=>{void navigator.clipboard?.writeText(location.origin+location.pathname);say('网址复制了，去 Safari 里粘贴打开');}}>复制小鹿的网址</button></p>}
+    {s.pipCan&&!s.pipBlocked?<>
       <div className="line"><span>画中画小窗<small>{s.pip?'小窗开着，可以放心切出去':'一个系统小窗，上面是他的头像和最新一句'}</small></span>
         <button className="chip" aria-pressed={s.pip} onClick={async()=>{if(s.pip){await pipLeave();}else{const e=await pipEnter();if(e)say(e);}setS(status());}}>{s.pip?'关掉小窗':'进入画中画'}</button></div>
+      <div className="pipview" ref={slot} aria-hidden="true"/>
       <Switch on={!!pf.pipAuto} set={v=>{setPrefs({pipAuto:v});void apply();}} label="画中画自动开启" note="打开小鹿后的第一下点按，顺手进小窗；关掉小窗、离开再回来，下一次点按会再进"/>
-    </>:<p className="hint">这个浏览器不支持画中画。</p>}
-    <Switch on={!!pf.awake} set={v=>{setPrefs({awake:v});void apply().then(()=>setS(status()));}} label="屏幕常亮" note="停在小鹿里的时候屏幕不自动熄灭，比较费电"/>
+    </>:!s.pipBlocked&&<p className="hint">这个浏览器不支持画中画。</p>}
+    <Switch on={!!pf.awake} set={v=>{setPrefs({awake:v});void apply().then(()=>{setS(status());if(v&&!wakeLive())say('这台设备上屏幕常亮开不了');});}} label="屏幕常亮" note="停在小鹿里的时候屏幕不自动熄灭，比较费电"/>
     <div className="rowbtn"><button className="linkish" onClick={()=>{setS(status());setCheck(v=>!v);}} aria-expanded={check}>查看后台保活是否在运行</button></div>
     {check&&<div className="checkup">
       <div className="states">
@@ -343,7 +348,11 @@ export function Settings(){
     <h3>备份</h3>
     <p className="hint">不用同步的话，所有东西只存在这台设备上。换手机或清浏览器之前，先导出一份备份。</p>
     <div className="rowbtn">
-      <button className="chip" onClick={async()=>{download(`备份-${new Date().toISOString().slice(0,10)}.json`,await exportAll());say('备份文件下载了');}}>导出备份</button>
+      <button className="chip" aria-pressed={!!bak} onClick={async()=>{
+        if(bak){try{await navigator.share({files:[bak]});}catch{/* 她取消了 */}setBak(null);return;}
+        const name=`备份-${new Date().toISOString().slice(0,10)}.json`,text=await exportAll(),f=new File([text],name,{type:'application/json'});
+        if(shareable(f)){setBak(f);say('备份准备好了，再点一次存到「文件」');}else{download(name,text);say('备份文件下载了');}
+      }}>{bak?'存到「文件」':'导出备份'}</button>
       <button className="chip" onClick={()=>file.current?.click()}>导入备份</button>
       <input ref={file} type="file" accept="application/json,.json" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{await importAll(await f.text());say('导入好了');}catch(x){say(x instanceof Error?x.message:'这个文件读不了');}}}/>
       <button className="chip danger" onClick={async()=>{if(!sure){setSure(true);return;}await disconnect();await wipe();setSure(false);go('#/');}}>{sure?'再点一次，清空这台设备':'清空这台设备上的数据'}</button>
