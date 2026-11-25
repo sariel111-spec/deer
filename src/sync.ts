@@ -49,12 +49,12 @@ async function blobSha(text:string){
   return [...new Uint8Array(await crypto.subtle.digest('SHA-1',all))].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 const unb64=(c:string)=>dec.decode(Uint8Array.from(atob(c.replace(/\s/g,'')),ch=>ch.charCodeAt(0)));
-type Shared={personas:Persona[];decks:Deck[];packs?:Pack[];dead:Record<string,number>;prefs:{myName:string;myAvatar?:string;bubble:State['prefs']['bubble'];at?:number}};
+type Shared={personas:Persona[];decks:Deck[];packs?:Pack[];dead:Record<string,number>;prefs:{myName:string;myAvatar?:string;bubble:State['prefs']['bubble'];at?:number;cloud?:string}};
 type Chat={msgs:Msg[];grave:Grave};
 const F={state:'data/state.json',m:(id:string)=>`data/m/${id}.json`,x:(id:string)=>`data/x/${id}.json`,a:(id:string)=>`data/a/${id}.txt`};
 function files(d:Dump):Record<string,string>{
   const pf=d.state.prefs,out:Record<string,string>={};
-  out[F.state]=canon({personas:d.state.personas,decks:d.state.decks,packs:d.state.packs??[],dead:d.state.dead??{},prefs:{myName:pf.myName,myAvatar:pf.myAvatar,bubble:pf.bubble,at:pf.at}} satisfies Shared);
+  out[F.state]=canon({personas:d.state.personas,decks:d.state.decks,packs:d.state.packs??[],dead:d.state.dead??{},prefs:{myName:pf.myName,myAvatar:pf.myAvatar,bubble:pf.bubble,at:pf.at,cloud:pf.cloud||undefined}} satisfies Shared);
   for(const p of d.state.personas){
     out[F.m(p.id)]=canon({msgs:d.msgs[p.id]??[],grave:d.graves[p.id]??{dead:[],cleared:0}} satisfies Chat);
     if(d.boxes[p.id]?.at)out[F.x(p.id)]=canon(d.boxes[p.id]);
@@ -87,7 +87,9 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
     const decks=pick(l.state.decks,r.state.decks??[]),has=new Set(decks.map(d=>d.id));
     const personas=pick(l.state.personas,r.state.personas??[]).map(p=>p.decks.every(x=>has.has(x))?p:{...p,decks:p.decks.filter(x=>has.has(x))});
     const mine=(r.state.prefs?.at??0)>(l.state.prefs.at??0)?{myName:r.state.prefs.myName,myAvatar:r.state.prefs.myAvatar,bubble:r.state.prefs.bubble,at:r.state.prefs.at}:{};
-    const prefs={...l.state.prefs,...mine};
+    // 云端推送的地址：新的那边说了算；但没更新的旧版本不认识这一项，别让它把地址冲掉
+    const cloud=(mine.at?r.state.prefs.cloud:l.state.prefs.cloud)||l.state.prefs.cloud||r.state.prefs?.cloud;
+    const prefs={...l.state.prefs,...mine,...(cloud?{cloud}:{})};
     if(prefs.last&&!personas.some(p=>p.id===prefs.last))prefs.last='';
     const packs=pick(l.state.packs??[],r.state.packs??[]);
     state={...l.state,personas,decks,packs,dead,prefs};

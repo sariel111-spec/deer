@@ -2,8 +2,9 @@ import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Menu,Plus,Search,Trash2,X} from 'lucide-react';
 import {S,accents,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
+import {onPush,pushLink,pushLive,pushOff,pushOn,pushPrep,pushSet,pushTest,pushUnlink} from './push';
 import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,pipSlot,setMode,status,wakeLive} from './alive';
-import {nudge} from './engine';
+import {lines,nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
 import {feats} from './more';
@@ -293,6 +294,9 @@ export function Settings(){
   const [bak,setBak]=useState<File|null>(null);
   const [check,setCheck]=useState(false);
   const mode=st.prefs.mode??'loop',away=lastAway();
+  const [pl,setPl]=useState(pushLive());
+  const [addr,setAddr]=useState('');
+  useEffect(()=>{void pushPrep();return onPush(()=>setPl(pushLive()));},[]);
   return <main className="page">
     <header className="bar"><h1>设置</h1></header>
 
@@ -303,6 +307,19 @@ export function Settings(){
     <div className="line"><span>明暗</span><div className="seg sm">{([['auto','跟随系统'],['light','浅色'],['dark','深色']] as const).map(([id,n])=><button key={id} aria-pressed={pf.theme===id} onClick={()=>setPrefs({theme:id})}>{n}</button>)}</div></div>
     <div className="line"><span>我的气泡</span><div className="seg sm">{([['ins','ins'],['mono','黑白'],['accent','点缀色'],['line','细边']] as const).map(([id,n])=><button key={id} aria-pressed={pf.bubble===id} onClick={()=>setPrefs({bubble:id})}>{n}</button>)}</div></div>
     <Switch on={pf.sound} set={v=>setPrefs({sound:v})} label="收到消息时响一声"/>
+
+    <h3>云端推送</h3>
+    <p className="hint">他要说的话，到点由云端推到手机。小鹿不用留在后台，也不占声音：听歌、刷视频、锁屏、把小鹿划掉，都收得到。</p>
+    {pushSet()?<>
+      <Switch on={pl} set={async v=>{const e=v?await pushOn():(await pushOff(),'');setPl(pushLive());setS(status());say(e||(v?'云端推送开好了':'云端推送关掉了'));}} label="云端推送" note={pl?'开着。离开小鹿时，他接下来的几句话会交给云端按时送到':'开了之后，下面的后台保活可以不用开'}/>
+      {pl&&<div className="rowbtn"><button className="chip" onClick={async()=>{const p=st.personas.find(x=>x.id===pf.last)??st.personas[0];if(!p)return;say(await pushTest(p.name,lines(p,1)[0]??'在吗',p.id)?'发出去了，几秒内会弹出来':'没发出去，过一会儿再试');}}>推一条试试</button></div>}
+      {pl&&pf.audio&&<p className="hint">云端推送开着，下面的后台保活可以关掉了：不占声音，也更省电。</p>}
+      {!pl&&<div className="rowbtn"><button className="linkish" onClick={async()=>{await pushUnlink();setPl(false);}}>换一个云端地址</button></div>}
+    </>:<>
+      <div className="newdeck"><input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="云端服务的地址，https:// 开头" inputMode="url" autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="云端服务的地址"/>
+        <button className="btn" disabled={!addr.trim()} onClick={async()=>{const e=await pushLink(addr);say(e||'连上了。把下面的开关打开就行');if(!e)setAddr('');}}>连上</button></div>
+      <p className="hint">填一次就行，同步会把它带到你别的设备上。</p>
+    </>}
 
     <h3>后台保活</h3>
     <p className="hint">为了让他在你没盯着页面的时候也能找到你，这里一层一层兜着。哪一层在这台设备上不亮，就靠别的层。</p>

@@ -240,7 +240,11 @@ export async function askNotify():Promise<boolean>{
   const ok=(Notification.permission==='granted')||(await Notification.requestPermission())==='granted';
   setPrefs({notify:ok});return ok;
 }
+// 云端推送接手的时候（页面在后台、话已经交给云端）：通知由云端弹，这里不再弹一遍
+let hold=false;
+export const setHold=(v:boolean)=>{hold=v;};
 export function notify(p:Persona,text:string){
+  if(hold&&document.hidden)return;
   if(!S().prefs.notify||!('Notification' in window)||Notification.permission!=='granted')return;
   const opt={body:text,tag:'cx-'+p.id,icon:'./icon-192.png',badge:'./icon-192.png',data:{pid:p.id},renotify:true} as NotificationOptions;
   if(reg)void reg.showNotification(p.name,opt).catch(()=>{});

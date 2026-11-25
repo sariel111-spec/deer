@@ -1,5 +1,6 @@
 import {S,box,list,mapMsgs,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Persona,type When} from './db';
 import {notify,blip,badge} from './alive';
+import {pushWas,type Ahead} from './push';
 
 const rand=(a:number,b:number)=>a+Math.random()*Math.max(0,b-a);
 const inWin=(w:When,t:number)=>{const x=whens.find(y=>y.id===w)!;const h=new Date(t).getHours();return x.from<x.to?h>=x.from&&h<x.to:h>=x.from||h<x.to;};
@@ -40,8 +41,16 @@ function mail(p:Persona,now:number){
   const ls=lines(p,3+Math.floor(Math.random()*3));
   if(!ls.length){setBox(p.id,{mailDue:0});return;}
   setBox(p.id,{mailDue:0,letters:[...b.letters,{id:uid(),from:'ta',text:ls.join('\n'),at:now}]});
-  notify(p,'给你回了一封信');
+  if(!(pushWas()&&now-b.mailDue>LATE))notify(p,'给你回了一封信');
 }
+
+/* 提前排好的话（只在这台设备上）：离开前台时交给云端推送，回来时聊天里补上的就是同样几句 */
+type Line={text:string;src:string;st?:boolean};
+type Reply={at:number;lines:Line[];quote?:string};
+type Plans={pq:Record<string,(Line&{at:number})[]>;rq:Record<string,Reply>};
+const LATE=20000;
+const plans:Plans=(()=>{try{const v=JSON.parse(localStorage.getItem('cx-plan')??'null') as Plans|null;if(v&&typeof v.pq==='object'&&typeof v.rq==='object')return v;}catch{/* 坏了就重排 */}return {pq:{},rq:{}};})();
+const savePlans=()=>{try{localStorage.setItem('cx-plan',JSON.stringify(plans));}catch{/* 存不下也不要紧，回来时现抽 */}};
 
 /* 正在输入、当前打开的是谁 */
 const typing=new Set<string>();
@@ -55,14 +64,15 @@ export function read(pid:string){
   badge();
 }
 
-function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=false){
+// late：这句是离开期间该到的、现在补上的。云端推送开着的话当时已经推过，不再弹一遍通知
+function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=false,late=false){
   // 补发的话不能排到已有消息的前面
   at=Math.max(at,(list(p.id).at(-1)?.at??0)+1);
   if(sticker){pushMsg({pid:p.id,from:'ta',kind:'img',text,at,st:true});text='[表情]';}
   else pushMsg({pid:p.id,from:'ta',kind:'text',text,at,src,re});
   const here=!document.hidden&&active===p.id;
   if(here){setPersona(p.id,{readAt:Date.now()});blip();}
-  else notify(p,text);
+  else if(!(late&&pushWas()))notify(p,text);
   badge();
 }
 
@@ -87,18 +97,32 @@ function seen(pid:string){
 }
 const reacts=['❤️','❤️','😂','🥺','👍','😮'];
 const busy=new Set<string>();
-function reply(p:Persona){
+function replyLine(p:Persona,i:number,t:number):Line|null{
+  const packs=(S().packs??[]).filter(k=>k.his!==false).flatMap(k=>k.ids);
+  // 有表情包的话，他偶尔回一张（不会连着第一句就发）
+  if(i>0&&p.stick!==false&&packs.length&&Math.random()<.22)return {text:packs[Math.floor(Math.random()*packs.length)],src:'',st:true};
+  return draw(p,'reply',t);
+}
+function replyPlan(p:Persona,at:number):Reply{
+  const n=1+Math.floor(Math.random()*Math.max(1,p.burst)),lines:Line[]=[];
+  for(let i=0;i<n;i++){const l=replyLine(p,i,at);if(!l)break;lines.push(l);}
+  const mine=list(p.id).filter(m=>m.from==='me'&&m.kind!=='tip');
+  return {at,lines,quote:mine.length&&Math.random()<.12?mine[mine.length-1].id:undefined};
+}
+// planned：离开前台时提前排好、交给云端推送过的那几句
+function reply(p:Persona,planned?:Reply){
   if(busy.has(p.id))return;busy.add(p.id);
   seen(p.id);
-  const n=1+Math.floor(Math.random()*Math.max(1,p.burst));
-  const mine=list(p.id).filter(m=>m.from==='me'&&m.kind!=='tip');
-  const quote=mine.length&&Math.random()<.12?mine[mine.length-1].id:undefined;
+  if(planned&&Date.now()-planned.at>LATE){
+    // 离开期间他已经回了：按原定的时刻一口气补上
+    planned.lines.forEach((l,i)=>arrive(who(p.id)??p,l.text,l.src,planned.at+i*1500,i===0?planned.quote:undefined,!!l.st,true));
+    busy.delete(p.id);return;
+  }
+  const now0=planned??replyPlan(p,Date.now()),n=now0.lines.length;
   let i=0;
   const step=()=>{
-    const now=who(p.id)??p,packs=(S().packs??[]).filter(k=>k.his!==false).flatMap(k=>k.ids);
-    // 有表情包的话，他偶尔回一张（不会连着第一句就发）
-    const got=i>0&&now.stick!==false&&packs.length&&Math.random()<.22?{text:packs[Math.floor(Math.random()*packs.length)],src:'',st:true}:draw(now,'reply',Date.now());
-    if(got)arrive(now,got.text,got.src,Date.now(),i===0?quote:undefined,'st' in got);
+    const now=who(p.id)??p,got=now0.lines[i];
+    if(got)arrive(now,got.text,got.src,Date.now(),i===0?now0.quote:undefined,!!got.st);
     i++;
     if(got&&i<n){setTyping(p.id,true);setTimeout(step,rand(900,2400));}
     else{setTyping(p.id,false);busy.delete(p.id);}
@@ -116,22 +140,64 @@ function proactive(p:Persona,now:number){
   if(!p.pro){if(p.nextAt)setPersona(p.id,{nextAt:0});return;}
   if(!p.nextAt){setPersona(p.id,{nextAt:nextTime(p,now)});return;}
   if(now<p.nextAt)return;
+  // 提前排好的（交给云端推送过的）优先用，这样聊天里出现的就是通知里那几句
+  let q=plans.pq[p.id]??[];
+  if(q.length&&q[0].at!==p.nextAt)q=[];
   // 离开很久回来：最多补三条，时间按他本来要发的时刻记
   let at=p.nextAt,sentN=0;
   while(at<=now&&sentN<3){
-    const got=draw(p,'pro',at);
-    if(got)arrive(p,got.text,got.src,Math.min(at,now));
-    sentN++;at=nextTime(p,at);
+    const got=q.length&&q[0].at===at?q.shift()!:draw(p,'pro',at);
+    if(got)arrive(p,got.text,got.src,Math.min(at,now),undefined,false,now-at>LATE);
+    sentN++;at=q.length?q[0].at:nextTime(p,at);
   }
-  if(at<=now)at=nextTime(p,now);
+  if(at<=now){q=[];at=nextTime(p,now);}
+  if(q.length)plans.pq[p.id]=q;else delete plans.pq[p.id];
+  savePlans();
   setPersona(p.id,{nextAt:at});
+}
+
+/* 离开前台时：把接下来要到的话排好，交给云端按时推送 */
+export function ahead():Ahead[]{
+  const now=Date.now(),out:Ahead[]=[];
+  for(const p of S().personas){
+    // 你发了话，他还没回
+    if(p.replyAt&&!busy.has(p.id)){
+      let r=plans.rq[p.id];
+      if(!r||r.at!==p.replyAt)r=plans.rq[p.id]=replyPlan(p,p.replyAt);
+      r.lines.forEach((l,i)=>out.push({at:Math.max(r.at,now)+i*1500,title:p.name,body:l.st?'[表情]':l.text,pid:p.id,badge:1}));
+    }else delete plans.rq[p.id];
+    // 他主动找你：排三句，和回来时「最多补三条」对得上
+    if(p.pro&&p.nextAt){
+      let q=plans.pq[p.id]??[];
+      if(q.length&&q[0].at!==p.nextAt)q=[];
+      while(q.length<3){
+        const at=q.length?nextTime(p,q[q.length-1].at):p.nextAt;
+        if(at>now+48*3600e3)break;
+        const got=draw(p,'pro',at);if(!got)break;
+        q.push({at,...got});
+      }
+      if(q.length)plans.pq[p.id]=q;else delete plans.pq[p.id];
+      q.forEach(x=>out.push({at:Math.max(x.at,now),title:p.name,body:x.text,pid:p.id,badge:1}));
+    }else delete plans.pq[p.id];
+    // 他的回信
+    const due=box(p.id).mailDue;
+    if(due)out.push({at:Math.max(due,now),title:p.name,body:'给你回了一封信',pid:p.id});
+  }
+  for(const id of Object.keys(plans.pq))if(!who(id))delete plans.pq[id];
+  for(const id of Object.keys(plans.rq))if(!who(id))delete plans.rq[id];
+  savePlans();
+  out.sort((a,b)=>a.at-b.at);
+  // 每到一句，图标上的数字加一
+  let n=S().personas.reduce((a,p)=>a+unread(p),0);
+  for(const x of out)if(x.badge){n++;x.badge=n;}
+  return out;
 }
 
 export function tick(){
   const now=Date.now();
   for(const p of S().personas){
     if(p.replyAt){
-      if(now>=p.replyAt){setPersona(p.id,{replyAt:0});reply(p);}
+      if(now>=p.replyAt){const r=plans.rq[p.id],planned=r&&r.at===p.replyAt?r:undefined;if(r){delete plans.rq[p.id];savePlans();}setPersona(p.id,{replyAt:0});reply(p,planned);}
       else if(p.replyAt-now<Math.min(6000,(p.min*1000)*.8+1200))setTyping(p.id,true);
     }
     if(!busy.has(p.id)&&!p.replyAt)proactive(p,now);

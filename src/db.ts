@@ -21,7 +21,7 @@ export type Persona={
 };
 export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean};   // react：贴在这条上的表情；st：这是一张表情包
 export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number;
-  mode?:'pip'|'loop'|'osc'|'both';pipAuto?:boolean;awake?:boolean};   // 保活方式、画中画自动进入、屏幕常亮（都只管这台设备）
+  mode?:'pip'|'loop'|'osc'|'both';pipAuto?:boolean;awake?:boolean;cloud?:string};   // 保活方式、画中画自动进入、屏幕常亮（都只管这台设备）；cloud：云端推送服务的地址（跟着同步走）
 export type Pack={id:string;name:string;ids:string[];his?:boolean;created:number;updated:number};   // 一组表情包；ids 里是本机图片或图片链接；his=false 表示他不发这一组
 export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>;stickers?:string[];packs?:Pack[]};   // dead：删掉的人和分组，同步时别的设备也跟着删
 export type Grave={dead:string[];cleared:number};   // 一位的聊天里删掉的消息、清空的时刻
@@ -110,7 +110,7 @@ export async function reload(){
 
 /* ───────── 改东西 ───────── */
 
-export const setPrefs=(p:Partial<Prefs>)=>{state={...state,prefs:{...state.prefs,...p,...('myName' in p||'myAvatar' in p||'bubble' in p?{at:Date.now()}:{})}};save();};
+export const setPrefs=(p:Partial<Prefs>)=>{state={...state,prefs:{...state.prefs,...p,...('myName' in p||'myAvatar' in p||'bubble' in p||'cloud' in p?{at:Date.now()}:{})}};save();};
 export function addPersona(name:string):Persona{
   const now=Date.now();
   const p:Persona={id:uid(),name,bio:'',accent:accents[0],since:'',decks:state.decks.filter(d=>!d.only?.length||d.only.includes(name)).map(d=>d.id),
