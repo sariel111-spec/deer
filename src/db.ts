@@ -242,6 +242,6 @@ export async function importAll(text:string){
   const j=JSON.parse(text) as Record<string,unknown>;
   if(j.app!==APP||!j.state)throw new Error('这不是这个网站的备份文件');
   for(const [k,v] of Object.entries(j))if(/^[maxd]:/.test(k))await setKey(k,v);
-  await setKey('state',j.state);pics.clear();await reload();
+  await setKey('state',j.state);pics.clear();await reload();touch();
 }
 export async function wipe(){for(const k of await allKeys())await delKey(String(k));state=blank();msgs.clear();boxes.clear();graves.clear();pics.clear();emit();}
