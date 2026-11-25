@@ -381,7 +381,9 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .sheet .tr-result .tr-spread{margin-top:14px}
 /* 牌库 */
 .tr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.tr-grid button{--cw:calc((min(100vw,640px) - 62px) / 4);width:var(--cw);height:calc(var(--cw) * 1.713);border-radius:calc(var(--cw) * .085)}
+.tr-grid button{--cw:calc((min(100vw,640px) - 80px) / 4);position:relative;width:100%;height:0;padding:0 0 171.3%;border-radius:calc(var(--cw) * .085)}
+.tr-grid button .tr-face{position:absolute;inset:0}
+.page.tr{overflow-x:hidden}
 .tr-grid button:active{opacity:.7}
 .tr-detail{display:flex;gap:16px;align-items:flex-start;margin-top:8px}
 .tr-big{--cw:118px;flex:none;display:block;width:var(--cw);height:calc(var(--cw) * 1.713)}
