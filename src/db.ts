@@ -22,7 +22,7 @@ export type Persona={
 export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean};   // react：贴在这条上的表情；st：这是一张表情包
 export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number;
   mode?:'pip'|'loop'|'osc'|'both';pipAuto?:boolean;awake?:boolean;cloud?:string};   // 保活方式、画中画自动进入、屏幕常亮（都只管这台设备）；cloud：云端推送服务的地址（跟着同步走）
-export type Pack={id:string;name:string;ids:string[];his?:boolean;who?:string[];created:number;updated:number};   // 一组表情包；ids 里是本机图片或图片链接；his=false 表示他不发这一组；who：只给这几位用（不写就是所有人）
+export type Pack={id:string;name:string;ids:string[];his?:boolean;who?:string[];use?:'tarot';created:number;updated:number};   // 一组表情包；ids 里是本机图片或图片链接；his=false 表示他不发这一组；who：只给这几位用（不写就是所有人）
 export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>;stickers?:string[];packs?:Pack[]};   // dead：删掉的人和分组，同步时别的设备也跟着删
 export type Grave={dead:string[];cleared:number};   // 一位的聊天里删掉的消息、清空的时刻
 // 每一位各自的小功能数据，单独存一份（x:<pid>），不和聊天记录混在一起
@@ -30,10 +30,13 @@ export type Letter={id:string;from:'me'|'ta';text:string;at:number;read?:boolean
 export type Diary={id:string;at:number;text:string;mood:string;note?:string};
 export type Day={id:string;name:string;date:string;yearly:boolean};
 export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt?:string};
+// 一次塔罗：kind 是牌阵，cards 是抽到的牌（c 第几张、r 逆位），said 是他当时说的那句，note 是你写的感想
+export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time';date?:string;q?:string;cards:{c:number;r?:boolean}[];said?:string;note?:string;sent?:boolean};
 export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string}[];answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string}[];listen:number;focus:{n:number;min:number};
   cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number;
-  call?:{at:number};ring?:{at:number}};   // call：视频通话从什么时候开始（一直到你挂断）；ring：他正打过来
+  call?:{at:number};ring?:{at:number};
+  tarot?:Reading[];tarotRev?:boolean};   // tarot：塔罗的记录；tarotRev=false 表示只抽正位   // call：视频通话从什么时候开始（一直到你挂断）；ring：他正打过来
 export const blankBox=():Box=>({letters:[],mailDue:0,diary:[],days:[],lines:[],answers:{},checks:[],listen:0,focus:{n:0,min:0},cycle:{starts:[],len:5,gap:28},posts:[]});
 
 export const accents=['#8A6A52','#000000','#3D6BE0','#D4526E','#5B8C6A','#8B6FD1','#E08A3C'];
@@ -385,12 +388,12 @@ export const unread=(p:Persona)=>list(p.id).filter(m=>m.from==='ta'&&m.at>p.read
 
 /* ───────── 图片：缩小后存在本机 ───────── */
 
-export async function putImage(file:Blob,max=1280):Promise<string>{
+export async function putImage(file:Blob,max=1280,q=.86):Promise<string>{
   const bmp=await createImageBitmap(file);
   const k=Math.min(1,max/Math.max(bmp.width,bmp.height));
   const c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
   c.getContext('2d')!.drawImage(bmp,0,0,c.width,c.height);bmp.close?.();
-  const id=uid();await setKey('a:'+id,c.toDataURL('image/jpeg',.86));return id;
+  const id=uid();if(!await setKey('a:'+id,c.toDataURL('image/jpeg',q)))throw new Error('图片没存进去');return id;
 }
 export async function getImage(id:string):Promise<string>{
   if(/^https?:\/\//.test(id))return id;

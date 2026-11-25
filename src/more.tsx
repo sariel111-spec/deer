@@ -5,11 +5,12 @@ import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Letter,type 
 import {lines,sent} from './engine';
 import {Avatar,Pic,backTo,dayLabel} from './App';
 import {Num,Sheet,say,todayLine} from './pages';
+import {TarotPage} from './tarotpage';
 
 // 主页上摆出来的全部功能。顺序就是宫格里的顺序
 export const feats:{id:string;name:string;icon:LucideIcon}[]=[
   {id:'mail',name:'信箱',icon:Mail},{id:'diary',name:'日记',icon:NotebookPen},{id:'days',name:'纪念日',icon:CalendarHeart},{id:'today',name:'今日一句',icon:Quote},
-  {id:'pick',name:'帮我选',icon:Dices},{id:'ask',name:'问卷',icon:ClipboardList},{id:'draw',name:'占卜',icon:Sparkles},{id:'match',name:'默契',icon:Puzzle},
+  {id:'pick',name:'帮我选',icon:Dices},{id:'ask',name:'问卷',icon:ClipboardList},{id:'draw',name:'塔罗',icon:Sparkles},{id:'match',name:'默契',icon:Puzzle},
   {id:'check',name:'报备',icon:MapPin},{id:'listen',name:'一起听',icon:Headphones},{id:'focus',name:'专注',icon:Timer},{id:'cycle',name:'经期',icon:Droplet},
   {id:'feed',name:'动态',icon:Aperture},{id:'fav',name:'收藏',icon:Bookmark},{id:'album',name:'相册',icon:Images},{id:'pace',name:'节奏',icon:SlidersHorizontal},
 ];
@@ -20,7 +21,7 @@ const gap=(a:string,b:string)=>Math.round((at0(b)-at0(a))/864e5);
 const md=(t:number)=>{const d=new Date(t);return `${d.getMonth()+1}月${d.getDate()}日 周${'日一二三四五六'[d.getDay()]}`;};
 const mmss=(s:number)=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(Math.floor(s%60)).padStart(2,'0')}`;
 
-function Sub({p,title,act,children,cls=''}:{p:Persona;title:string;act?:React.ReactNode;children:React.ReactNode;cls?:string}){
+export function Sub({p,title,act,children,cls=''}:{p:Persona;title:string;act?:React.ReactNode;children:React.ReactNode;cls?:string}){
   return <main className={`page sub ${cls}`} style={{'--accent':p.accent} as React.CSSProperties}>
     <header className="bar"><a className="ico" href={'#/us/'+p.id} onClick={backTo('#/us/'+p.id)} aria-label="返回"><ChevronLeft size={28} strokeWidth={1.8}/></a><h1>{title}</h1>{act}</header>
     {children}
@@ -136,19 +137,6 @@ function AskPage({p}:{p:Persona}){
     <p className="lede">关于你们的十个问题。写多少算多少，随时可以回来改。</p>
     <ol className="qa">{asks.map((q,i)=><li key={i}><label><b>{q}</b>
       <textarea rows={2} value={b.answers[i]??''} onChange={e=>setBox(p.id,{answers:{...b.answers,[i]:e.target.value}})} placeholder="写在这里"/></label></li>)}</ol>
-  </Sub>;
-}
-
-/* 占卜 */
-const lucks=['大吉','中吉','小吉','吉','末吉'];
-function DrawPage({p}:{p:Persona}){
-  const b=box(p.id),today=ymd(),got=b.draw?.date===today?b.draw:undefined;
-  const pull=(i:number)=>{if(got)return;setBox(p.id,{draw:{date:today,i,luck:lucks[Math.floor(Math.random()*lucks.length)],text:lines(p,1)[0]??''}});};
-  return <Sub p={p} title="占卜">
-    <p className="lede">{got?'今天的签抽过了，明天再来。':'一天一签。选一张翻开。'}</p>
-    <div className="tarot">{[0,1,2].map(i=><button key={i} className={got?.i===i?'open':got?'dim':''} onClick={()=>pull(i)} disabled={!!got} aria-label={got?.i===i?`今天的签：${got.luck}`:`第 ${i+1} 张`}>
-      {got?.i===i?<><b>{got.luck}</b><small>{md(Date.now()).split(' ')[0]}</small></>:<Sparkles size={22} strokeWidth={1.3}/>}</button>)}</div>
-    {got?.text&&<div className="said"><Avatar id={p.avatar} name={p.name} size={28}/><span>{got.text}</span></div>}
   </Sub>;
 }
 
@@ -291,7 +279,7 @@ export function Feature({id,p}:{id:string;p:Persona}){
   useVer();
   switch(id){
     case 'mail':return <MailBox p={p}/>;case 'diary':return <DiaryPage p={p}/>;case 'days':return <DaysPage p={p}/>;case 'today':return <TodayPage p={p}/>;
-    case 'pick':return <PickPage p={p}/>;case 'ask':return <AskPage p={p}/>;case 'draw':return <DrawPage p={p}/>;case 'match':return <MatchPage p={p}/>;
+    case 'pick':return <PickPage p={p}/>;case 'ask':return <AskPage p={p}/>;case 'draw':return <TarotPage p={p}/>;case 'match':return <MatchPage p={p}/>;
     case 'check':return <CheckPage p={p}/>;case 'listen':return <ListenPage p={p}/>;case 'focus':return <FocusPage p={p}/>;case 'cycle':return <CyclePage p={p}/>;
     case 'feed':return <FeedPage p={p}/>;case 'fav':return <FavPage p={p}/>;case 'album':return <AlbumPage p={p}/>;
     default:return <Sub p={p} title="功能"><p className="empty">没有这个页面。</p></Sub>;
