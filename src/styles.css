@@ -826,3 +826,16 @@ button.ml-photo{cursor:zoom-in}
 .hmenu li>button:not(.go){flex:none;width:44px;height:44px;display:grid;place-items:center;color:var(--line)}
 .hmenu li>button[aria-pressed=true]{color:var(--fg)}
 @media (min-width:700px){.hgrid{grid-template-columns:repeat(4,1fr)}}
+
+/* ── 字卡列表：顶上一条搜索；搜到的字卡一行一张 ── */
+.page>.cfind{display:flex;margin-top:8px}
+.cfind button{display:grid;place-items:center;color:var(--mute)}
+.page>.ctabs{margin:10px 0 0!important}
+.ctabs+.decks{margin-top:0}
+.cfound{margin-top:18px;margin-bottom:0}
+.chits li{border-bottom:1px solid var(--line)}
+.chits a{display:block;padding:12px 16px;color:inherit}
+.chits p{font-size:15px;line-height:1.5;overflow-wrap:anywhere}
+.chits small{display:block;margin-top:3px;font-size:12px;color:var(--mute)}
+.chits mark{background:none;color:inherit;font-weight:700}
+.chits a.off p{color:var(--mute)}

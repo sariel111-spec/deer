@@ -226,9 +226,14 @@ export function Cards({deckId}:{deckId?:string}){
   const st=S();
   const d=st.decks.find(x=>x.id===deckId);
   const file=useRef<HTMLInputElement>(null);
-  const [name,setName]=useState('');
+  const [name,setName]=useState(''),[add,setAdd]=useState(false),[q,setQ]=useState(''),[kind,setKind]=useState<'all'|'reply'|'pro'>('all');
   if(d)return <DeckPage d={d}/>;
-  const make=()=>{const n=name.trim();if(!n)return;const x=addDeck(n);setName('');go('#/cards/'+x.id);};
+  const make=()=>{const n=name.trim();if(!n)return;const x=addDeck(n);setName('');setAdd(false);go('#/cards/'+x.id);};
+  // 搜字卡：在所有分组里找这几个字；分组的名字对得上也算
+  const term=q.trim(),hits=term?st.decks.flatMap(x=>x.cards.filter(c=>c.t.includes(term)).map(c=>({deck:x,c}))):[];
+  const named=term?st.decks.filter(x=>x.name.includes(term)):[];
+  const shownDecks=st.decks.filter(x=>kind==='all'||x.use==='both'||x.use===kind);
+  const mark=(t:string)=>{const i=t.indexOf(term);return i<0?t:<>{t.slice(0,i)}<mark>{term}</mark>{t.slice(i+term.length)}</>;};
   const load=async(f?:File)=>{
     if(!f)return;
     const groups=readCards(await f.text());
@@ -236,25 +241,39 @@ export function Cards({deckId}:{deckId?:string}){
     let n=0;for(const g of groups){const x=addDeck(groups.length===1&&g.name==='导入的分组'?f.name.replace(/\.[^.]+$/,''):g.name);n+=addCards(x.id,g.lines.join('\n')).added;}
     say(`导入了 ${groups.length} 个分组，共 ${n} 张`);
   };
+  const row=(x:Deck)=>{
+    const users=st.personas.filter(p=>p.decks.includes(x.id));
+    return <li key={x.id}><a href={'#/cards/'+x.id}>
+      <span className="who"><b>{x.name}</b><span>{x.cards.length} 张{x.when!=='all'&&<> · {whens.find(w=>w.id===x.when)?.name}</>}{x.use!=='both'&&<> · {x.use==='pro'?'只用于主动':'只用于回复'}</>}</span></span>
+      <span className="users">{users.length?users.slice(0,4).map(p=><Avatar key={p.id} id={p.avatar} name={p.name} size={24}/>):<small>没人在用</small>}{users.length>1&&<em>公用</em>}</span>
+      <ChevronRight size={18} strokeWidth={1.6}/>
+    </a></li>;
+  };
   return <main className="page">
-    <header className="bar"><h1>字卡</h1><button className="ico" onClick={()=>file.current?.click()} aria-label="从文件导入字卡"><Plus size={26} strokeWidth={1.7}/></button>
+    <header className="bar"><h1>字卡</h1><button className="ico" onClick={()=>setAdd(true)} aria-label="新建分组或导入"><Plus size={26} strokeWidth={1.7}/></button>
       <input ref={file} type="file" accept=".txt,.json,text/plain,application/json" hidden onChange={e=>{void load(e.target.files?.[0]);e.target.value='';}}/></header>
-    <p className="lede">他说的每一句话，都是从这里随机抽出来的。一个分组可以只给一位用，也可以几位公用。</p>
-    <div className="newdeck"><input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')make();}} placeholder="新分组的名字，比如 日常" aria-label="新分组的名字"/><button className="btn sm" onClick={make} disabled={!name.trim()}>新建</button></div>
-    {st.decks.length?<ul className="decks">{st.decks.map(x=>{
-      const users=st.personas.filter(p=>p.decks.includes(x.id));
-      return <li key={x.id}><a href={'#/cards/'+x.id}>
-        <span className="who"><b>{x.name}</b><span>{x.cards.length} 张{x.when!=='all'&&<> · {whens.find(w=>w.id===x.when)?.name}</>}{x.use!=='both'&&<> · {x.use==='pro'?'只用于主动':'只用于回复'}</>}</span></span>
-        <span className="users">{users.length?users.slice(0,4).map(p=><Avatar key={p.id} id={p.avatar} name={p.name} size={24}/>):<small>没人在用</small>}{users.length>1&&<em>公用</em>}</span>
-        <ChevronRight size={18} strokeWidth={1.6}/>
-      </a></li>;
-    })}</ul>:<p className="empty">还没有分组。新建一个，或者点右上角从文件导入（一行一句的文本，或别的传讯网站导出的文件）。</p>}
+    {st.decks.length>0&&<label className="find wide cfind"><Search size={16}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="搜字卡" aria-label="搜字卡" enterKeyHint="search"/>{q&&<button type="button" onClick={()=>setQ('')} aria-label="清掉"><X size={16}/></button>}</label>}
+    {term?<>
+      {named.length>0&&<ul className="decks">{named.map(row)}</ul>}
+      {hits.length?<><h3 className="cfound">{hits.length} 张</h3><ul className="chits">{hits.slice(0,80).map(h=><li key={h.deck.id+h.c.id}><a href={'#/cards/'+h.deck.id} onClick={()=>{try{sessionStorage.setItem('cx-find',term);}catch{/* */}}} className={h.c.off?'off':''}><p>{mark(h.c.t)}</p><small>{h.deck.name}{h.c.off?' · 停用了':''}</small></a></li>)}</ul>
+        {hits.length>80&&<p className="hint center">只列出前 80 张，再多写几个字能找得更准。</p>}</>
+        :!named.length&&<p className="empty">没有带「{term}」的字卡。</p>}
+    </>:<>
+      {st.decks.length>8&&<div className="seg ctabs" role="tablist" aria-label="看哪些分组">{([['all','全部'],['reply','回复用'],['pro','主动用']] as const).map(([id,n])=><button key={id} role="tab" aria-selected={kind===id} onClick={()=>setKind(id)}>{n}</button>)}</div>}
+      {st.decks.length?<ul className="decks">{shownDecks.map(row)}</ul>
+        :<div className="ml-none"><p>他说的每一句话，都是从字卡里抽出来的。<br/>先建一个分组，把他会说的话一行一句放进去。</p><button className="btn" onClick={()=>setAdd(true)}>建第一个分组</button></div>}
+    </>}
+    {add&&<Sheet title="新分组" close={()=>setAdd(false)}>
+      <form className="newdeck" onSubmit={e=>{e.preventDefault();make();}}><input value={name} onChange={e=>setName(e.target.value)} placeholder="分组的名字，比如 日常" aria-label="新分组的名字" autoFocus/><button className="btn sm" disabled={!name.trim()}>新建</button></form>
+      <p className="hint"><button type="button" className="linkish" onClick={()=>{setAdd(false);file.current?.click();}}>或者从文件导入</button>（一行一句的文本，或别的传讯网站导出的文件）</p>
+    </Sheet>}
   </main>;
 }
 function DeckPage({d}:{d:Deck}){
   const st=S();
   const [text,setText]=useState('');
-  const [q,setQ]=useState('');
+  // 从「搜字卡」点过来的：带着要找的那几个字
+  const [q,setQ]=useState(()=>{try{const v=sessionStorage.getItem('cx-find')??'';sessionStorage.removeItem('cx-find');return v;}catch{return '';}});
   const [sure,setSure]=useState(false);
   const add=()=>{const r=addCards(d.id,text);setText('');say(r.added?`加了 ${r.added} 张${r.dup?`，${r.dup} 张重复的没加`:''}`:r.dup?'这些都已经有了':'先写点什么');};
   const shown=q.trim()?d.cards.filter(c=>c.t.includes(q.trim())):d.cards;
