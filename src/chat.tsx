@@ -1,7 +1,8 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {Bookmark,Camera,ChevronDown,ChevronLeft,Copy,Dices,EyeOff,Hand,Heart,Image as ImageIcon,Info,Mail,MapPin,Plus,RefreshCw,Reply,Search,Smile,Trash2,Undo2,Video,X} from 'lucide-react';
 import {S,addPack,dropPack,list,packsFor,pushMsg,putImage,setCard,setMsg,setPack,setPrefs,useVer,type Msg,type Pack,type Persona} from './db';
-import {isTyping,onCall,pool,read,redraw,sent,setActive} from './engine';
+import {hisCheck,isTyping,onCall,pool,read,redraw,sent,setActive} from './engine';
+import {Tell} from './check';
 import {callOpen} from './call';
 import {PersonaSheet,Sheet,say} from './pages';
 import {Avatar,Pic,dayLabel} from './App';
@@ -39,7 +40,7 @@ export function Chat({p}:{p:Persona}){
   const [text,setText]=useState(()=>{try{return localStorage.getItem(draftKey(p.id))??'';}catch{return '';}});
   const [re,setRe]=useState<Msg|null>(null);
   const [menu,setMenu]=useState<Msg|null>(null);
-  const [edit,setEdit]=useState(false),[more,setMore]=useState(false);
+  const [edit,setEdit]=useState(false),[more,setMore]=useState(false),[ck,setCk]=useState(false);
   const [panel,setPanel]=useState(''),[manage,setManage]=useState('');   // panel：''关着、'emo' 或某个表情包分组的 id
   const [q,setQ]=useState<string|null>(null);
   const [view,setView]=useState('');
@@ -103,7 +104,7 @@ export function Chat({p}:{p:Persona}){
     try{push({kind:'img',text:await putImage(f)});}catch{say('这张图片读不了，换一张试试');}
   };
   const openMenu=(m:Msg)=>{try{getSelection()?.removeAllRanges();}catch{/* */}(document.activeElement as HTMLElement|null)?.blur?.();setMenu(m);};
-  useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key!=='Escape'||manage||menu||more||edit)return;if(view)setView('');else if(re)setRe(null);else if(panel)setPanel('');};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[view,re,panel,manage,menu,more,edit]);
+  useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key!=='Escape'||manage||menu||more||edit||ck)return;if(view)setView('');else if(re)setRe(null);else if(panel)setPanel('');};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[view,re,panel,manage,menu,more,edit,ck]);
   const pat=()=>{pushMsg({pid:p.id,from:'me',kind:'tip',text:`你拍了拍 ${p.name}`,at:Date.now()});setMore(false);sent(p.id);};
   const lastTa=[...all].reverse().find(m=>m.from==='ta');
   const calling=onCall()?.id===p.id;
@@ -199,11 +200,12 @@ export function Chat({p}:{p:Persona}){
     {more&&<Sheet title="" close={()=>setMore(false)} plain>
       <ul className="apps tools">
         <li><button onClick={pat}><span><Hand size={23} strokeWidth={1.5}/></span>拍一拍</button></li>
-        <li><a href={`#/f/check/${p.id}`}><span><MapPin size={23} strokeWidth={1.5}/></span>报备</a></li>
+        <li><button onClick={()=>{setMore(false);setCk(true);}}><span><MapPin size={23} strokeWidth={1.5}/></span>报备</button></li>
         <li><a href={`#/f/pick/${p.id}`}><span><Dices size={23} strokeWidth={1.5}/></span>帮我选</a></li>
         <li><a href={`#/f/mail/${p.id}`}><span><Mail size={23} strokeWidth={1.5}/></span>写信</a></li>
       </ul>
     </Sheet>}
+    {ck&&<Sheet title="报备" close={()=>setCk(false)}><Tell p={p} done={()=>setCk(false)}/><p className="hint"><a href={`#/f/check/${p.id}`}>看今天的报备</a></p></Sheet>}
     {edit&&<PersonaSheet p={p} close={()=>setEdit(false)}/>}
   </main>;
 }
@@ -265,6 +267,7 @@ function Bubble({m,p,gap,top,bottom,lit,quoted,onReply,onMenu,onView,onJump}:{m:
   const [dx,setDx]=useState(0);
   const g=useRef({x:0,y:0,on:false,held:0,moved:false,fired:false});
   const mine=m.from==='me',react=m.react??(m.like?'❤️':'');
+  const card=m.kind==='text'&&(m.ck||hisCheck(m,p));   // 报备：一张小卡，不是普通气泡
   const fire=()=>{g.current.fired=true;g.current.on=false;try{navigator.vibrate?.(8);}catch{/* */}onMenu();};
   const down=(e:React.PointerEvent)=>{
     if(e.button!==0)return;
@@ -289,9 +292,10 @@ function Bubble({m,p,gap,top,bottom,lit,quoted,onReply,onMenu,onView,onJump}:{m:
       {!mine&&(bottom?<Avatar id={p.avatar} name={p.name} size={28}/>:<span className="gutter"/>)}
       <div className="stack" style={dx?{transform:`translateX(${dx}px)`,transition:'none'}:undefined}>
         {quoted&&<button className="quote" onClick={()=>onJump(quoted.id)} aria-label="回到被回复的那句">{peek(quoted)}</button>}
-        <div className={`bubble${m.kind==='img'?' pic':''}${m.st?' st':''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        <div className={`bubble${m.kind==='img'?' pic':''}${m.st?' st':''}${card?' ck':''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
           onClick={()=>{if(m.kind==='img'&&!m.st&&!g.current.fired&&!g.current.moved)onView();}}
           onDoubleClick={()=>setMsg(p.id,m.id,{react:react==='❤️'?'':'❤️',like:false})} onContextMenu={e=>{e.preventDefault();clearTimeout(g.current.held);fire();}}>
+          {card&&<small className="ck-tag"><MapPin size={12} strokeWidth={2} aria-hidden="true"/>报备</small>}
           {m.kind==='img'?<Pic id={m.text} alt={m.st?'表情包':'图片'}/>:m.text}
           {react&&<i className="liked" aria-label={`贴了 ${react}`}>{react}</i>}
         </div>

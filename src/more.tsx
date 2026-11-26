@@ -7,6 +7,7 @@ import {Avatar,Pic,backTo,dayLabel} from './App';
 import {Num,Sheet,say} from './pages';
 import {TarotPage} from './tarotpage';
 import {MailBox} from './mail';
+import {CheckPage} from './check';
 
 // 主页上摆出来的全部功能。顺序就是宫格里的顺序
 export const feats:{id:string;name:string;icon:LucideIcon}[]=[
@@ -98,23 +99,6 @@ function MatchPage({p}:{p:Persona}){
         <b>{o}</b>{pk&&<span className="pickers">{pk.me===k&&<Avatar id={me.myAvatar} name={me.myName} size={26}/>}{pk.ta===k&&<Avatar id={p.avatar} name={p.name} size={26}/>}</span>}
       </button>)}</div>
       <p className="hint center" role="status">{pk?(pk.me===pk.ta?'一样':'不一样'):'　'}</p></>}
-  </Sub>;
-}
-
-/* 报备 */
-const quick=['起床了','出门了','到了','在吃饭','在忙','下班了','到家了','要睡了'];
-function CheckPage({p}:{p:Persona}){
-  const b=box(p.id);
-  const [t,setT]=useState('');
-  const tell=(x:string)=>{x=x.trim();if(!x)return;const now=Date.now();pushMsg({pid:p.id,from:'me',kind:'text',text:x,at:now});sent(p.id);
-    setBox(p.id,{checks:[...b.checks,{at:now,text:x}].slice(-200)});setT('');say('告诉他了');};
-  const today=b.checks.filter(c=>ymd(new Date(c.at))===ymd()).reverse();
-  return <Sub p={p} title="报备" act={<a className="ico" href={'#/c/'+p.id} aria-label="去聊天"><MessageCircle size={23} strokeWidth={1.7}/></a>}>
-    <p className="lede">点一下就告诉他你在做什么，会直接发到聊天里。</p>
-    <div className="chips roomy">{quick.map(q=><button key={q} className="chip" onClick={()=>tell(q)}>{q}</button>)}</div>
-    <div className="newdeck"><input value={t} onChange={e=>setT(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')tell(t);}} placeholder="或者自己写" aria-label="自己写一句报备"/><button className="btn sm" onClick={()=>tell(t)} disabled={!t.trim()}>发送</button></div>
-    <h3>今天</h3>
-    {today.length?<ul className="timeline">{today.map(c=><li key={c.at}><time>{new Date(c.at).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false})}</time><span>{c.text}</span></li>)}</ul>:<p className="hint">今天还没有报备。</p>}
   </Sub>;
 }
 

@@ -1,4 +1,4 @@
-import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Letter,type Persona,type When} from './db';
+import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Letter,type Msg,type Persona,type When} from './db';
 import {notify,blip,badge,clearNotes} from './alive';
 import {pushWas,type Ahead} from './push';
 
@@ -260,8 +260,23 @@ function ring(p:Persona,at:number){
 // 他在某个时刻主动做的那件事：多数时候是一句话，偶尔是一通视频。只由「谁、几点」决定
 const proLine=(p:Persona,at:number,noCall:boolean)=>{
   const call=!noCall&&p.calls!==false&&!onCall()&&!box(p.id).ring&&seeded(p.id+'|c|'+Math.round(at))()<.08;
-  return call?{text:'',src:'',call:true as const}:draw(p,'pro',at,seeded(p.id+'|d|'+Math.round(at)));
+  if(call)return {text:'',src:'',call:true as const};
+  // 指定了「他的报备」是哪几组字卡：他主动找你时，大约三次里有一次是报备（从那几组里抽）。没指定就和以前完全一样
+  const ck=ckPool(p,at);
+  if(ck.length&&seeded(p.id+'|k|'+Math.round(at))()<1/3){const r=seeded(p.id+'|kd|'+Math.round(at)),c=ck[Math.floor(r()*ck.length)];return {text:c.t,src:c.id};}
+  return draw(p,'pro',at,seeded(p.id+'|d|'+Math.round(at)));
 };
+/** 他的报备能用的字卡：你在报备页指定的那几组里、这个时段能说的 */
+function ckPool(p:Persona,t:number){
+  const ids=box(p.id).ckDecks??[];if(!ids.length)return [];
+  return S().decks.filter(d=>ids.includes(d.id)&&p.decks.includes(d.id)&&inWin(d.when,t)).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>({id:d.id+'/'+c.id,t:c.t})));
+}
+/** 这条是不是他的报备：他主动发来的、出自你指定的那几组字卡 */
+export function hisCheck(m:Msg,p:Persona){
+  if(m.from!=='ta'||m.kind!=='text'||!m.src||!m.id.startsWith('p'+p.id.slice(-5)))return false;
+  const ids=box(p.id).ckDecks??[];
+  return ids.length>0&&m.src.split(',').every(s=>ids.includes(s.split('/')[0]));
+}
 
 /* 他主动找你 */
 export function nextTime(p:Persona,from:number){

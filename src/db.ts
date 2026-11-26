@@ -19,9 +19,12 @@ export type Persona={
   pro:boolean;proMin:number;proMax:number;quietFrom:number;quietTo:number;stick?:boolean;calls?:boolean;        // 主动：间隔（分钟）、他睡觉的钟点；stick：他也会发表情包；calls：他也会打视频过来
   nextAt:number;replyAt:number;readAt:number;created:number;updated:number;
 };
-export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean};   // react：贴在这条上的表情；st：这是一张表情包
+export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean;ck?:boolean};   // react：贴在这条上的表情；st：这是一张表情包；ck：这是一条报备（聊天里显示成小卡）
 export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number;
-  mode?:'pip'|'loop'|'osc'|'both';pipAuto?:boolean;awake?:boolean;cloud?:string};   // 保活方式、画中画自动进入、屏幕常亮（都只管这台设备）；cloud：云端推送服务的地址（跟着同步走）
+  mode?:'pip'|'loop'|'osc'|'both';pipAuto?:boolean;awake?:boolean;cloud?:string;   // 保活方式、画中画自动进入、屏幕常亮（都只管这台设备）；cloud：云端推送服务的地址（跟着同步走）
+  plan?:Plan[];quick?:string[];dayAt?:number};   // plan：我每周固定的日程；quick：报备的常用短语（没改过就是默认那几句）；dayAt：这两样最后一次改的时刻（同步用）
+/** 一条固定的日程：周几（0 是周日）、几点到几点 */
+export type Plan={id:string;name:string;days:number[];from:string;to:string};
 export type Pack={id:string;name:string;ids:string[];his?:boolean;who?:string[];use?:'tarot';created:number;updated:number};   // 一组表情包；ids 里是本机图片或图片链接；his=false 表示他不发这一组；who：只给这几位用（不写就是所有人）
 export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>;stickers?:string[];packs?:Pack[]};   // dead：删掉的人和分组，同步时别的设备也跟着删
 export type Grave={dead:string[];cleared:number};   // 一位的聊天里删掉的消息、清空的时刻
@@ -36,7 +39,8 @@ export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt
 // ok：「对一对」牌阵里你觉得对不对得上
 export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time'|'link'|'match';date?:string;q?:string;cards:{c:number;r?:boolean}[];said?:string;note?:string;sent?:boolean;ok?:boolean;jump?:{c:number;r?:boolean};ai?:string};   // jump：洗牌时跳出来的那张；ai：AI 解出来的话
 export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string;like?:boolean;u?:number}[];lineSeen?:string;answers:Record<string,string>;
-  draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string}[];listen:number;focus:{n:number;min:number};
+  draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string;id?:string;plan?:string}[];ckDecks?:string[];listen:number;   // checks.id：聊天里那条消息；checks.plan：这条报的是哪天的哪条日程；ckDecks：他哪几组字卡算报备
+  focus:{n:number;min:number};
   cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number;
   call?:{at:number};ring?:{at:number};
   mailGone?:string[];mailPace?:number;mailLen?:number;mailPro?:number;mailNext?:{at:number;text:string};mailCall?:string;mailSign?:string;   // mailCall：他在信里怎么称呼你；mailSign：他的落款
@@ -273,7 +277,7 @@ export async function reload(){
 
 /* ───────── 改东西 ───────── */
 
-export const setPrefs=(p:Partial<Prefs>)=>{state={...state,prefs:{...state.prefs,...p,...('myName' in p||'myAvatar' in p||'bubble' in p||'cloud' in p?{at:Date.now()}:{})}};save();};
+export const setPrefs=(p:Partial<Prefs>)=>{state={...state,prefs:{...state.prefs,...p,...('myName' in p||'myAvatar' in p||'bubble' in p||'cloud' in p?{at:Date.now()}:{}),...('plan' in p||'quick' in p?{dayAt:Date.now()}:{})}};save();};
 export function addPersona(name:string):Persona{
   const now=Date.now();
   const p:Persona={id:uid(),name,bio:'',accent:accents[0],since:'',decks:state.decks.filter(d=>!d.only?.length||d.only.includes(name)).map(d=>d.id),

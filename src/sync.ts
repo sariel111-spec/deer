@@ -49,12 +49,12 @@ async function blobSha(text:string){
   return [...new Uint8Array(await crypto.subtle.digest('SHA-1',all))].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 const unb64=(c:string)=>dec.decode(Uint8Array.from(atob(c.replace(/\s/g,'')),ch=>ch.charCodeAt(0)));
-type Shared={personas:Persona[];decks:Deck[];packs?:Pack[];dead:Record<string,number>;prefs:{myName:string;myAvatar?:string;bubble:State['prefs']['bubble'];at?:number;cloud?:string}};
+type Shared={personas:Persona[];decks:Deck[];packs?:Pack[];dead:Record<string,number>;prefs:{myName:string;myAvatar?:string;bubble:State['prefs']['bubble'];at?:number;cloud?:string;plan?:State['prefs']['plan'];quick?:string[];dayAt?:number}};
 type Chat={msgs:Msg[];grave:Grave};
 const F={state:'data/state.json',m:(id:string)=>`data/m/${id}.json`,x:(id:string)=>`data/x/${id}.json`,a:(id:string)=>`data/a/${id}.txt`};
 function files(d:Dump):Record<string,string>{
   const pf=d.state.prefs,out:Record<string,string>={};
-  out[F.state]=canon({personas:d.state.personas,decks:d.state.decks,packs:d.state.packs??[],dead:d.state.dead??{},prefs:{myName:pf.myName,myAvatar:pf.myAvatar,bubble:pf.bubble,at:pf.at,cloud:pf.cloud||undefined}} satisfies Shared);
+  out[F.state]=canon({personas:d.state.personas,decks:d.state.decks,packs:d.state.packs??[],dead:d.state.dead??{},prefs:{myName:pf.myName,myAvatar:pf.myAvatar,bubble:pf.bubble,at:pf.at,cloud:pf.cloud||undefined,plan:pf.plan,quick:pf.quick,dayAt:pf.dayAt}} satisfies Shared);
   for(const p of d.state.personas){
     out[F.m(p.id)]=canon({msgs:d.msgs[p.id]??[],grave:d.graves[p.id]??{dead:[],cleared:0}} satisfies Chat);
     if(d.boxes[p.id]?.at)out[F.x(p.id)]=canon({...d.boxes[p.id],ring:undefined,call:undefined});   // 响铃、通话中只是这台设备此刻的事，不上传
@@ -92,7 +92,9 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
     const mine=(r.state.prefs?.at??0)>(l.state.prefs.at??0)?{myName:r.state.prefs.myName,myAvatar:r.state.prefs.myAvatar,bubble:r.state.prefs.bubble,at:r.state.prefs.at}:{};
     // 云端推送的地址：新的那边说了算；但没更新的旧版本不认识这一项，别让它把地址冲掉
     const cloud=(mine.at?r.state.prefs.cloud:l.state.prefs.cloud)||l.state.prefs.cloud||r.state.prefs?.cloud;
-    const prefs={...l.state.prefs,...mine,...(cloud?{cloud}:{})};
+    // 日程和报备短语有自己的时刻：谁后改听谁。没更新的旧版本不认识这两项（它那边 dayAt 是空的），不会把它们冲掉
+    const day=(r.state.prefs?.dayAt??0)>(l.state.prefs.dayAt??0)?{plan:r.state.prefs.plan,quick:r.state.prefs.quick,dayAt:r.state.prefs.dayAt}:{};
+    const prefs={...l.state.prefs,...mine,...day,...(cloud?{cloud}:{})};
     if(prefs.last&&!personas.some(p=>p.id===prefs.last))prefs.last='';
     const packs=pick(l.state.packs??[],r.state.packs??[]);
     state={...l.state,personas,decks,packs,dead,prefs};
@@ -123,10 +125,14 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
       const dm=new Map<string,Box['lines'][number]>();
       for(const x of [...(o.lines??[]),...(b.lines??[])]){const y=dm.get(x.date);if(!y||(x.u??0)>=(y.u??0))dm.set(x.date,x);}
       const lines=[...dm.values()].sort((x,y)=>x.date<y.date?-1:1).slice(-400);
+      // 报备：两边的并起来（同一刻同一句算一条）
+      const cm=new Map<string,Box['checks'][number]>();
+      for(const x of [...(o.checks??[]),...(b.checks??[])])cm.set(x.at+'|'+x.text,x);
+      const checks=[...cm.values()].sort((x,y)=>x.at-y.at).slice(-400);
       // 自动写的几样不抢「谁晚」（见 db.ts 的 setBox quiet），所以各自有规则：看过今天这一句取晚的那天；下一封主动来信取排得晚的；响铃 / 通话只认本机
       const seen=[b.lineSeen,o.lineSeen].filter(Boolean).sort().at(-1);
       const mn=b.mailNext&&o.mailNext?(o.mailNext.at>b.mailNext.at?o.mailNext:b.mailNext):(b.at??0)===(o.at??0)?b.mailNext??o.mailNext:b.mailNext;
-      boxes[p.id]={...b,lineSeen:seen,mailNext:mn,ring:lb?.ring,call:lb?.call,letters,lines,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
+      boxes[p.id]={...b,lineSeen:seen,mailNext:mn,ring:lb?.ring,call:lb?.call,letters,lines,checks,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
     }else if(b)boxes[p.id]=b===rb?{...b,ring:undefined,call:undefined}:b;
   }
   return {state,msgs,boxes,graves};
