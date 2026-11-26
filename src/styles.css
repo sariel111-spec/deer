@@ -284,9 +284,12 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .said>div span{padding:8px 13px;border-radius:20px;background:var(--his);overflow-wrap:anywhere}
 .said>span:last-child{max-width:78%;padding:8px 13px;border-radius:20px;background:var(--his);overflow-wrap:anywhere}
 .qa{margin-top:10px;padding:0;list-style:none}
-.qa li{padding:14px 0;border-bottom:1px solid var(--line)}
-.qa label{display:grid;gap:8px}.qa b{font-weight:600}
-.qa textarea{width:100%;border:0;outline:0;resize:vertical;background:var(--soft);border-radius:12px;padding:10px 12px;font-size:16px;line-height:1.5}
+.qa li{border-bottom:1px solid var(--line)}
+.qa li>button{display:block;width:100%;padding:14px 16px;text-align:left;color:inherit}
+.qa p{margin-top:4px;font-size:15px;line-height:1.55;color:var(--fg);white-space:pre-wrap;overflow-wrap:anywhere}
+.qa b{font-size:13px;color:var(--mute)}
+.q1 label{display:grid;gap:10px}.q1 b{font-size:17px;font-weight:600;line-height:1.4}
+.q1 textarea{width:100%;border:0;outline:0;resize:vertical;background:var(--soft);border-radius:12px;padding:10px 12px;font-size:16px;line-height:1.5}
 /* 塔罗。牌的宽高都明写（--cw 是牌宽，高 = 宽 × 1.713），不靠 aspect-ratio */
 .tr{--cw:112px;--ch:calc(var(--cw) * 1.713)}
 .tr-back,.tr-face{position:relative;display:block;width:100%;height:100%;border-radius:calc(var(--cw) * .085);overflow:hidden;background:var(--bg);box-shadow:inset 0 0 0 1px var(--fg);transition:transform .2s var(--ease),opacity .3s}
@@ -882,3 +885,9 @@ button.ml-photo{cursor:zoom-in}
 /* 蓝色的文字按钮：字小，但手指能点到的范围往外多留一圈 */
 .linkish{position:relative}
 .linkish::after{content:'';position:absolute;inset:-10px -8px}
+
+/* 问卷：一次一题 */
+.q1-n{margin-top:18px;font-size:12.5px;color:var(--mute);font-variant-numeric:tabular-nums}
+.q1{margin-top:10px;display:grid;gap:14px}
+.q1 .btn{justify-self:end;min-width:108px}
+.lede.center{text-align:center;margin-top:22px}

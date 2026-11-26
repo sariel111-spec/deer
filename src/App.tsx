@@ -55,7 +55,7 @@ export function App(){
     {page}
     {tabs&&<nav className="tabs" aria-label="主导航">
       <a href="#/" aria-current={home?'page':undefined} aria-label="主页"><House size={25} strokeWidth={home?2.2:1.6}/></a>
-      <a href="#/inbox" aria-current={a==='inbox'?'page':undefined} aria-label={`消息${n?`，${n} 条未读`:''}`}><MessageCircle size={25} strokeWidth={a==='inbox'?2.2:1.6}/>{n>0&&<i/>}</a>
+      <a href={st.personas.length===1?'#/c/'+st.personas[0].id:'#/inbox'} aria-current={a==='inbox'?'page':undefined} aria-label={`消息${n?`，${n} 条未读`:''}`}><MessageCircle size={25} strokeWidth={a==='inbox'?2.2:1.6}/>{n>0&&<i/>}</a>
       <a href="#/cards" aria-current={a==='cards'?'page':undefined} aria-label="字卡"><Layers size={25} strokeWidth={a==='cards'?2.2:1.6}/></a>
       <a href="#/set" aria-current={a==='set'?'page':undefined} aria-label="设置"><Settings2 size={25} strokeWidth={a==='set'?2.2:1.6}/></a>
     </nav>}

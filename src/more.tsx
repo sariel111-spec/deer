@@ -47,7 +47,7 @@ function DaysPage({p}:{p:Persona}){
     {all.length?<ul className="days">{all.map(d=>{const c=count(d);return <li key={d.id}><button onClick={()=>{if(d.fixed)say('这个日子在「编辑主页」里改');else setEd(d);}}>
       <span className="who"><b>{d.name}</b><span>{d.date.replace(/-/g,'.')}{d.yearly?' · 每年':''}</span></span>
       <span className="big">{c.n>0&&<b>{c.n}</b>}<small>{c.label}</small></span>
-    </button></li>;})}</ul>:<p className="empty">生日、第一次见面、想一起倒数的日子，都可以放在这里。</p>}
+    </button></li>;})}</ul>:<div className="ml-none"><p>生日、第一次见面、想一起倒数的日子。</p><button className="btn" onClick={()=>setEd({id:uid(),name:'',date:ymd(),yearly:true})}>加第一个日子</button></div>}
     {ed&&<Sheet title="日子" close={()=>setEd(null)}>
       <label className="field"><span>名字</span><input value={ed.name} onChange={e=>setEd({...ed,name:e.target.value})} onKeyDown={e=>{if(e.key==='Enter'&&!e.nativeEvent.isComposing)save();}} placeholder="比如 他的生日" autoFocus={!ed.name}/></label>
       <label className="field"><span>哪一天</span><input type="date" value={ed.date} onChange={e=>setEd({...ed,date:e.target.value})}/></label>
@@ -76,12 +76,21 @@ function PickPage({p}:{p:Persona}){
 /* 问卷 */
 const asks=['我们是怎么认识的','第一次说话是哪一天','他最常叫我什么','我最喜欢他哪一点','他生气的时候是什么样子','他最常说的一句话','最想和他一起去的地方','一首像他的歌','他让我改变了什么','还没来得及对他说的话'];
 function AskPage({p}:{p:Persona}){
-  const b=box(p.id);
-  const n=asks.filter((_,i)=>(b.answers[i]??'').trim()).length;
+  const b=box(p.id),has=(i:number)=>!!(b.answers[i]??'').trim();
+  // 一次只问一题：进来停在第一道还没写的；写过的排在下面，一问一答，点哪条都能回去改
+  const [cur,setCur]=useState(()=>asks.findIndex((_,i)=>!has(i)));
+  const n=asks.filter((_,i)=>has(i)).length;
+  const rest=(from:number)=>{for(let k=1;k<=asks.length;k++){const i=(from+k)%asks.length;if(!has(i)&&i!==from)return i;}return -1;};
+  const next=cur<0?-1:rest(cur);
+  const done=asks.map((_,i)=>i).filter(i=>has(i)&&i!==cur);
   return <>
-    {n===0&&<p className="lede">关于你们的十个问题。写多少算多少，随时可以回来改。</p>}
-    <ol className="qa">{asks.map((q,i)=><li key={i}><label><b>{q}</b>
-      <textarea rows={2} value={b.answers[i]??''} onChange={e=>setBox(p.id,{answers:{...b.answers,[i]:e.target.value}})} placeholder="写在这里"/></label></li>)}</ol>
+    <p className="q1-n">{n} / {asks.length}</p>
+    {cur>=0?<div className="q1">
+      <label><b>{asks[cur]}</b>
+        <textarea rows={3} value={b.answers[cur]??''} onChange={e=>setBox(p.id,{answers:{...b.answers,[cur]:e.target.value}})} placeholder="写在这里"/></label>
+      {(has(cur)||next>=0)&&<button className={`btn${has(cur)?'':' ghost'}`} onClick={()=>setCur(next)}>{has(cur)?(next>=0?'下一题':'写好了'):'先跳过'}</button>}
+    </div>:<p className="lede center">{n===asks.length?'十个问题都写完了。点哪一条都可以改。':'先写到这里。点下面哪一条都可以改。'}{n<asks.length&&<button className="linkish" onClick={()=>setCur(asks.findIndex((_,i)=>!has(i)))}>接着写</button>}</p>}
+    {done.length>0&&<ul className="qa">{done.map(i=><li key={i}><button onClick={()=>setCur(i)}><b>{asks[i]}</b><p>{b.answers[i]}</p></button></li>)}</ul>}
   </>;
 }
 
@@ -160,7 +169,7 @@ export function Feature({id,p}:{id:string;p:Persona}){
   useVer();
   switch(id){
     case 'mail':return <MailBox p={p}/>;case 'days':return <DaysPage p={p}/>;case 'today':return <Away to={'#/us/'+p.id}/>;
-    case 'pick':case 'ask':case 'match':return <AskHub p={p} start={id}/>;case 'draw':return <TarotPage p={p}/>;
+    case 'pick':case 'ask':case 'match':case 'quiz':return <AskHub p={p} start={id==='ask'?'pick':id==='quiz'?'ask':id}/>;case 'draw':return <TarotPage p={p}/>;
     case 'check':return <CheckPage p={p}/>;case 'focus':return <FocusPage p={p}/>;case 'cycle':return <CyclePage p={p}/>;
     case 'feed':return <Away to={'#/us/'+p.id}/>;case 'fav':case 'album':return <Away to={'#/us/'+p.id}/>;
     default:return <Sub p={p} title="功能"><p className="empty">没有这个页面。</p></Sub>;

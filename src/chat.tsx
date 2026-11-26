@@ -153,7 +153,7 @@ export function Chat({p}:{p:Persona}){
       {limit>=all.length&&<div className="hello">
         <Avatar id={p.avatar} name={p.name} size={84}/>
         <b>{p.name}</b>{p.bio&&<span>{p.bio}</span>}
-        <button className="chip" onClick={()=>setEdit(true)}>编辑资料</button>
+        <a className="chip" href={'#/us/'+p.id}>看主页</a>
       </div>}
       {ms.map((m,i)=>{
         const prev=ms[i-1],next=ms[i+1];
