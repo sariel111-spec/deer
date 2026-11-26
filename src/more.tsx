@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Aperture,Bookmark,CalendarHeart,ChevronLeft,ClipboardList,Dices,Droplet,Heart,Image as ImageIcon,Images,Mail,MapPin,MessageCircle,NotebookPen,Plus,Puzzle,Quote,
+import {Aperture,Bookmark,CalendarHeart,ChevronLeft,ClipboardList,Dices,Droplet,Heart,Image as ImageIcon,Images,Mail,MapPin,MessageCircle,Plus,Puzzle,Quote,
   SlidersHorizontal,Sparkles,SquarePen,Timer,Trash2,type LucideIcon} from 'lucide-react';
 import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Persona} from './db';
 import {lines,sent} from './engine';
@@ -10,7 +10,7 @@ import {MailBox} from './mail';
 
 // 主页上摆出来的全部功能。顺序就是宫格里的顺序
 export const feats:{id:string;name:string;icon:LucideIcon}[]=[
-  {id:'mail',name:'信箱',icon:Mail},{id:'diary',name:'日记',icon:NotebookPen},{id:'days',name:'纪念日',icon:CalendarHeart},{id:'today',name:'今日一句',icon:Quote},
+  {id:'mail',name:'信箱',icon:Mail},{id:'days',name:'纪念日',icon:CalendarHeart},{id:'today',name:'今日一句',icon:Quote},
   {id:'pick',name:'帮我选',icon:Dices},{id:'ask',name:'问卷',icon:ClipboardList},{id:'draw',name:'塔罗',icon:Sparkles},{id:'match',name:'默契',icon:Puzzle},
   {id:'check',name:'报备',icon:MapPin},{id:'focus',name:'专注',icon:Timer},{id:'cycle',name:'经期',icon:Droplet},
   {id:'feed',name:'动态',icon:Aperture},{id:'fav',name:'收藏',icon:Bookmark},{id:'album',name:'相册',icon:Images},{id:'pace',name:'节奏',icon:SlidersHorizontal},
@@ -19,8 +19,8 @@ export const feats:{id:string;name:string;icon:LucideIcon}[]=[
 const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const at0=(s:string)=>new Date(s+'T00:00:00').getTime();
 const gap=(a:string,b:string)=>Math.round((at0(b)-at0(a))/864e5);
-const md=(t:number)=>{const d=new Date(t);return `${d.getMonth()+1}月${d.getDate()}日 周${'日一二三四五六'[d.getDay()]}`;};
 const mmss=(s:number)=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+const md=(t:number)=>{const d=new Date(t);return `${d.getMonth()+1}月${d.getDate()}日 周${'日一二三四五六'[d.getDay()]}`;};
 
 export function Sub({p,title,act,children,cls=''}:{p:Persona;title:string;act?:React.ReactNode;children:React.ReactNode;cls?:string}){
   return <main className={`page sub ${cls}`} style={{'--accent':p.accent} as React.CSSProperties}>
@@ -29,25 +29,6 @@ export function Sub({p,title,act,children,cls=''}:{p:Persona;title:string;act?:R
   </main>;
 }
 const AddBtn=({on,label,pen}:{on:()=>void;label:string;pen?:boolean})=><button className="ico" onClick={on} aria-label={label}>{pen?<SquarePen size={23} strokeWidth={1.7}/>:<Plus size={26} strokeWidth={1.7}/>}</button>;
-
-/* 日记 */
-const moods=['开心','平静','想你','累','难过'];
-function DiaryPage({p}:{p:Persona}){
-  const b=box(p.id);
-  const [w,setW]=useState(false),[t,setT]=useState(''),[mood,setMood]=useState(moods[1]);
-  const save=()=>{const x=t.trim();if(!x)return;setBox(p.id,{diary:[...b.diary,{id:uid(),at:Date.now(),text:x,mood,note:lines(p,1)[0]}]});setT('');setW(false);};
-  return <Sub p={p} title="日记" act={<AddBtn on={()=>setW(true)} label="写今天的日记" pen/>}>
-    {b.diary.length?<ul className="entries">{[...b.diary].reverse().map(d=><li key={d.id}>
-      <header><b>{md(d.at)}</b><em>{d.mood}</em><button className="ico sm" onClick={()=>setBox(p.id,{diary:b.diary.filter(x=>x.id!==d.id)})} aria-label="删掉这篇"><Trash2 size={16} strokeWidth={1.6}/></button></header>
-      <p>{d.text}</p>{d.note&&<small>{p.name}：{d.note}</small>}
-    </li>)}</ul>:<p className="empty">今天过得怎么样？写下来，他会看。</p>}
-    {w&&<Sheet title={md(Date.now())} close={()=>setW(false)}>
-      <div className="chips">{moods.map(m=><button key={m} className="chip" aria-pressed={mood===m} onClick={()=>setMood(m)}>{m}</button>)}</div>
-      <textarea className="bulk tall" rows={7} value={t} onChange={e=>setT(e.target.value)} placeholder="今天…" aria-label="日记内容" autoFocus/>
-      <button className="btn" onClick={save} disabled={!t.trim()}>存下</button>
-    </Sheet>}
-  </Sub>;
-}
 
 /* 纪念日 */
 function count(d:{date:string;yearly:boolean}){
@@ -229,7 +210,7 @@ function AlbumPage({p}:{p:Persona}){
 export function Feature({id,p}:{id:string;p:Persona}){
   useVer();
   switch(id){
-    case 'mail':return <MailBox p={p}/>;case 'diary':return <DiaryPage p={p}/>;case 'days':return <DaysPage p={p}/>;case 'today':return <TodayPage p={p}/>;
+    case 'mail':return <MailBox p={p}/>;case 'days':return <DaysPage p={p}/>;case 'today':return <TodayPage p={p}/>;
     case 'pick':return <PickPage p={p}/>;case 'ask':return <AskPage p={p}/>;case 'draw':return <TarotPage p={p}/>;case 'match':return <MatchPage p={p}/>;
     case 'check':return <CheckPage p={p}/>;case 'focus':return <FocusPage p={p}/>;case 'cycle':return <CyclePage p={p}/>;
     case 'feed':return <FeedPage p={p}/>;case 'fav':return <FavPage p={p}/>;case 'album':return <AlbumPage p={p}/>;

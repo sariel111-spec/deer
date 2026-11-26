@@ -39,7 +39,8 @@ export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string}[];listen:number;focus:{n:number;min:number};
   cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number;
   call?:{at:number};ring?:{at:number};
-  mailGone?:string[];mailPace?:number;mailLen?:number;mailPro?:number;mailNext?:{at:number;text:string};   // 信箱：删掉的信（同步时别的设备也跟着删）、回信多快、多长、他会不会主动写信、下一封主动的信
+  mailGone?:string[];mailPace?:number;mailLen?:number;mailPro?:number;mailNext?:{at:number;text:string};mailCall?:string;mailSign?:string;   // mailCall：他在信里怎么称呼你；mailSign：他的落款
+    // 信箱：删掉的信（同步时别的设备也跟着删）、回信多快、多长、他会不会主动写信、下一封主动的信
   tarot?:Reading[];tarotRev?:boolean;tarotGone?:string[];tarotMine?:Record<string,string>;tarotAbout?:string;tarotSign?:number[]};   // tarotGone：删掉的那几次（同步时别的设备也跟着删）；tarotMine：你们自己磨合出来的牌意（第几张牌 → 你写的话）   // tarot：塔罗的记录；tarotRev=false 表示只抽正位   // call：视频通话从什么时候开始（一直到你挂断）；ring：他正打过来
 export const blankBox=():Box=>({letters:[],mailDue:0,diary:[],days:[],lines:[],answers:{},checks:[],listen:0,focus:{n:0,min:0},cycle:{starts:[],len:5,gap:28},posts:[]});
 

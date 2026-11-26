@@ -58,7 +58,15 @@ export const mailPros=[{name:'不会',note:'只回你写的信',r:[0,0]},{name:'
 const pickOf=<T,>(a:T[],i:number|undefined,d:number)=>a[i??d]??a[d];
 // 他在睡觉的钟点信不送到，顺延到他醒来
 const awakeAt=(p:Persona,t:number)=>{let x=t;for(let i=0;i<96&&asleep(p,x);i++)x+=15*60000;return x;};
-const letterText=(p:Persona,len:number|undefined)=>{const [a,b]=pickOf(mailLens,len,1).r;return lines(p,a+Math.floor(Math.random()*(b-a+1))).join('\n');};
+// 一封信里的字卡不重复；他最近三封信（和已经定好还没送到的）用过的也尽量避开，免得连着几封都差不多
+const letterText=(p:Persona,len:number|undefined)=>{
+  const [a,z]=pickOf(mailLens,len,1).r,n=a+Math.floor(Math.random()*(z-a+1)),b=box(p.id);
+  const all=[...new Set(S().decks.filter(d=>p.decks.includes(d.id)).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t)))];
+  const used=new Set([...b.letters.filter(l=>l.from==='ta').slice(-3).map(l=>l.text),...b.letters.filter(l=>l.plan&&!l.got).map(l=>l.plan!),b.mailNext?.text??''].flatMap(t=>t.split('\n')));
+  const fresh=all.filter(t=>!used.has(t)),pool=fresh.length>=n?fresh:all,out:string[]=[];
+  while(out.length<n&&pool.length)out.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+  return out.join('\n');
+};
 /** 寄出一封信：回信的时间和内容当场定好，存在这封信上，到点再送到 */
 export function sendLetter(p:Persona,text:string,re?:string):Letter{
   const b=box(p.id),now=Date.now(),[a,z]=pickOf(mailPaces,b.mailPace,0).r,plan=letterText(p,b.mailLen);
@@ -89,7 +97,9 @@ function mail(p:Persona,now:number){
   }
   if(!add.length&&!due.length&&!Object.keys(patch).length)return;
   setBox(p.id,{...patch,letters:[...letters,...add].sort((x,y)=>x.at-y.at)});
-  if(add.length&&!(pushWas()&&first<backAt))notify(p,pro?'给你写了一封信':'给你回了一封信');
+  // 聊天里也留一行（点了进信箱）：从推送点进来落在聊天页，也看得到信到了。id 跟着信走，别的设备同步过来不会重复
+  for(const l of add){const id='ml'+l.id;if(!list(p.id).some(m=>m.id===id))pushMsg({pid:p.id,from:'ta',kind:'tip',text:l.pro?'给你写了一封信':'给你回了一封信',at:Math.max(Math.min(l.at,now),(list(p.id).at(-1)?.at??0)+1),id});}
+  if(add.length&&!(pushWas()&&first<backAt))notify(p,pro?'给你写了一封信':'给你回了一封信','mail');
 }
 
 /* 提前排好的话（只在这台设备上）：离开前台时交给云端推送，回来时聊天里补上的就是同样几句 */

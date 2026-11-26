@@ -281,6 +281,7 @@ function Bubble({m,p,gap,top,bottom,lit,quoted,onReply,onMenu,onView,onJump}:{m:
   const up=()=>{const s=g.current;clearTimeout(s.held);if(s.on&&Math.abs(dx)>52)onReply();s.on=false;setDx(0);};
   if(m.kind==='tip'){
     const rec=m.text.includes('视频通话');
+    if(m.id.startsWith('ml'))return <>{gap&&<time className="stamp">{dayLabel(m.at)}</time>}<p id={'m-'+m.id} className="tip rec"><a href={'#/f/mail/'+m.pid}><Mail size={15} strokeWidth={1.8} aria-hidden="true"/>{m.text} · 去信箱看</a></p></>;
     return <>{gap&&<time className="stamp">{dayLabel(m.at)}</time>}<p id={'m-'+m.id} className={rec?'tip rec':'tip'} onContextMenu={e=>{e.preventDefault();onMenu();}} onDoubleClick={onMenu}>{rec&&<Video size={15} strokeWidth={1.8} aria-hidden="true"/>}{m.text}</p></>;
   }
   return <>

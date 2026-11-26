@@ -13,10 +13,10 @@ self.addEventListener('fetch',e=>{
 });
 self.addEventListener('notificationclick',e=>{
   e.notification.close();
-  const pid=e.notification.data&&e.notification.data.pid;
+  const d=e.notification.data||{},pid=d.pid,to=d.to;
   e.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(cs=>{
-    if(cs.length){cs[0].postMessage({type:'open',pid});return cs[0].focus();}
-    return self.clients.openWindow('./#/c/'+(pid||''));
+    if(cs.length){cs[0].postMessage({type:'open',pid,to});return cs[0].focus();}
+    return self.clients.openWindow(to==='mail'&&pid?'./#/f/mail/'+pid:'./#/c/'+(pid||''));
   }));
 });
 
