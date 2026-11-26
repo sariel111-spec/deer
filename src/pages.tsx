@@ -8,6 +8,7 @@ import {lines,nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,backTo,dayLabel,go,nav} from './App';
 import {feats} from './more';
+import {NoteCard,keepToday,noteNew,todayLine} from './note';
 
 /* ───────── 小零件 ───────── */
 
@@ -105,12 +106,6 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
 /* ───────── 主页 ───────── */
 
 // 今日一句：每天从他的字卡里固定抽一张，当天不变
-export function todayLine(p:Persona){
-  const all=S().decks.filter(d=>p.decks.includes(d.id)).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t));
-  if(!all.length)return '';
-  const key=new Date().toDateString()+p.id;let h=0;for(const ch of key)h=(h*31+ch.charCodeAt(0))>>>0;
-  return all[h%all.length];
-}
 
 function Switcher({p,close}:{p:Persona;close:()=>void}){
   const st=S();
@@ -136,6 +131,8 @@ export function Home({p}:{p:Persona}){
   const days=p.since?Math.max(1,Math.floor((Date.now()-new Date(p.since+'T00:00:00').getTime())/864e5)+1):0;
   const favN=ms.filter(m=>m.fav).length,chatN=ms.filter(m=>m.kind!=='tip').length;
   const line=todayLine(p);
+  const [note,setNote]=useState(false);
+  useEffect(()=>{keepToday(p);},[p.id,line]);
   const others=st.personas.filter(x=>x.id!==p.id).reduce((n,x)=>n+unread(x),0);
   const dot:Record<string,boolean>={mail:b.letters.some(l=>l.from==='ta'&&!l.read)};
   return <main className="page home" style={{'--accent':p.accent} as React.CSSProperties}>
@@ -147,7 +144,8 @@ export function Home({p}:{p:Persona}){
 
     <section className="profile">
       <div className="face">
-        {line&&<a className="note" href={`#/f/today/${p.id}`} aria-label={`今日一句：${line}`}>{line}</a>}
+        {line&&<button className="note" onClick={()=>setNote(true)} aria-label={`${p.name} 今天的一句：${line}${noteNew(p)?'（还没看过）':''}`}><span>{line}</span></button>}
+        {line&&noteNew(p)&&<i className="note-dot" aria-hidden="true"/>}
         <button onClick={()=>setEdit(true)} aria-label="换他的头像和资料"><Avatar id={p.avatar} name={p.name} size={86}/></button>
         <button className="mebadge" onClick={()=>mine.current?.click()} aria-label="换我的头像"><Avatar id={st.prefs.myAvatar} name={st.prefs.myName} size={32}/></button>
         <input ref={mine} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)setPrefs({myAvatar:await putImage(f,512)});}}/>
@@ -171,6 +169,7 @@ export function Home({p}:{p:Persona}){
         :<a href={`#/f/${f.id}/${p.id}`}><span><f.icon size={23} strokeWidth={1.5}/>{dot[f.id]&&<i/>}</span>{f.name}</a>}</li>)}
     </ul>
     {edit&&<PersonaSheet p={p} close={()=>setEdit(false)}/>}
+    {note&&<NoteCard p={p} close={()=>setNote(false)}/>}
     {sw&&<Switcher p={p} close={()=>setSw(false)}/>}
   </main>;
 }

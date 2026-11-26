@@ -119,7 +119,11 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
       for(const x of o.letters??[])if(!mdead.has(x.id))lm.set(x.id,x);
       for(const x of b.letters??[])if(!mdead.has(x.id)){const y=lm.get(x.id),w=y&&(y.u??0)>(x.u??0)?y:x;lm.set(x.id,y?{...w,...(x.read||y.read?{read:true}:{}),...(x.got||y.got?{got:true}:{})}:x);}
       const letters=[...lm.values()].sort((x,y)=>x.at-y.at||(x.id<y.id?-1:1));
-      boxes[p.id]={...b,letters,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
+      // 每天的一句：按日子并起来（同一天听后点过喜欢的那边）
+      const dm=new Map<string,Box['lines'][number]>();
+      for(const x of [...(o.lines??[]),...(b.lines??[])]){const y=dm.get(x.date);if(!y||(x.u??0)>=(y.u??0))dm.set(x.date,x);}
+      const lines=[...dm.values()].sort((x,y)=>x.date<y.date?-1:1).slice(-400);
+      boxes[p.id]={...b,letters,lines,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
     }else if(b)boxes[p.id]=b;
   }
   return {state,msgs,boxes,graves};

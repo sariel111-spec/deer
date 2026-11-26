@@ -4,7 +4,7 @@ import {Aperture,Bookmark,CalendarHeart,ChevronLeft,ClipboardList,Dices,Droplet,
 import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Persona} from './db';
 import {lines,sent} from './engine';
 import {Avatar,Pic,backTo,dayLabel} from './App';
-import {Num,Sheet,say,todayLine} from './pages';
+import {Num,Sheet,say} from './pages';
 import {TarotPage} from './tarotpage';
 import {MailBox} from './mail';
 
@@ -54,19 +54,6 @@ function DaysPage({p}:{p:Persona}){
       <button className="btn" onClick={save} disabled={!ed.name.trim()||!ed.date}>存下</button>
       {b.days.some(x=>x.id===ed.id)&&<div className="rowbtn"><button className="chip danger" onClick={()=>{setBox(p.id,{days:b.days.filter(x=>x.id!==ed.id)});setEd(null);}}>删掉</button></div>}
     </Sheet>}
-  </Sub>;
-}
-
-/* 今日一句 */
-function TodayPage({p}:{p:Persona}){
-  const b=box(p.id),line=todayLine(p),today=ymd();
-  useEffect(()=>{if(line&&!b.lines.some(x=>x.date===today))setBox(p.id,{lines:[...b.lines,{date:today,text:line}].slice(-120)});},[line,today]);
-  const past=b.lines.filter(x=>x.date!==today).reverse();
-  return <Sub p={p} title="今日一句">
-    {line?<figure className="quotebig"><blockquote>{line}</blockquote><figcaption>{p.name} · {md(Date.now())}</figcaption>
-      <button className="chip" onClick={()=>{void navigator.clipboard?.writeText(line);say('复制了');}}>复制</button></figure>
-      :<p className="empty">给他加了字卡之后，这里每天会有他的一句话。<br/><a className="linkish" href="#/cards">去加字卡</a></p>}
-    {past.length>0&&<><h3>往日</h3><ul className="entries plain">{past.map(x=><li key={x.date}><p>{x.text}</p><small>{x.date.replace(/-/g,'.')}</small></li>)}</ul></>}
   </Sub>;
 }
 
@@ -207,10 +194,13 @@ function AlbumPage({p}:{p:Persona}){
   return <Sub p={p} title="相册" cls="flush">{pics.length?<div className="grid">{pics.map(id=><Pic key={id} id={id}/>)}</div>:<p className="empty">聊天和动态里发过的图片会排在这里。</p>}</Sub>;
 }
 
+// 已经拿掉的页面：旧地址直接带回主页
+function Away({to}:{to:string}){useEffect(()=>{location.replace(to);},[to]);return null;}
+
 export function Feature({id,p}:{id:string;p:Persona}){
   useVer();
   switch(id){
-    case 'mail':return <MailBox p={p}/>;case 'days':return <DaysPage p={p}/>;case 'today':return <TodayPage p={p}/>;
+    case 'mail':return <MailBox p={p}/>;case 'days':return <DaysPage p={p}/>;case 'today':return <Away to={'#/us/'+p.id}/>;
     case 'pick':return <PickPage p={p}/>;case 'ask':return <AskPage p={p}/>;case 'draw':return <TarotPage p={p}/>;case 'match':return <MatchPage p={p}/>;
     case 'check':return <CheckPage p={p}/>;case 'focus':return <FocusPage p={p}/>;case 'cycle':return <CyclePage p={p}/>;
     case 'feed':return <FeedPage p={p}/>;case 'fav':return <FavPage p={p}/>;case 'album':return <AlbumPage p={p}/>;

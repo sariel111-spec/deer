@@ -216,8 +216,13 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .face>button:first-of-type{display:block;border-radius:50%}
 .mebadge{position:absolute;right:-6px;bottom:-4px;border-radius:50%;box-shadow:0 0 0 3px var(--bg)}
 /* 头像上面那条 note：今天他的一句话 */
-.note{position:absolute;left:-4px;bottom:calc(100% - 12px);z-index:2;max-width:172px;padding:8px 12px;border-radius:16px;background:var(--bg);color:var(--fg);font-size:12.5px;line-height:1.35;
-  box-shadow:0 1px 8px rgba(0,0,0,.14);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+/* 照 ins 的便签：白色圆角气泡压在头像上沿，字居中，左下角两颗小圆点当尾巴 */
+.note{position:absolute;left:-6px;bottom:calc(100% - 14px);z-index:2;min-width:52px;max-width:176px;padding:9px 13px;border-radius:18px;background:var(--bg);color:var(--fg);font-size:12.5px;line-height:1.35;text-align:center;
+  box-shadow:0 1px 10px rgba(0,0,0,.14);overflow:visible}
+.note span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.note::before,.note::after{content:'';position:absolute;border-radius:50%;background:inherit}
+.note::before{left:15px;bottom:-4px;width:11px;height:11px;box-shadow:0 3px 4px -2px rgba(0,0,0,.12)}
+.note::after{left:11px;bottom:-11px;width:5px;height:5px;box-shadow:0 1px 3px rgba(0,0,0,.14)}
 :root[data-theme=dark] .note{background:#262626}
 @media (prefers-color-scheme:dark){:root[data-theme=auto] .note{background:#262626}}
 .pinfo{flex:1;min-width:0;display:grid;gap:10px}
@@ -681,3 +686,28 @@ textarea.ml-body{display:block;width:100%;min-height:260px;padding:0;border:0;bo
 .ml-pic{display:block;width:100%;max-height:56vh;object-fit:contain;border-radius:6px;box-shadow:inset 0 0 0 1px var(--line);background:#fff;-webkit-touch-callout:default;user-select:auto;-webkit-user-select:auto}
 .ml-menu{list-style:none;margin:4px 0 0;padding:0}.ml-menu button{display:block;width:100%;padding:15px 2px;text-align:left;font-size:16px;border-bottom:1px solid var(--line)}.ml-menu li:last-child button{border:0}
 .ml-orig.open span{display:block;-webkit-line-clamp:unset}
+/* 头像上的那一句 */
+button.note{cursor:pointer}
+.note-dot{position:absolute;left:-9px;bottom:calc(100% + 13px);z-index:3;width:9px;height:9px;border-radius:50%;background:#3A82F7;box-shadow:0 0 0 2px var(--bg);pointer-events:none}
+.nt{padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+.nt-face{display:grid;justify-items:center;gap:0;padding-top:18px}
+.nt-bubble{position:relative;z-index:1;min-width:76px;max-width:min(300px,86%);margin:0 0 -10px;padding:13px 18px;border-radius:24px;background:var(--bg);box-shadow:0 1px 12px rgba(0,0,0,.16);font-size:17px;line-height:1.5;text-align:center;overflow-wrap:anywhere}
+:root[data-theme=dark] .nt-bubble{background:#262626}
+@media (prefers-color-scheme:dark){:root[data-theme=auto] .nt-bubble{background:#262626}}
+.nt-bubble::before,.nt-bubble::after{content:'';position:absolute;border-radius:50%;background:inherit}
+.nt-bubble::before{left:20px;bottom:-5px;width:15px;height:15px;box-shadow:0 4px 5px -3px rgba(0,0,0,.14)}
+.nt-bubble::after{left:14px;bottom:-15px;width:7px;height:7px;box-shadow:0 1px 3px rgba(0,0,0,.16)}
+.nt-who{margin-top:10px;text-align:center;font-size:12.5px;color:var(--mute)}
+.nt-row{display:flex;align-items:center;gap:6px;margin-top:20px}
+.nt-row input{flex:1;min-width:0;height:44px;padding:0 16px;border-radius:99px;box-shadow:inset 0 0 0 1px var(--line);background:none;font-size:15px}
+.nt-row .ico[aria-pressed=true]{color:#ED4956}
+.nt-past{display:block;margin:14px auto 0;padding:6px 10px;font-size:13px;color:var(--mute)}
+.nt>header span{width:36px}
+.nt-list{list-style:none;margin:8px 0 0;padding:0}
+.nt-list li{display:flex;align-items:center;gap:8px;padding:13px 0;border-bottom:1px solid var(--line)}.nt-list li:last-child{border:0}
+.nt-list p{flex:1;min-width:0;margin:0;font-size:15px;line-height:1.5;overflow-wrap:anywhere}.nt-list small{display:block;margin-top:2px;font-size:12px;color:var(--mute)}
+.nt-list .ico[aria-pressed=true]{color:#ED4956}
+@media (min-width:700px){.nt-veil{align-items:center}.nt{max-width:400px;border-radius:18px;padding-bottom:18px}.nt .grab{display:none}}
+/* 这几个输入框：去掉浏览器自带的边框；字不小于 16px（iPhone 上小于 16px 的输入框一点就会把页面放大） */
+.nt-row input,.ml-field input,.tr-base{border:0;outline:0;font-size:16px}
+.nt-row input:focus,.ml-field input:focus,.tr-base:focus{box-shadow:inset 0 0 0 1px var(--mute)}

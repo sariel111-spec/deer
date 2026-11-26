@@ -35,7 +35,7 @@ export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt
 // 一次塔罗：kind 是牌阵，cards 是抽到的牌（c 第几张、r 逆位），said 是他当时说的那句，note 是你写的感想
 // ok：「对一对」牌阵里你觉得对不对得上
 export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time'|'link'|'match';date?:string;q?:string;cards:{c:number;r?:boolean}[];said?:string;note?:string;sent?:boolean;ok?:boolean;jump?:{c:number;r?:boolean};ai?:string};   // jump：洗牌时跳出来的那张；ai：AI 解出来的话
-export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string}[];answers:Record<string,string>;
+export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string;like?:boolean;u?:number}[];lineSeen?:string;answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string}[];listen:number;focus:{n:number;min:number};
   cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number;
   call?:{at:number};ring?:{at:number};
