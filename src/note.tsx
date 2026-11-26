@@ -10,7 +10,9 @@ export const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).pa
 /** 今天的这一句。当天定下来之后就不变（哪怕之后又改了字卡）；没有字卡就是空的 */
 export function todayLine(p:Persona){
   const kept=box(p.id).lines.find(x=>x.date===ymd());if(kept)return kept.text;
-  const all=S().decks.filter(d=>p.decks.includes(d.id)).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t));
+  // 指定成「他的报备」的那几组是说「此刻在做什么」的，不拿来当一整天的那一句（只剩这几组时才用）
+  const ck=new Set(box(p.id).ckDecks??[]),of=(skip:boolean)=>S().decks.filter(d=>p.decks.includes(d.id)&&!(skip&&ck.has(d.id))).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t));
+  let all=of(true);if(!all.length)all=of(false);
   if(!all.length)return '';
   const key=new Date().toDateString()+p.id;let h=0;for(const ch of key)h=(h*31+ch.charCodeAt(0))>>>0;
   return all[h%all.length];

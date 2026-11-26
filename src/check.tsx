@@ -1,8 +1,8 @@
 // 报备：两个人互相说一声「我在做什么」。
 // 你的：点一句常用的（或自己写），聊天里是一张小卡，他照常回你；到了日程的钟点，最上面多一条「日程」可以直接点。
 // 他的：你指定他哪几组字卡算报备，他主动发来的话出自这几组，就也是一张报备小卡，记在这里。
-import {useEffect,useMemo,useState} from 'react';
-import {ChevronDown,ChevronLeft,Plus,SlidersHorizontal,X} from 'lucide-react';
+import {Fragment,useEffect,useMemo,useState} from 'react';
+import {ChevronLeft,ChevronRight,Plus,SlidersHorizontal,X} from 'lucide-react';
 import {S,box,list,pushMsg,setBox,setPrefs,uid,useVer,type Msg,type Persona,type Plan} from './db';
 import {hisCheck,sent} from './engine';
 import {Avatar,backTo} from './App';
@@ -49,7 +49,7 @@ export function Tell({p,done}:{p:Persona;done:(t:string)=>void}){
   </div>;
 }
 
-type Row={key:string;at:number;who:'me'|'ta'|'plan';text:string;back?:string;sub?:string};
+type Row={key:string;at:number;who:'me'|'ta'|'plan';text:string;back?:string;sub?:string;msg?:string};   // msg：聊天里的那一条
 /** 他回的第一句：这条报备之后、你下一次开口之前 */
 function backOf(ms:Msg[],i:number){
   for(let k=i+1;k<ms.length;k++){
@@ -63,41 +63,53 @@ function rowsOf(p:Persona):Row[]{
   for(const c of box(p.id).checks){
     const i=c.id?at.get(c.id):undefined;
     if(i!==undefined&&ms[i].kind==='tip')continue;   // 在聊天里撤回了的不算
-    out.push({key:'m'+c.at+c.text,at:c.at,who:'me',text:c.text,back:i===undefined?undefined:backOf(ms,i)});
+    out.push({key:'m'+c.at+c.text,at:c.at,who:'me',text:c.text,back:i===undefined?undefined:backOf(ms,i),msg:i===undefined?undefined:c.id});
   }
-  for(const m of ms)if(hisCheck(m,p))out.push({key:m.id,at:m.at,who:'ta',text:m.text});
+  for(const m of ms)if(hisCheck(m,p))out.push({key:m.id,at:m.at,who:'ta',text:m.text,msg:m.id});
   return out.sort((a,b)=>a.at-b.at);
 }
 
+const dayKey=(t:number)=>ymd(new Date(t));
+const atDay=(k:string)=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d);};
+const monday=(d:Date)=>{const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-(x.getDay()+6)%7);return x;};   // 一周从周一开始
+const plus=(d:Date,n:number)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x;};
+
 export function CheckPage({p}:{p:Persona}){
-  const ver=useVer();
-  const [conf,setConf]=useState(false),[older,setOlder]=useState(false);
+  const ver=useVer(),st=S();
+  const [conf,setConf]=useState(false);
   const [,tick]=useState(0);
   useEffect(()=>{const id=setInterval(()=>tick(x=>x+1),30000);return()=>clearInterval(id);},[]);   // 到了日程的钟点，页面自己跟上
   const all=useMemo(()=>rowsOf(p),[p.id,ver]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const today=ymd(),d0=new Date();d0.setHours(0,0,0,0);
-  // 今天：报备 + 今天的日程，照钟点从早到晚。已经报过的日程不再单列
-  const told=new Set(box(p.id).checks.map(c=>c.plan).filter(Boolean));
-  const plans:Row[]=plansToday().filter(x=>!told.has(planKey(x))&&x!==planNow()).map(x=>({key:'p'+x.id,at:d0.getTime()+mins(x.from)*60000,who:'plan',text:x.name,sub:`${x.from}–${x.to}`}));
-  const day=[...all.filter(r=>ymd(new Date(r.at))===today),...plans].sort((a,b)=>a.at-b.at);
-  const past=useMemo(()=>{
-    const g=new Map<string,Row[]>();
-    for(const r of all){const k=ymd(new Date(r.at));if(k===today)continue;g.set(k,[...(g.get(k)??[]),r]);}
-    return [...g.entries()].sort((a,b)=>a[0]<b[0]?1:-1);
-  },[all,today]);
+  const today=ymd(),now=new Date();
+  const [sel,setSel]=useState(today);   // 在看哪一天
+  const day0=atDay(sel),wk=monday(day0),thisWk=monday(now).getTime(),first=all.length?monday(new Date(all[0].at)).getTime():thisWk;
+  const has=useMemo(()=>new Set(all.map(r=>dayKey(r.at))),[all]);
+  const shift=(n:number)=>{const d=plus(day0,n);setSel(monday(d).getTime()>thisWk?today:ymd(d));};   // 最远翻到这一周
+  // 这一天：报备（我的、他的）+ 日程，照钟点从早到晚。今天已经报过的日程不再单列，正在进行的那条在最上面；往后的日子只有日程
+  const told=new Set(box(p.id).checks.map(c=>c.plan).filter(Boolean)),running=sel===today?planNow():undefined;
+  const plans:Row[]=sel<today?[]:plansToday(day0).filter(x=>sel>today||(!told.has(planKey(x))&&x!==running)).map(x=>({key:'p'+x.id,at:day0.getTime()+mins(x.from)*60000,who:'plan',text:x.name,sub:`${x.from}–${x.to}`}));
+  const rows=[...all.filter(r=>dayKey(r.at)===sel),...plans].sort((a,b)=>a.at-b.at);
+  // 今天后面还有日程：在「现在」的位置画一条细线，上面是过去的，下面是还没到的
+  const cut=sel===today&&rows.some(r=>r.who==='plan'&&r.at>now.getTime())?rows.findIndex(r=>r.at>now.getTime()):-1;
+  const name=sel===today?'今天':sel===ymd(plus(now,-1))?'昨天':sel===ymd(plus(now,1))?'明天':dayHead(day0.getTime());
+  const body=(r:Row)=><><p>{r.text}</p>{r.back&&<small>{p.name}：{r.back}</small>}{r.who==='plan'&&<small>日程 · 到 {r.sub!.slice(6)}</small>}</>;
   const line=(r:Row)=><li key={r.key} className={r.who}>
     <time>{r.who==='plan'?r.sub!.slice(0,5):hm(r.at)}</time>
-    {r.who==='ta'&&<Avatar id={p.avatar} name={p.name} size={22}/>}
-    <div><p>{r.text}</p>{r.back&&<small>{p.name}：{r.back}</small>}{r.who==='plan'&&<small>日程 · 到 {r.sub!.slice(6)}</small>}</div>
+    <i className="ck-node" aria-hidden="true">{r.who==='ta'?<Avatar id={p.avatar} name={p.name} size={24}/>:r.who==='me'?<Avatar id={st.prefs.myAvatar} name={st.prefs.myName||'我'} size={24}/>:null}</i>
+    {r.msg?<a className="ck-body" href={'#/c/'+p.id} onClick={()=>{try{sessionStorage.setItem('cx-jump',r.msg!);}catch{/* 存不了就只是进聊天 */}}} aria-label={`${r.who==='ta'?p.name:'我'}：${r.text}，在聊天里看这一句`}>{body(r)}</a>:<div className="ck-body">{body(r)}</div>}
   </li>;
   return <main className="page sub ck" style={{'--accent':p.accent} as React.CSSProperties}>
     <header className="bar"><a className="ico" href={'#/us/'+p.id} onClick={backTo('#/us/'+p.id)} aria-label="返回"><ChevronLeft size={28} strokeWidth={1.8}/></a><h1>报备</h1>
       <button className="ico" onClick={()=>setConf(true)} aria-label="报备的设置"><SlidersHorizontal size={22} strokeWidth={1.7}/></button></header>
-    <Tell p={p} done={()=>say('告诉他了')}/>
-    <h3>今天</h3>
-    {day.length?<ul className="ck-line">{day.map(line)}</ul>:<p className="hint">今天还没有报备。</p>}
-    {past.length>0&&<button className="ck-more" aria-expanded={older} onClick={()=>setOlder(!older)}>更早<ChevronDown size={16} strokeWidth={1.8}/></button>}
-    {older&&past.map(([k,rs])=><section key={k} className="ck-day"><h3>{dayHead(rs[0].at)}</h3><ul className="ck-line">{rs.map(line)}</ul></section>)}
+    <Tell p={p} done={()=>{setSel(ymd());say('告诉他了');}}/>
+    <nav className="ck-week" aria-label="看哪一天">
+      <button className="ck-arrow" onClick={()=>shift(-7)} disabled={wk.getTime()<=first} aria-label="上一周"><ChevronLeft size={18} strokeWidth={1.8}/></button>
+      {[0,1,2,3,4,5,6].map(i=>{const d=plus(wk,i),k=ymd(d);return <button key={k} className={has.has(k)?'has':''} aria-pressed={k===sel} aria-current={k===today?'date':undefined} onClick={()=>setSel(k)} aria-label={`${d.getMonth()+1}月${d.getDate()}日 周${week[d.getDay()]}`}><small>{week[d.getDay()]}</small><b>{d.getDate()}</b></button>;})}
+      <button className="ck-arrow" onClick={()=>shift(7)} disabled={wk.getTime()>=thisWk} aria-label="下一周"><ChevronRight size={18} strokeWidth={1.8}/></button>
+    </nav>
+    <h3 className="ck-head">{name}{sel!==today&&<button className="linkish" onClick={()=>setSel(today)}>回到今天</button>}</h3>
+    {rows.length?<ul className="ck-line">{rows.map((r,i)=><Fragment key={r.key}>{i===cut&&<li className="now"><time>{hm(now.getTime())}</time><i className="ck-node" aria-hidden="true"/><span>现在</span></li>}{line(r)}</Fragment>)}</ul>
+      :<p className="hint">{sel===today?'今天还没有报备。':sel>today?'这一天没有日程。':'这一天没有报备。'}</p>}
     {conf&&<Conf p={p} close={()=>setConf(false)}/>}
   </main>;
 }
@@ -108,7 +120,7 @@ function Conf({p,close}:{p:Persona;close:()=>void}){
   const st=S(),quick=quickOf(),plan=st.prefs.plan??[],b=box(p.id);
   const [q,setQ]=useState(''),[ed,setEd]=useState<Plan|null>(null);
   const addQ=()=>{const x=q.trim();if(!x)return;if(!quick.includes(x))setPrefs({quick:[...quick,x]});setQ('');};
-  const decks=st.decks.filter(d=>p.decks.includes(d.id)),on=b.ckDecks??[];
+  const on=b.ckDecks??[],decks=st.decks.filter(d=>p.decks.includes(d.id)).sort((x,y)=>Number(on.includes(y.id))-Number(on.includes(x.id)));
   const flip=(id:string)=>setBox(p.id,{ckDecks:on.includes(id)?on.filter(x=>x!==id):[...on,id]});
   if(ed)return <Sheet title={plan.some(x=>x.id===ed.id)?'改这条日程':'加一条日程'} close={()=>setEd(null)}><PlanForm it={ed} isNew={!plan.some(x=>x.id===ed.id)}
     save={x=>{setPrefs({plan:plan.some(y=>y.id===x.id)?plan.map(y=>y.id===x.id?x:y):[...plan,x]});setEd(null);}}

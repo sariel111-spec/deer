@@ -97,6 +97,10 @@ export function Chat({p}:{p:Persona}){
     setTimeout(()=>{document.getElementById('m-'+id)?.scrollIntoView({block:'center'});setFlash(id);setTimeout(()=>setFlash(''),1400);},60);
   };
 
+  // 从报备页点一条过来：停在那一句上（而不是最底下）
+  useEffect(()=>{let id='';try{id=sessionStorage.getItem('cx-jump')??'';sessionStorage.removeItem('cx-jump');}catch{/* */}
+    if(!id||!list(p.id).some(m=>m.id===id))return;
+    const t=setTimeout(()=>{near.current=false;jump(id);},260);return()=>clearTimeout(t);},[p.id]);   // eslint-disable-line react-hooks/exhaustive-deps
   const push=(m:Pick<Msg,'kind'|'text'>&Partial<Msg>)=>{pushMsg({pid:p.id,from:'me',at:Date.now(),re:re?.id,...m});setRe(null);sent(p.id);};
   const send=()=>{const t=text.trim();if(!t)return;push({kind:'text',text:t});setText('');box.current?.focus();};
   const sendPic=async(f?:File|null)=>{
