@@ -792,3 +792,37 @@ button.ml-photo{cursor:zoom-in}
 .ml-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 .ml-seg .chip{justify-content:center;min-height:32px;background:none;border-radius:8px;font-size:13.5px}
 .ml-seg .chip[aria-pressed=true]{background:var(--bg);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+/* ── 主页：一排常用的（ins 的精选），下面是内容 ── */
+.hl{display:flex;gap:0;margin:22px 0 0!important;padding:0 8px 4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.hl::-webkit-scrollbar{display:none}
+.hl li{flex:0 0 20%;min-width:68px}
+.hl a{display:grid;justify-items:center;gap:6px;font-size:12px;color:var(--fg);-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+/* 每个圆：外面一圈细线、留一圈白、里面一个浅底的圆（ins 精选的样子）。有新东西时那圈细线换成 ins 的渐变环 */
+.hl span{position:relative;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:var(--line);transition:transform .15s var(--ease)}
+.hl span::before{content:'';position:absolute;inset:1px;border-radius:50%;background:var(--bg)}
+.hl span::after{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--soft)}
+.hl span>svg,.hl span>img{position:relative;z-index:1}
+.hl span>img{position:absolute;inset:4px;width:calc(100% - 8px);height:calc(100% - 8px);border-radius:50%;object-fit:cover}
+.hl a.new span{background:linear-gradient(45deg,#f9ce34,#ee2a7b 55%,#6228d7)}
+.hl a.new span::before{inset:2px}
+.hl a:active span{transform:scale(.94)}
+.page>.htabs{margin:18px 0 0!important}
+.htabs button{display:grid;place-items:center;height:46px}
+.page>.hgrid{margin:2px 0 0!important}
+.hgrid button{display:block;aspect-ratio:1/1;overflow:hidden;background:var(--soft)}
+.hgrid img{width:100%;height:100%;aspect-ratio:auto;object-fit:cover}
+.home>.empty{margin-top:44px;text-align:center}
+.hfav{margin:0!important}
+.hfav li{border-bottom:1px solid var(--line)}
+.hfav a,.hfav button{display:block;width:100%;padding:14px 16px;text-align:left;color:inherit}
+.hfav p{font-size:15px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.hfav small{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:12px;color:var(--mute)}
+.hfav .favpic{max-width:120px;border-radius:6px}
+/* ☰：一张短列表。右边的图钉决定它在不在主页那一排 */
+.hmenu li{display:flex;align-items:center;border-bottom:1px solid var(--line)}
+.hmenu li:last-child{border:0}
+.hmenu a,.hmenu .go{flex:1;display:flex;align-items:center;gap:14px;min-height:54px;font-size:16px;color:var(--fg);text-align:left}
+.hmenu li>button:not(.go){flex:none;width:44px;height:44px;display:grid;place-items:center;color:var(--line)}
+.hmenu li>button[aria-pressed=true]{color:var(--fg)}
+@media (min-width:700px){.hgrid{grid-template-columns:repeat(4,1fr)}}

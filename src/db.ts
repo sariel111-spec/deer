@@ -23,7 +23,8 @@ export type Persona={
 export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean;ck?:boolean};   // react：贴在这条上的表情；st：这是一张表情包；ck：这是一条报备（聊天里显示成小卡）
 export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number;
   mode?:'pip'|'loop'|'osc'|'both';pipAuto?:boolean;awake?:boolean;cloud?:string;   // 保活方式、画中画自动进入、屏幕常亮（都只管这台设备）；cloud：云端推送服务的地址（跟着同步走）
-  plan?:Plan[];quick?:string[];dayAt?:number};   // plan：我每周固定的日程；quick：报备的常用短语（没改过就是默认那几句）；dayAt：这两样最后一次改的时刻（同步用）
+  plan?:Plan[];quick?:string[];dayAt?:number;hl?:string[];hlPic?:Record<string,string>};   // hl：主页那一排放哪几个功能（和 plan / quick 一起按 dayAt 同步）
+// plan：我每周固定的日程；quick：报备的常用短语（没改过就是默认那几句）；dayAt：这两样最后一次改的时刻（同步用）
 /** 一条固定的日程：周几（0 是周日）、几点到几点 */
 export type Plan={id:string;name:string;days:number[];from:string;to:string};
 export type Pack={id:string;name:string;ids:string[];his?:boolean;who?:string[];use?:'tarot';created:number;updated:number};   // 一组表情包；ids 里是本机图片或图片链接；his=false 表示他不发这一组；who：只给这几位用（不写就是所有人）
@@ -279,7 +280,7 @@ export async function reload(){
 
 /* ───────── 改东西 ───────── */
 
-export const setPrefs=(p:Partial<Prefs>)=>{state={...state,prefs:{...state.prefs,...p,...('myName' in p||'myAvatar' in p||'bubble' in p||'cloud' in p?{at:Date.now()}:{}),...('plan' in p||'quick' in p?{dayAt:Date.now()}:{})}};save();};
+export const setPrefs=(p:Partial<Prefs>)=>{state={...state,prefs:{...state.prefs,...p,...('myName' in p||'myAvatar' in p||'bubble' in p||'cloud' in p?{at:Date.now()}:{}),...('plan' in p||'quick' in p||'hl' in p||'hlPic' in p?{dayAt:Date.now()}:{})}};save();};
 export function addPersona(name:string):Persona{
   const now=Date.now();
   const p:Persona={id:uid(),name,bio:'',accent:accents[0],since:'',decks:state.decks.filter(d=>!d.only?.length||d.only.includes(name)).map(d=>d.id),

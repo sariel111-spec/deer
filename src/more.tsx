@@ -1,6 +1,5 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Aperture,Bookmark,CalendarHeart,ChevronLeft,ClipboardList,Dices,Droplet,Heart,Image as ImageIcon,Images,Mail,MapPin,MessageCircle,Plus,Puzzle,
-  SlidersHorizontal,Sparkles,SquarePen,Timer,Trash2,type LucideIcon} from 'lucide-react';
+import {CalendarHeart,ChevronLeft,Droplet,Mail,MapPin,MessageCircleQuestion,Plus,Sparkles,SquarePen,Timer,Trash2,type LucideIcon} from 'lucide-react';
 import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Persona} from './db';
 import {lines,sent} from './engine';
 import {Avatar,Pic,backTo,dayLabel} from './App';
@@ -11,11 +10,11 @@ import {CheckPage} from './check';
 
 // 主页上摆出来的全部功能。顺序就是宫格里的顺序
 export const feats:{id:string;name:string;icon:LucideIcon}[]=[
-  {id:'mail',name:'信箱',icon:Mail},{id:'days',name:'纪念日',icon:CalendarHeart},
-  {id:'pick',name:'帮我选',icon:Dices},{id:'ask',name:'问卷',icon:ClipboardList},{id:'draw',name:'塔罗',icon:Sparkles},{id:'match',name:'默契',icon:Puzzle},
-  {id:'check',name:'报备',icon:MapPin},{id:'focus',name:'专注',icon:Timer},{id:'cycle',name:'经期',icon:Droplet},
-  {id:'fav',name:'收藏',icon:Bookmark},{id:'album',name:'相册',icon:Images},{id:'pace',name:'节奏',icon:SlidersHorizontal},
+  {id:'mail',name:'信箱',icon:Mail},{id:'check',name:'报备',icon:MapPin},{id:'draw',name:'塔罗',icon:Sparkles},{id:'days',name:'纪念日',icon:CalendarHeart},
+  {id:'ask',name:'问问他',icon:MessageCircleQuestion},{id:'focus',name:'专注',icon:Timer},{id:'cycle',name:'经期',icon:Droplet},
 ];
+/** 主页那一排默认放哪几个（没自己挑过的时候） */
+export const homeDefault=['mail','check','draw','days','ask'];
 
 const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const at0=(s:string)=>new Date(s+'T00:00:00').getTime();
@@ -64,13 +63,13 @@ function PickPage({p}:{p:Persona}){
   const add=()=>{const x=t.trim();if(!x||opts.includes(x))return;setOpts([...opts,x]);setT('');setDone('');setHi(-1);};
   const run=()=>{if(opts.length<2||spin)return;setSpin(true);setDone('');let k=0;const end=10+Math.floor(Math.random()*opts.length)+opts.length;
     const id=setInterval(()=>{setHi(k%opts.length);k++;if(k>end){clearInterval(id);setSpin(false);setDone(lines(p,1)[0]??'就这个');}},110);};
-  return <Sub p={p} title="帮我选">
-    <p className="lede">纠结的时候，把选项写下来，让他替你挑一个。</p>
+  return <>
+    {!opts.length&&<p className="lede">纠结的时候，把选项写下来，让他替你挑一个。</p>}
     <div className="newdeck"><input value={t} onChange={e=>setT(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add();}} placeholder="写一个选项，比如 奶茶" aria-label="一个选项"/><button className="btn sm" onClick={add} disabled={!t.trim()}>加上</button></div>
     <ul className="opts">{opts.map((o,i)=><li key={o} className={i===hi?'on':''}><span>{o}</span><button className="ico sm" onClick={()=>{setOpts(opts.filter(x=>x!==o));setHi(-1);setDone('');}} aria-label={`去掉 ${o}`}><Trash2 size={16} strokeWidth={1.6}/></button></li>)}</ul>
     <button className="btn wide" onClick={run} disabled={opts.length<2||spin}>{spin?'他在想…':'让他选'}</button>
     {done&&hi>=0&&<div className="said" role="status"><Avatar id={p.avatar} name={p.name} size={28}/><div><span>{opts[hi]}</span><span>{done}</span></div></div>}
-  </Sub>;
+  </>;
 }
 
 /* 问卷 */
@@ -78,11 +77,11 @@ const asks=['我们是怎么认识的','第一次说话是哪一天','他最常�
 function AskPage({p}:{p:Persona}){
   const b=box(p.id);
   const n=asks.filter((_,i)=>(b.answers[i]??'').trim()).length;
-  return <Sub p={p} title="问卷" act={<span className="count">{n} / {asks.length}</span>}>
-    <p className="lede">关于你们的十个问题。写多少算多少，随时可以回来改。</p>
+  return <>
+    {n===0&&<p className="lede">关于你们的十个问题。写多少算多少，随时可以回来改。</p>}
     <ol className="qa">{asks.map((q,i)=><li key={i}><label><b>{q}</b>
       <textarea rows={2} value={b.answers[i]??''} onChange={e=>setBox(p.id,{answers:{...b.answers,[i]:e.target.value}})} placeholder="写在这里"/></label></li>)}</ol>
-  </Sub>;
+  </>;
 }
 
 /* 默契 */
@@ -92,14 +91,14 @@ function MatchPage({p}:{p:Persona}){
   const [i,setI]=useState(0),[hit,setHit]=useState(0),[pk,setPk]=useState<{me:number;ta:number}|null>(null);
   const choose=(k:number)=>{if(pk)return;const ta=Math.random()<.62?k:1-k;setPk({me:k,ta});if(ta===k)setHit(h=>h+1);setTimeout(()=>{setPk(null);setI(x=>x+1);},1100);};
   const over=i>=pairs.length;
-  return <Sub p={p} title="默契" act={<span className="count">{Math.min(i+1,pairs.length)} / {pairs.length}</span>}>
+  return <>
     {over?<div className="score"><b>{Math.round(hit/pairs.length*100)}%</b><span>十题里有 {hit} 题选得一样</span><button className="btn" onClick={()=>{setI(0);setHit(0);}}>再来一次</button></div>
-    :<><p className="lede">二选一。你选完，看他选的是不是同一个。</p>
+    :<><p className="lede">{i===0?'二选一。你选完，看他选的是不是同一个。':`${i+1} / ${pairs.length}`}</p>
       <div className="duel">{pairs[i].map((o,k)=><button key={o} onClick={()=>choose(k)} className={pk?(pk.me===k||pk.ta===k?'on':'dim'):''}>
         <b>{o}</b>{pk&&<span className="pickers">{pk.me===k&&<Avatar id={me.myAvatar} name={me.myName} size={26}/>}{pk.ta===k&&<Avatar id={p.avatar} name={p.name} size={26}/>}</span>}
       </button>)}</div>
       <p className="hint center" role="status">{pk?(pk.me===pk.ta?'一样':'不一样'):'　'}</p></>}
-  </Sub>;
+  </>;
 }
 
 /* 专注 */
@@ -141,14 +140,14 @@ function CyclePage({p}:{p:Persona}){
 }
 
 /* 收藏、相册：都是聊天里攒下来的 */
-function FavPage({p}:{p:Persona}){
-  const me=S().prefs,favs=list(p.id).filter(m=>m.fav).reverse();
-  return <Sub p={p} title="收藏">{favs.length?<ul className="entries plain">{favs.map(m=><li key={m.id}>{m.kind==='img'?<Pic id={m.text} className="favpic"/>:<p>{m.text}</p>}<small>{m.from==='me'?me.myName:p.name} · {dayLabel(m.at)}</small></li>)}</ul>
-    :<p className="empty">在聊天里长按一条消息，选「收藏」，它就会留在这里。</p>}</Sub>;
-}
-function AlbumPage({p}:{p:Persona}){
-  const pics=[...list(p.id).filter(m=>m.kind==='img'&&!m.st).map(m=>m.text),...box(p.id).posts.filter(x=>x.img).map(x=>x.img!)].reverse();
-  return <Sub p={p} title="相册" cls="flush">{pics.length?<div className="grid">{pics.map(id=><Pic key={id} id={id}/>)}</div>:<p className="empty">聊天和动态里发过的图片会排在这里。</p>}</Sub>;
+/* 问问他：帮我选 / 默契 / 问卷 三个小的合在一页 */
+const hubs=[['pick','帮我选'],['match','默契'],['ask','问卷']] as const;
+function AskHub({p,start}:{p:Persona;start:string}){
+  const [t,setT]=useState(hubs.some(h=>h[0]===start)?start:'pick');
+  return <Sub p={p} title="问问他">
+    <div className="seg" role="tablist" aria-label="问他什么">{hubs.map(([id,n])=><button key={id} role="tab" aria-selected={t===id} onClick={()=>setT(id)}>{n}</button>)}</div>
+    {t==='pick'?<PickPage p={p}/>:t==='match'?<MatchPage p={p}/>:<AskPage p={p}/>}
+  </Sub>;
 }
 
 // 已经拿掉的页面：旧地址直接带回主页
@@ -158,9 +157,9 @@ export function Feature({id,p}:{id:string;p:Persona}){
   useVer();
   switch(id){
     case 'mail':return <MailBox p={p}/>;case 'days':return <DaysPage p={p}/>;case 'today':return <Away to={'#/us/'+p.id}/>;
-    case 'pick':return <PickPage p={p}/>;case 'ask':return <AskPage p={p}/>;case 'draw':return <TarotPage p={p}/>;case 'match':return <MatchPage p={p}/>;
+    case 'pick':case 'ask':case 'match':return <AskHub p={p} start={id}/>;case 'draw':return <TarotPage p={p}/>;
     case 'check':return <CheckPage p={p}/>;case 'focus':return <FocusPage p={p}/>;case 'cycle':return <CyclePage p={p}/>;
-    case 'feed':return <Away to={'#/us/'+p.id}/>;case 'fav':return <FavPage p={p}/>;case 'album':return <AlbumPage p={p}/>;
+    case 'feed':return <Away to={'#/us/'+p.id}/>;case 'fav':case 'album':return <Away to={'#/us/'+p.id}/>;
     default:return <Sub p={p} title="功能"><p className="empty">没有这个页面。</p></Sub>;
   }
 }

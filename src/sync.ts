@@ -49,12 +49,12 @@ async function blobSha(text:string){
   return [...new Uint8Array(await crypto.subtle.digest('SHA-1',all))].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 const unb64=(c:string)=>dec.decode(Uint8Array.from(atob(c.replace(/\s/g,'')),ch=>ch.charCodeAt(0)));
-type Shared={personas:Persona[];decks:Deck[];packs?:Pack[];dead:Record<string,number>;prefs:{myName:string;myAvatar?:string;bubble:State['prefs']['bubble'];at?:number;cloud?:string;plan?:State['prefs']['plan'];quick?:string[];dayAt?:number}};
+type Shared={personas:Persona[];decks:Deck[];packs?:Pack[];dead:Record<string,number>;prefs:{myName:string;myAvatar?:string;bubble:State['prefs']['bubble'];at?:number;cloud?:string;plan?:State['prefs']['plan'];quick?:string[];dayAt?:number;hl?:string[];hlPic?:Record<string,string>}};
 type Chat={msgs:Msg[];grave:Grave};
 const F={state:'data/state.json',m:(id:string)=>`data/m/${id}.json`,x:(id:string)=>`data/x/${id}.json`,a:(id:string)=>`data/a/${id}.txt`};
 function files(d:Dump):Record<string,string>{
   const pf=d.state.prefs,out:Record<string,string>={};
-  out[F.state]=canon({personas:d.state.personas,decks:d.state.decks,packs:d.state.packs??[],dead:d.state.dead??{},prefs:{myName:pf.myName,myAvatar:pf.myAvatar,bubble:pf.bubble,at:pf.at,cloud:pf.cloud||undefined,plan:pf.plan,quick:pf.quick,dayAt:pf.dayAt}} satisfies Shared);
+  out[F.state]=canon({personas:d.state.personas,decks:d.state.decks,packs:d.state.packs??[],dead:d.state.dead??{},prefs:{myName:pf.myName,myAvatar:pf.myAvatar,bubble:pf.bubble,at:pf.at,cloud:pf.cloud||undefined,plan:pf.plan,quick:pf.quick,dayAt:pf.dayAt,hl:pf.hl,hlPic:pf.hlPic}} satisfies Shared);
   for(const p of d.state.personas){
     out[F.m(p.id)]=canon({msgs:d.msgs[p.id]??[],grave:d.graves[p.id]??{dead:[],cleared:0}} satisfies Chat);
     if(d.boxes[p.id]?.at)out[F.x(p.id)]=canon({...d.boxes[p.id],ring:undefined,call:undefined});   // 响铃、通话中只是这台设备此刻的事，不上传
@@ -64,7 +64,7 @@ function files(d:Dump):Record<string,string>{
 const presets=new Set(['dots','mist']);
 function imageIds(d:Dump){
   const ids=new Set<string>();const add=(x?:string)=>{if(x&&!presets.has(x)&&!/^https?:/.test(x))ids.add(x);};
-  add(d.state.prefs.myAvatar);for(const k of d.state.packs??[])for(const x of k.ids)add(x);
+  add(d.state.prefs.myAvatar);for(const x of Object.values(d.state.prefs.hlPic??{}))add(x);for(const k of d.state.packs??[])for(const x of k.ids)add(x);
   for(const p of d.state.personas){
     add(p.avatar);add(p.wall);add(p.photo);add(p.homeBg);add(p.callPic);
     for(const m of d.msgs[p.id]??[])if(m.kind==='img')add(m.text);
@@ -118,7 +118,7 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
     // 云端推送的地址：新的那边说了算；但没更新的旧版本不认识这一项，别让它把地址冲掉
     const cloud=(mine.at?r.state.prefs.cloud:l.state.prefs.cloud)||l.state.prefs.cloud||r.state.prefs?.cloud;
     // 日程和报备短语有自己的时刻：谁后改听谁。没更新的旧版本不认识这两项（它那边 dayAt 是空的），不会把它们冲掉
-    const day=(r.state.prefs?.dayAt??0)>(l.state.prefs.dayAt??0)?{plan:r.state.prefs.plan,quick:r.state.prefs.quick,dayAt:r.state.prefs.dayAt}:{};
+    const day=(r.state.prefs?.dayAt??0)>(l.state.prefs.dayAt??0)?{plan:r.state.prefs.plan,quick:r.state.prefs.quick,hl:r.state.prefs.hl,hlPic:r.state.prefs.hlPic,dayAt:r.state.prefs.dayAt}:{};
     const prefs={...l.state.prefs,...mine,...day,...(cloud?{cloud}:{})};
     if(prefs.last&&!personas.some(p=>p.id===prefs.last))prefs.last='';
     const packs=pick(l.state.packs??[],r.state.packs??[]);

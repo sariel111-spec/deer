@@ -1,13 +1,13 @@
 import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
-import {Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Menu,Plus,Search,Trash2,X} from 'lucide-react';
+import {Bookmark,Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Grid3x3,Heart,Mail,Menu,Pin,Plus,Search,SlidersHorizontal,Trash2,X} from 'lucide-react';
 import {S,storage,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
 import {onPush,pushLink,pushLive,pushOff,pushOn,pushPrep,pushSet,pushTest,pushUnlink} from './push';
 import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,pipSlot,setMode,status,wakeLive} from './alive';
 import {lines,nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
-import {Avatar,backTo,dayLabel,go,nav} from './App';
-import {feats} from './more';
+import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
+import {feats,homeDefault} from './more';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
 
 /* ───────── 小零件 ───────── */
@@ -129,7 +129,22 @@ export function Home({p}:{p:Persona}){
   const mine=useRef<HTMLInputElement>(null);
   useEffect(()=>{if(st.prefs.last!==p.id)setPrefs({last:p.id});},[p.id]);
   const days=p.since?Math.max(1,Math.floor((Date.now()-new Date(p.since+'T00:00:00').getTime())/864e5)+1):0;
-  const favN=ms.filter(m=>m.fav).length,chatN=ms.filter(m=>m.kind!=='tip').length;
+  const chatN=ms.filter(m=>m.kind!=='tip').length;
+  // 主页那一排：自己挑过就按挑的，没挑过用默认的几个。顺序照功能表
+  const pinned=st.prefs.hl??homeDefault,row=feats.filter(f=>pinned.includes(f.id));
+  const [menu,setMenu]=useState(false),[tab,setTab]=useState<'pics'|'fav'>('pics'),[view,setView]=useState('');
+  // 那一排的封面：默认是一个小图标，长按（电脑上右键）可以换成自己的照片
+  const covers=st.prefs.hlPic??{},[cover,setCover]=useState(''),held=useRef({t:0,fired:false}),cfile=useRef<HTMLInputElement>(null);
+  const setCov=(id:string,img?:string)=>{const next={...covers};if(img)next[id]=img;else delete next[id];setPrefs({hlPic:next});};
+  // 照片：聊天里发过的图、信里夹的照片（新的在前）
+  const pics=[...ms.filter(m=>m.kind==='img'&&!m.st).map(m=>({id:m.text,at:m.at})),...b.letters.filter(l=>l.img&&(l.from==='me'||l.read)).map(l=>({id:l.img!,at:l.at})),...b.posts.filter(x=>x.img).map(x=>({id:x.img!,at:x.at}))].sort((x,y)=>y.at-x.at);
+  // 收藏：收藏的话、收藏的信、喜欢的一句，照时间排
+  type Fav={key:string;at:number;kind:'msg'|'mail'|'line';text:string;img?:string;who:string;to?:string;jump?:string};
+  const favs:Fav[]=[
+    ...ms.filter(m=>m.fav).map(m=>({key:m.id,at:m.at,kind:'msg' as const,text:m.kind==='img'?'':m.text,img:m.kind==='img'?m.text:undefined,who:m.from==='me'?st.prefs.myName:p.name,to:'#/c/'+p.id,jump:m.id})),
+    ...b.letters.filter(l=>l.star).map(l=>({key:l.id,at:l.at,kind:'mail' as const,text:l.text.split('\n').find(x=>x.trim())??'',who:l.from==='me'?`寄给 ${p.name} 的信`:`${p.name} 的信`,to:`#/f/mail/${p.id}/r/${l.id}`})),
+    ...b.lines.filter(x=>x.like).map(x=>({key:'l'+x.date,at:new Date(x.date+'T12:00:00').getTime(),kind:'line' as const,text:x.text,who:'一句'})),
+  ].sort((x,y)=>y.at-x.at);
   const line=todayLine(p);
   const [note,setNote]=useState(false);
   useEffect(()=>{keepToday(p);},[p.id,line]);
@@ -139,7 +154,7 @@ export function Home({p}:{p:Persona}){
     <header className="bar">
       {nav.from.startsWith('#/c/')&&<a className="ico back" href={nav.from} onClick={backTo(nav.from)} aria-label="回到聊天"><ChevronLeft size={28} strokeWidth={1.8}/></a>}
       <button className="namebtn" onClick={()=>setSw(true)} aria-label={`现在是 ${p.name}，点开换一位`}><b>{p.name}</b><ChevronDown size={18} strokeWidth={2}/>{others>0&&<i/>}</button>
-      <button className="ico" onClick={()=>setEdit(true)} aria-label="资料与节奏"><Menu size={25} strokeWidth={1.7}/></button>
+      <button className="ico" onClick={()=>setMenu(true)} aria-label="更多"><Menu size={25} strokeWidth={1.7}/></button>
     </header>
 
     <section className="profile">
@@ -155,7 +170,7 @@ export function Home({p}:{p:Persona}){
         <dl className="stats">
           <div><dd>{days||'—'}</dd><dt>天</dt></div>
           <div><dd>{chatN}</dd><dt>消息</dt></div>
-          <div><dd>{favN}</dd><dt>收藏</dt></div>
+          <div><dd>{b.letters.length}</dd><dt>信</dt></div>
         </dl>
       </div>
     </section>
@@ -163,11 +178,41 @@ export function Home({p}:{p:Persona}){
     <p className="bio">{p.since?`${p.since.replace(/-/g,'.')} 起`:<button className="linkish" onClick={()=>setEdit(true)}>写下在一起的日子</button>}</p>
     <div className="rowbtn two"><a className="btn ghost" href={'#/c/'+p.id}>发消息</a><button className="btn ghost" onClick={()=>setEdit(true)}>编辑主页</button></div>
 
-    <ul className="apps" aria-label="功能">
-      {feats.map(f=><li key={f.id}>{f.id==='pace'
-        ?<button onClick={()=>setEdit(true)}><span><f.icon size={23} strokeWidth={1.5}/></span>{f.name}</button>
-        :<a href={`#/f/${f.id}/${p.id}`}><span><f.icon size={23} strokeWidth={1.5}/>{dot[f.id]&&<i/>}</span>{f.name}</a>}</li>)}
-    </ul>
+    {row.length>0&&<ul className="hl" aria-label="常用的">
+      {row.map(f=><li key={f.id}><a href={`#/f/${f.id}/${p.id}`} className={dot[f.id]?'new':''} onPointerDown={e=>{if(e.button!==0)return;held.current.fired=false;held.current.t=window.setTimeout(()=>{held.current.fired=true;try{navigator.vibrate?.(8);}catch{/* */}setCover(f.id);},480);}}
+        onPointerUp={()=>clearTimeout(held.current.t)} onPointerLeave={()=>clearTimeout(held.current.t)} onPointerCancel={()=>clearTimeout(held.current.t)}
+        onClick={e=>{if(held.current.fired){e.preventDefault();held.current.fired=false;}}} onContextMenu={e=>{e.preventDefault();clearTimeout(held.current.t);held.current.fired=true;setCover(f.id);}}
+        aria-label={`${f.name}${dot[f.id]?'，有新的':''}`}>
+        <span>{covers[f.id]?<Pic id={covers[f.id]} alt=""/>:<f.icon size={22} strokeWidth={1.4}/>}</span>{f.name}</a></li>)}
+    </ul>}
+
+    <div className="seg htabs" role="tablist" aria-label="看什么">
+      <button role="tab" aria-selected={tab==='pics'} onClick={()=>setTab('pics')} aria-label="照片"><Grid3x3 size={22} strokeWidth={tab==='pics'?2:1.5}/></button>
+      <button role="tab" aria-selected={tab==='fav'} onClick={()=>setTab('fav')} aria-label="收藏"><Bookmark size={22} strokeWidth={tab==='fav'?2:1.5}/></button>
+    </div>
+    {tab==='pics'?(pics.length?<div className="grid hgrid">{pics.map((x,i)=><button key={x.id+i} onClick={()=>setView(x.id)} aria-label="看大图"><Pic id={x.id} alt=""/></button>)}</div>
+      :<p className="empty">你们发过的照片会排在这里。</p>)
+    :(favs.length?<ul className="hfav">{favs.map(f=>{
+        const body=<>{f.img?<Pic id={f.img} className="favpic" alt="收藏的图片"/>:<p>{f.text}</p>}<small>{f.kind==='mail'&&<Mail size={12} strokeWidth={1.8} aria-hidden="true"/>}{f.kind==='line'&&<Heart size={12} strokeWidth={1.8} aria-hidden="true"/>}{f.who} · {f.kind==='line'?`${new Date(f.at).getMonth()+1}月${new Date(f.at).getDate()}日`:dayLabel(f.at)}</small></>;
+        return <li key={f.key}>{f.to?<a href={f.to} onClick={()=>{if(f.jump)try{sessionStorage.setItem('cx-jump',f.jump);}catch{/* */}}}>{body}</a>:<button onClick={()=>setNote(true)}>{body}</button>}</li>;})}</ul>
+      :<p className="empty">聊天里长按一句话点「收藏」，它就留在这里。</p>)}
+    {view&&<button className="viewer" onClick={()=>setView('')} aria-label="关掉大图"><Pic id={view} alt="大图"/></button>}
+    <input ref={cfile} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';const id=cover;setCover('');if(f&&id)try{setCov(id,await putImage(f,400));}catch{say('这张图片读不了，换一张试试');}}}/>
+    {cover&&<Sheet title="" plain close={()=>setCover('')}>
+      <ul className="ml-menu">
+        <li><button onClick={()=>cfile.current?.click()}>换封面</button></li>
+        {covers[cover]&&<li><button onClick={()=>{setCov(cover);setCover('');}}>用回图标</button></li>}
+        <li><button onClick={()=>{setPrefs({hl:pinned.filter(x=>x!==cover)});setCover('');}}>从这一排拿掉</button></li>
+      </ul>
+    </Sheet>}
+    {menu&&<Sheet title="" plain close={()=>setMenu(false)}>
+      <ul className="hmenu">
+        {feats.map(f=><li key={f.id}><a href={`#/f/${f.id}/${p.id}`}><f.icon size={22} strokeWidth={1.5}/>{f.name}</a>
+          <button aria-pressed={pinned.includes(f.id)} onClick={()=>setPrefs({hl:pinned.includes(f.id)?pinned.filter(x=>x!==f.id):[...pinned,f.id]})} aria-label={pinned.includes(f.id)?`把 ${f.name} 从主页那一排拿掉`:`把 ${f.name} 放到主页那一排`}><Pin size={18} strokeWidth={1.6} fill={pinned.includes(f.id)?'currentColor':'none'}/></button></li>)}
+        <li><button className="go" onClick={()=>{setMenu(false);setEdit(true);}}><SlidersHorizontal size={22} strokeWidth={1.5}/>资料与节奏</button></li>
+      </ul>
+      <p className="hint center">点亮图钉的会排在主页；长按主页上的圆圈可以换封面。</p>
+    </Sheet>}
     {edit&&<PersonaSheet p={p} close={()=>setEdit(false)}/>}
     {note&&<NoteCard p={p} close={()=>setNote(false)}/>}
     {sw&&<Switcher p={p} close={()=>setSw(false)}/>}
