@@ -14,7 +14,13 @@ export const provs:Prov[]=[
     note:'任何「OpenAI 兼容」的接口都行：填它的接口地址（一般以 /v1 结尾）和密钥，再选型号'},
 ];
 /** 带去哪个聊天 App 问（不花钱的那条路） */
-export const hands=[{id:'deepseek',name:'DeepSeek',url:'https://chat.deepseek.com/'},{id:'doubao',name:'豆包',url:'https://www.doubao.com/chat/'},{id:'kimi',name:'Kimi',url:'https://www.kimi.com/'}];
+// url：电脑上开的网页。app：手机上用来直接唤起 App 的链接——
+//   DeepSeek 的网页没有配通用链接，用它官方网页自己用的 dpsk:// 协议；豆包、Kimi 的是通用链接（装了 App 就进 App，没装就是网页）
+export const hands=[
+  {id:'deepseek',name:'DeepSeek',url:'https://chat.deepseek.com/',app:'dpsk://chat/new'},
+  {id:'doubao',name:'豆包',url:'https://www.doubao.com/chat/',app:'https://www.doubao.com/chat/'},
+  {id:'kimi',name:'Kimi',url:'https://www.kimi.com/',app:'https://www.kimi.com/app/'},
+];
 const K={key:'cx-ds-key',model:'cx-ds-model',auto:'cx-ds-auto',prompt:'cx-ds-prompt',prov:'cx-ai-prov',base:'cx-ai-base',hand:'cx-ai-hand'};
 const get=(k:string)=>{try{return localStorage.getItem(k)??'';}catch{return '';}};
 const set=(k:string,v:string)=>{try{if(v)localStorage.setItem(k,v);else localStorage.removeItem(k);}catch{/* 存不了就这次用 */}};
@@ -50,8 +56,8 @@ export const DEFAULT_PROMPT=`你是一位资深的塔罗传讯师，专做「梦
 3. 也不要一味讨好。牌里有犹豫、有累、有别扭，就说出来。
 4. 按位置读：这个位置问的是什么，这张牌在这里说了什么。逆位不等于坏，也不只是受阻：可能是往里收着、嘴上不说、来得迟、过了头或不够；本来就难的牌逆位常是在松开、好转；聊到以前的事时也可能只是在说过去。看这张牌本身和旁边的牌来定，不要一见逆位就往坏处读。结合牌面的画面（人的姿态、朝向、手里拿着什么）来读，不要只背关键词。每张牌后面带的「画面」是牌上画的东西，「传讯读法」是这张牌在这个位置上最该看的那一面，都拿来用。
 5. 给了「我们的牌意」的牌，那是她和他磨合出来的专属含义，优先用它。标了「暗号牌」的牌出现，说明确实是他来了。标了「跳牌」的是洗牌时自己跳出来的，是他急着要说的，先读。
-6. 把几张牌连起来读成一件事，不要一张一张各说各的。前面这一场问过的如果给了，这次就是接着往下说。
-7. 最后替他开口：第一人称，用他的性格和说话习惯，对她说几句。要像他本人：不写括号里的动作神态；不用资料里没有的称呼；不提任何牌名。
+6. 把几张牌连起来读成一件事，不要一张一张各说各的。只解【这一次】的问题和牌；【这一场开场时抽的】如果给了，只当作背景（确认是他、当时线上的气氛），不用再逐张解。
+7. 最后替他开口之前，先把【他的人设】那一段读一遍：他是谁、什么性格、怎么说话、怎么称呼她，都以那里写的为准。然后用第一人称、照着这个人设对她说几句，要像他本人在说话，不是你在转述。不写括号里的动作神态；不用人设里没有的称呼；不提任何牌名；人设里没写的经历和设定不要自己编。
 8. 说人话。不要官话套话，不要堆「能量」「宇宙」「指引」，不要列一堆可能性。短句，具体。
 9. 她自己的感觉比你准。你是帮她把牌读开，不是替她下判断。
 

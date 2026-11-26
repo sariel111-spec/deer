@@ -46,6 +46,8 @@ const Back=()=><span className="tr-back" aria-hidden="true"><i/></span>;
 /* ── 抽牌：洗牌 → 牌轮上选 ── */
 const STEP=3.6;   // 牌轮上相邻两张差几度
 // 洗牌时偶尔会有一张自己跳出来（跳牌）：算作他急着想说的，单独记着
+/** 是不是在手机或平板上（那就直接唤起 App，不开网页） */
+const onPhone=()=>/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
 const jumpChance=()=>{const w=(window as unknown as {__trJump?:number}).__trJump;return typeof w==='number'?w:.15;};
 function Ritual({n,rev,done,what,pos,skip=[]}:{n:number;rev:boolean;done:(got:Drawn[],jump?:Drawn)=>void;what:string;pos?:string[];skip?:number[]}){
   const [deck,setDeck]=useState(()=>shuffleWithout(rev,skip));
@@ -170,14 +172,16 @@ function askOf(p:Persona,r:Reading,recent:Reading[]):AiMsg[]{
     return `【${label}】${cards[d.c].name}（${d.r?'逆位':'正位'}）｜画面：${mj[d.c].pic}｜常见含义：${(d.r?cards[d.c].rev:cards[d.c].up).join('、')}`+(a?`｜传讯读法（${a.label}）：${a.text}`:'')+(mine[d.c]?`｜我们的牌意：${mine[d.c]}`:'')+(sign.has(d.c)?'｜暗号牌':'');};
   const voice=lines(p,6);
   const u=[
+    '【他的人设】（先读这一段，最后替他说话时照着它来）',
     `梦角：${p.name}${p.bio?'。'+p.bio:''}`,
     b.tarotAbout?`他的资料和说话习惯：${b.tarotAbout}`:'',
-    `她的名字：${S().prefs.myName}`,
-    `牌阵：${sp.name}（${sp.pos.join('、')}）`,
-    `她的问题：${r.q||(r.kind==='day'?'今天的一张牌：他今天想让她知道什么':'没有写问题，就是想听他说说话')}`,
-    '牌：',...(r.jump?[card(r.jump,'跳牌')]:[]),...r.cards.map((d,i)=>card(d,posOf(r,i),i)),
-    recent.length?'这一场前面问过的：\n'+recent.map(x=>`- ${x.q||spreads[x.kind].name}：${x.cards.map((d,i)=>`${posOf(x,i)} ${cards[d.c].name}${d.r?'逆':''}`).join('，')}`).join('\n'):'',
     voice.length?`他平时说话的样子（学语气用，不要照抄）：${voice.join(' / ')}`:'',
+    `她的名字：${S().prefs.myName}`,
+    '【这一次】',
+    `牌阵：${sp.name}（${sp.pos.join('、')}）`,
+    `她的问题：${r.q||(r.kind==='day'?'今天的一张牌：他今天想让她知道什么':r.kind==='match'?'开场对信息：请他用三张牌说说自己，看看连上的是不是他':r.kind==='link'?'看看这次连得怎么样：线上的气氛、她的状态、他的状态、他的第一句回应':'没有写问题，就是想听他说说话')}`,
+    '牌：',...(r.jump?[card(r.jump,'跳牌')]:[]),...r.cards.map((d,i)=>card(d,posOf(r,i),i)),
+    recent.length?'【这一场开场时抽的】（只当背景，不用再逐张解）\n'+recent.map(x=>`- ${spreads[x.kind].name}：${x.cards.map((d,i)=>`${posOf(x,i)} ${cards[d.c].name}${d.r?'（逆位）':''}`).join('，')}`).join('\n'):'',
   ].filter(Boolean).join('\n');
   return [{role:'system',content:dsPrompt()},{role:'user',content:u}];
 }
@@ -212,6 +216,8 @@ function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onNext,onSetu
     try{const t=(await navigator.clipboard.readText()).trim();if(!t)say('剪贴板是空的');else if(t===carried.trim())say(`剪贴板里还是带过去的内容，先去复制 ${H.name} 的回答`);else setBack(t);}
     catch{say('这里不让读剪贴板：长按上面的框，自己贴上');}
   };
+  // 点了「打开 App」两秒后人还在这页：多半是没装，提醒一下旁边有网页版
+  const jumped=()=>{setTimeout(()=>{if(document.visibilityState==='visible'&&document.hasFocus())say(`没跳到 ${H.name} App？点旁边的「网页版」`);},2200);};
   const keep=()=>{const t=back.trim();if(!t)return;setAi(t);setErr('');patch({ai:t});setBack('');setHand(false);say('存进这次的记录了');};
   const flip=(i:number)=>{
     if(isOpen(i))return;const next=items.map((_,k)=>k===i?true:isOpen(k));setOpen(next);
@@ -269,8 +275,12 @@ function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onNext,onSetu
       </div>}
       {hand&&<section className="tr-hand">
         <h4>带去 {H.name} 解<small>不用密钥，不花钱</small></h4>
-        <ol><li>问题、牌、读法和解牌的指令已经复制好了。</li><li>打开 {H.name}，新开一个对话，贴上发送。</li><li>把它的回答复制回来，贴在下面，存进这次的记录。</li></ol>
-        <div className="rowbtn"><a className="chip on" href={H.url} target="_blank" rel="noopener noreferrer">打开 {H.name}</a><button className="chip" onClick={()=>void carry()}>再复制一次</button></div>
+        <ol><li>这次的问题、牌、读法、{p.name} 的人设和解牌的指令已经复制好了。</li><li>打开 {H.name}，新开一个对话，贴上发送。</li><li>把它的回答复制回来，贴在下面，存进这次的记录。</li></ol>
+        <div className="rowbtn">
+          {onPhone()&&!H.app.startsWith('http')?<><a className="chip on" href={H.app} onClick={jumped}>打开 {H.name} App</a><a className="chip" href={H.url} target="_blank" rel="noopener noreferrer">网页版</a></>
+            :<a className="chip on" href={onPhone()?H.app:H.url} target="_blank" rel="noopener noreferrer">打开 {H.name}{onPhone()?' App':''}</a>}
+          <button className="chip" onClick={()=>void carry()}>再复制一次</button></div>
+        {!p.bio&&!box(p.id).tarotAbout&&onSetup&&<button className="linkish tr-auto" onClick={onSetup}>还没写 {p.name} 的资料，AI 学不了他的口吻。去牌库写几句</button>}
         <textarea className="bulk" rows={4} value={back} onChange={e=>setBack(e.target.value)} placeholder={`把 ${H.name} 的回答贴在这里`} aria-label="贴回来的解读"/>
         <div className="rowbtn"><button className="chip" onClick={()=>void pasteBack()}>从剪贴板贴上</button><button className="chip on" disabled={!back.trim()} onClick={keep}>存进记录</button><button className="chip" onClick={()=>setHand(false)}>先不了</button></div>
         <details className="tr-more"><summary>看要带过去的内容</summary><textarea className="bulk" rows={6} readOnly value={carried} aria-label="带过去的内容"/></details>
@@ -418,7 +428,12 @@ export function TarotPage({p}:{p:Persona}){
   const add=(id:string,got:Drawn[])=>{const had=(box(p.id).tarot??[]).find(x=>x.id===id)?.cards.length??0;setBox(p.id,{tarot:(box(p.id).tarot??[]).map(x=>x.id===id?{...x,cards:[...x.cards,...got]}:x)});setFresh(id,had);setMore('');};
   const drop=(r:Reading)=>{const now=box(p.id);setBox(p.id,{tarot:(now.tarot??[]).filter(x=>x.id!==r.id),tarotGone:[...(now.tarotGone??[]),r.id].slice(-400)});setSee(null);setSure(false);if(shown===r.id)setShown('');};
   // 这一场前面问过的（两小时内、最近三次）：AI 解牌时带上，这次就是接着往下说
-  const recentOf=(r:Reading)=>all.filter(x=>x.id!==r.id&&x.kind!=='day'&&x.at<r.at&&r.at-x.at<SIT).slice(-3);
+  // 解牌时带上的背景：只有这一场开场的对一对、连线（各取最近一次，没对上的不带）。之前问过的别的问题不带
+  const recentOf=(r:Reading)=>{
+    if(r.kind==='day'||r.kind==='match'||r.kind==='link')return [];
+    const near=all.filter(x=>x.id!==r.id&&x.at<r.at&&r.at-x.at<SIT),last=(k:SpreadId)=>near.filter(x=>x.kind===k&&x.ok!==false).slice(-1);
+    return [...last('match'),...last('link')];
+  };
   const choose=(k:AskKind)=>{setKind(k);if(k!=='match')try{localStorage.setItem('cx-tarot-kind',k);}catch{/* */}};
   if(lib)return <main className="page sub tr" style={{'--accent':p.accent} as React.CSSProperties}><Library p={p} close={()=>setLib(false)}/></main>;
   const busy=!!going||!!more;
