@@ -6,7 +6,7 @@ import {lines,sent} from './engine';
 import {Avatar,Pic,dayLabel} from './App';
 import {Sheet,Switch,say} from './pages';
 import {Sub} from './more';
-import {DEFAULT_PROMPT,dsAuto,dsChat,dsKey,dsModel,dsModels,dsPrompt,promptEdited,setDsAuto,setDsKey,setDsModel,setDsPrompt,type Msg as AiMsg} from './ai';
+import {aiBase,aiHand,aiProv,bestOf,hands,modelChosen,provs,setAiBase,setAiHand,setAiProv,DEFAULT_PROMPT,dsAuto,dsChat,dsKey,dsModel,dsModels,dsPrompt,promptEdited,setDsAuto,setDsKey,setDsModel,setDsPrompt,type Msg as AiMsg} from './ai';
 import {TOTAL,askKinds,asks,cards,groups,markOf,shuffleWithout,spreads,suitOf,toneOf,voiceAt,type AskKind,type Drawn,type SpreadId} from './tarot';
 import {aspectAt,facets,flowOf,guide,mj,readAt,type Aspect} from './tarotmj';
 
@@ -154,7 +154,7 @@ function GuideSheet({close}:{close:()=>void}){
 function sumOf(ds:Drawn[]):string[]{
   if(ds.length<2)return [];
   const out:string[]=[],revN=ds.filter(d=>d.r).length,big=ds.filter(d=>d.c<22).length;
-  if(revN===0)out.push('全是正位：这次说得很顺。');else if(revN===ds.length)out.push('全是逆位：他那边有话卡着，没说顺。');else if(revN*2>ds.length)out.push('逆位偏多：线上有点阻力，慢一点听。');
+  if(revN===0)out.push('全是正位：话说得直接。');else if(revN===ds.length)out.push('全是逆位：这次多半是往里收着说的，或者在说以前的事，逐张看。');else if(revN*2>ds.length)out.push('逆位偏多：他这次说得含蓄，逐张看。');
   if(big*2>=ds.length&&big>=2)out.push('大牌多：说的是要紧的事。');
   const n=[0,0,0,0];for(const d of ds){const k=suitOf(d.c);if(k>=0)n[k]++;}
   const top=Math.max(...n);
@@ -188,19 +188,31 @@ function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onNext,onSetu
   const items:{d:Drawn;label:string;a:Aspect}[]=[...(r.jump?[{d:r.jump,label:'跳牌',a:'say' as Aspect}]:[]),...r.cards.map((d,i)=>({d,label:posOf(r,i),a:aspectAt[r.kind][i]??'say'}))],off=r.jump?1:0;
   const [open,setOpen]=useState<boolean[]>(()=>items.map((_,i)=>closedFrom===undefined||(closedFrom>0&&i<closedFrom+off)));
   const [note,setNote]=useState(r.note??''),[writing,setWriting]=useState(false),[edit,setEdit]=useState<number|null>(null);
-  const [ai,setAi]=useState(r.ai??''),[busy,setBusy]=useState(false),[err,setErr]=useState(''),[tips,setTips]=useState(false);
+  const [ai,setAi]=useState(r.ai??''),[busy,setBusy]=useState(false),[err,setErr]=useState(''),[tips,setTips]=useState(false),[hand,setHand]=useState(false),[back,setBack]=useState(''),[carried,setCarried]=useState('');
   const ctl=useRef<AbortController|null>(null);
   useEffect(()=>()=>ctl.current?.abort(),[]);
   const isOpen=(i:number)=>open[i]??false,all=items.every((_,i)=>isOpen(i));
   const patch=(x:Partial<Reading>)=>setBox(p.id,{tarot:(box(p.id).tarot??[]).map(y=>y.id===r.id?{...y,...x}:y)});
   const read=async()=>{
-    if(!dsKey()){onSetup?.();return;}
+    if(!dsKey()){void carry();return;}
     ctl.current?.abort();const c=ctl.current=new AbortController();
     setBusy(true);setErr('');setAi('');
     try{const t=await dsChat(askOf(p,r,recent),setAi,c.signal);setAi(t);patch({ai:t});}
     catch(e){if((e as Error)?.name!=='AbortError'){setErr((e as Error)?.message||'这次没解出来，再试一次');setAi(r.ai??'');}}
     finally{if(ctl.current===c)setBusy(false);}
   };
+  // 不花钱的那条路：把指令、问题和牌复制好，带去聊天 App 里问，再把回答贴回来
+  // 带过去的内容一场只拼一次（里面他的几句字卡是随机挑的，重拼会变）
+  const H=aiHand(),carryText=()=>{if(carried)return carried;const m=askOf(p,r,recent),t=m[0].content+'\n\n——\n'+m[1].content;setCarried(t);return t;};
+  const carry=async()=>{
+    const t=carryText();setHand(true);
+    try{await navigator.clipboard.writeText(t);say(`复制好了，去 ${H.name} 贴上发送`);}catch{say('这里不让自动复制：点开「看要带过去的内容」，长按全选复制');}
+  };
+  const pasteBack=async()=>{
+    try{const t=(await navigator.clipboard.readText()).trim();if(!t)say('剪贴板是空的');else if(t===carried.trim())say(`剪贴板里还是带过去的内容，先去复制 ${H.name} 的回答`);else setBack(t);}
+    catch{say('这里不让读剪贴板：长按上面的框，自己贴上');}
+  };
+  const keep=()=>{const t=back.trim();if(!t)return;setAi(t);setErr('');patch({ai:t});setBack('');setHand(false);say('存进这次的记录了');};
   const flip=(i:number)=>{
     if(isOpen(i))return;const next=items.map((_,k)=>k===i?true:isOpen(k));setOpen(next);
     // 最后一张翻开：接了 AI 的话直接开始解
@@ -233,16 +245,16 @@ function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onNext,onSetu
         <p className="tr-keys">{(d.r?cards[d.c].rev:cards[d.c].up).join(' · ')}</p>
         {!at&&<p className="tr-line">{d.r?cards[d.c].revLine:cards[d.c].upLine}</p>}
         {label==='跳牌'&&<p className="tr-link">洗牌时自己跳出来的：他急着想让你知道的。</p>}
-        <details className="tr-more"><summary>这张牌的其他读法</summary><dl>{[...(at?[['一句话',d.r?cards[d.c].revLine:cards[d.c].upLine] as [string,string]]:[]),...facets(d.c)].map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl></details>
+        <details className="tr-more"><summary>这张牌的其他读法</summary><dl>{[...(at&&a!=='me'?[['一句话',d.r?cards[d.c].revLine:cards[d.c].upLine] as [string,string]]:[]),...facets(d.c)].map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl></details>
       </li>;})}
     </ol>
-    {items.some((x,i)=>isOpen(i))&&<p className="tr-revtip">{items.some((x,i)=>isOpen(i)&&x.d.r)&&'有逆位：多半是这股劲没顺，不是坏事。拿不准就补一张。'}<button className="linkish" onClick={()=>setTips(true)}>读牌小抄</button></p>}
+    {items.some((x,i)=>isOpen(i))&&<p className="tr-revtip">{items.some((x,i)=>isOpen(i)&&x.d.r)&&'有逆位：不等于不好，也不一定是不顺。看这张牌自己的逆位读法，拿不准就补一张。'}<button className="linkish" onClick={()=>setTips(true)}>读牌小抄</button></p>}
     {all&&<>
       {items.some(x=>sign.has(x.d.c))&&<p className="tr-signed">他的暗号牌出现了：是他。</p>}
       {sum.length>0&&<p className="tr-sum"><small>合起来看</small>{sum.join('')}</p>}
       {r.said&&<div className="said"><Avatar id={p.avatar} name={p.name} size={28}/><div><span>{r.said}</span>{voice&&<small className="tr-tone">语气 · {toneOf(voice)}</small>}</div></div>}
       {(ai||busy||err)&&<section className="tr-ai" aria-live="polite" aria-busy={busy}>
-        <h4>解读<small>DeepSeek · 当作参考，以你自己的感觉为准</small></h4>
+        <h4>解读<small>当作参考，以你自己的感觉为准</small></h4>
         {ai?<p>{ai}</p>:busy&&<p className="tr-wait">正在读牌…</p>}
         {err&&<p className="tr-err" role="alert">{err}</p>}
       </section>}
@@ -255,8 +267,18 @@ function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onNext,onSetu
         <textarea className="bulk" rows={3} value={note} onChange={e=>setNote(e.target.value)} placeholder="看到这几张牌，想到了什么" aria-label="我的感想" autoFocus/>
         <div className="rowbtn"><button className="chip on" onClick={()=>{patch({note:note.trim()||undefined});setWriting(false);}}>记下</button><button className="chip" onClick={()=>{setNote(r.note??'');setWriting(false);}}>算了</button></div>
       </div>}
+      {hand&&<section className="tr-hand">
+        <h4>带去 {H.name} 解<small>不用密钥，不花钱</small></h4>
+        <ol><li>问题、牌、读法和解牌的指令已经复制好了。</li><li>打开 {H.name}，新开一个对话，贴上发送。</li><li>把它的回答复制回来，贴在下面，存进这次的记录。</li></ol>
+        <div className="rowbtn"><a className="chip on" href={H.url} target="_blank" rel="noopener noreferrer">打开 {H.name}</a><button className="chip" onClick={()=>void carry()}>再复制一次</button></div>
+        <textarea className="bulk" rows={4} value={back} onChange={e=>setBack(e.target.value)} placeholder={`把 ${H.name} 的回答贴在这里`} aria-label="贴回来的解读"/>
+        <div className="rowbtn"><button className="chip" onClick={()=>void pasteBack()}>从剪贴板贴上</button><button className="chip on" disabled={!back.trim()} onClick={keep}>存进记录</button><button className="chip" onClick={()=>setHand(false)}>先不了</button></div>
+        <details className="tr-more"><summary>看要带过去的内容</summary><textarea className="bulk" rows={6} readOnly value={carried} aria-label="带过去的内容"/></details>
+        {onSetup&&<button className="linkish tr-auto" onClick={onSetup}>想翻开就自动解、不用切 App？去牌库接一个免费的接口</button>}
+      </section>}
       {!writing&&<div className="rowbtn tr-acts">
-        <button className="chip" onClick={()=>void read()} disabled={busy}>{busy?'正在读牌…':dsKey()?(ai?'重新解读':'AI 解牌'):'接上 AI 解牌'}</button>
+        <button className="chip" onClick={()=>void read()} disabled={busy}>{busy?'正在读牌…':dsKey()?(ai?'重新解读':'AI 解牌'):`带去 ${H.name} 解`}</button>
+        {dsKey()&&err&&!hand&&<button className="chip" onClick={()=>void carry()}>带去 {H.name} 解</button>}
         {onMore&&r.kind!=='day'&&extra<2&&<button className="chip" onClick={onMore} disabled={busy}>补一张</button>}
         {r.sent?<a className="chip" href={'#/c/'+p.id}>去聊天看看</a>:<button className="chip" onClick={tell}>发到聊天</button>}
         <button className="chip" onClick={()=>setWriting(true)}>{r.note?'改感想':'写一句感想'}</button>
@@ -275,10 +297,16 @@ function Library({p,close}:{p:Persona;close:()=>void}){
   const mine=b.tarotMine??{},sign=b.tarotSign??[];
   const toggleSign=(cs:number[])=>{const on=cs.every(c=>sign.includes(c));setBox(p.id,{tarotSign:on?sign.filter(c=>!cs.includes(c)):[...new Set([...sign,...cs])]});};
   // AI 解牌的设置。密钥只在这台设备上
+  const [prov,setProv]=useState(aiProv().id),[hand,setHand]=useState(aiHand().id),[base,setBase]=useState(aiBase());
   const [key,setKey]=useState(dsKey()),[typed,setTyped]=useState(''),[models,setModels]=useState<string[]>([]),[model,setModel]=useState(dsModel()),[auto,setAuto]=useState(dsAuto()),[linking,setLinking]=useState(false);
   const [about,setAbout]=useState(b.tarotAbout??''),[showP,setShowP]=useState(false),[pr,setPr]=useState(dsPrompt());
-  useEffect(()=>{if(key)void dsModels(key).then(setModels).catch(()=>{});},[key]);
-  const link=async()=>{const k=typed.trim();if(!k||linking)return;setLinking(true);try{const ms=await dsModels(k);setDsKey(k);setKey(k);setTyped('');setModels(ms);if(ms.length&&!ms.includes(dsModel())){setDsModel(ms[0]);setModel(ms[0]);}say('接上了。以后翻开牌就会自动解读');}catch(e){say((e as Error).message);}setLinking(false);};
+  const pv=provs.find(x=>x.id===prov)??provs[0];
+  useEffect(()=>{if(key)void dsModels(key).then(setModels).catch(()=>{});},[key,prov]);
+  const pickProv=(id:string)=>{setAiProv(id);setProv(id);setKey(dsKey());setModel(dsModel());setModels([]);setTyped('');setBase(aiBase());};
+  const link=async()=>{const k=typed.trim();if(!k||linking)return;setLinking(true);
+    try{const ms=await dsModels(k);setDsKey(k);setKey(k);setTyped('');setModels(ms);if(ms.length&&(!modelChosen()||!ms.includes(dsModel()))){const m=bestOf(ms);setDsModel(m);setModel(m);}say('接上了。以后翻开牌就会自动解读');}
+    catch(e){say((e as Error).message);}
+    setLinking(false);};
   const one=useRef<HTMLInputElement>(null),many=useRef<HTMLInputElement>(null);
   const change=async(c:number,f?:File)=>{
     if(!f)return;
@@ -301,13 +329,22 @@ function Library({p,close}:{p:Persona;close:()=>void}){
     {tips&&<GuideSheet close={()=>setTips(false)}/>}
     <Switch on={b.tarotRev!==false} set={v=>setBox(p.id,{tarotRev:v})} label="也抽逆位" note="关掉的话，抽到的牌都按正位来读"/>
     <h3>AI 解牌</h3>
-    <p className="hint">接上 DeepSeek 之后，每次把牌翻开就自动解读：先逐张读牌，再合起来说，最后用 {p.name} 的口吻对你说几句。密钥只存在这台设备上，不同步、不进代码；每台设备各填一次。</p>
+    <p className="hint">两种用法，都会带上你的问题、抽到的牌和传讯读法，最后用 {p.name} 的口吻对你说几句。</p>
+    <h4 className="tr-h4">不花钱 · 带去聊天 App<small>不用密钥</small></h4>
+    <p className="hint">翻开牌后点「带去 {hands.find(x=>x.id===hand)?.name} 解」：内容会自动复制好，打开它免费的网页或 App 贴上发送，再把回答贴回来，就存进这次的记录里。这些 App 的免费聊天不对外开放接口，所以只能这样带过去，要切一下 App。</p>
+    <div className="chips" role="radiogroup" aria-label="带去哪个 App">{hands.map(h=><button key={h.id} role="radio" aria-checked={hand===h.id} aria-pressed={hand===h.id} className="chip" onClick={()=>{setAiHand(h.id);setHand(h.id);}}>{h.name}</button>)}</div>
+    <h4 className="tr-h4">自动解 · 接一个接口<small>不用切 App</small></h4>
+    <p className="hint">接上以后，牌一翻开就在这里直接解。接口都要一把密钥；选免费的服务就不花钱。密钥只存在这台设备上，不同步、不进代码；每台设备各填一次。</p>
+    <div className="chips" role="radiogroup" aria-label="用哪个服务">{provs.map(x=><button key={x.id} role="radio" aria-checked={prov===x.id} aria-pressed={prov===x.id} className="chip" onClick={()=>pickProv(x.id)}>{x.name}{x.id==='deepseek'&&'（收费）'}</button>)}</div>
+    <p className="hint tr-pnote">{pv.note}{pv.keyAt&&<>。密钥在 <b>{pv.keyAt}</b> 里创建</>}</p>
+    {prov==='custom'&&<input className="tr-base" value={base} onChange={e=>setBase(e.target.value)} onBlur={()=>setAiBase(base)} placeholder="接口地址，比如 https://api.xxx.com/v1" autoComplete="off" autoCapitalize="off" spellCheck={false} inputMode="url" aria-label="接口地址"/>}
     {key?<>
-      <div className="line"><span>DeepSeek<small>已经接上{model?' · '+model:''}</small></span><button className="chip" onClick={()=>{setDsKey('');setKey('');setModels([]);}}>换密钥</button></div>
+      <div className="line"><span>{pv.name}<small>已经接上{model?' · '+model:''}</small></span><button className="chip" onClick={()=>{setDsKey('');setKey('');setModels([]);}}>换密钥</button></div>
       <Switch on={auto} set={v=>{setDsAuto(v);setAuto(v);}} label="翻开就自动解牌" note="关掉的话，要解的时候自己点「AI 解牌」"/>
-      {models.length>1&&<div className="chips" role="radiogroup" aria-label="用哪个型号">{models.map(m=><button key={m} role="radio" aria-checked={model===m} aria-pressed={model===m} className="chip" onClick={()=>{setDsModel(m);setModel(m);}}>{m}</button>)}</div>}
-    </>:<div className="newdeck"><input type="password" value={typed} onChange={e=>setTyped(e.target.value)} placeholder="DeepSeek 的 API 密钥（sk- 开头）" autoComplete="off" autoCapitalize="off" spellCheck={false} aria-label="DeepSeek 的密钥"/>
-      <button className="btn" disabled={!typed.trim()||linking} onClick={()=>void link()}>{linking?'正在连…':'接上'}</button></div>}
+      {models.length>1&&<div className="chips tr-models" role="radiogroup" aria-label="用哪个型号">{models.map(m=><button key={m} role="radio" aria-checked={model===m} aria-pressed={model===m} className="chip" onClick={()=>{setDsModel(m);setModel(m);}}>{m}</button>)}</div>}
+      {prov==='custom'&&models.length<=1&&<input className="tr-base" defaultValue={model} onBlur={e=>{setDsModel(e.target.value);setModel(e.target.value.trim());}} placeholder="型号的名字" autoComplete="off" autoCapitalize="off" spellCheck={false} aria-label="型号"/>}
+    </>:<div className="newdeck"><input type="password" value={typed} onChange={e=>setTyped(e.target.value)} placeholder={`${pv.id==='custom'?'这个服务':pv.name.split(' ')[0]} 的 API 密钥`} autoComplete="off" autoCapitalize="off" spellCheck={false} aria-label="接口的密钥"/>
+      <button className="btn" disabled={!typed.trim()||linking||(prov==='custom'&&!base.trim())} onClick={()=>{if(prov==='custom')setAiBase(base);void link();}}>{linking?'正在连…':'接上'}</button></div>}
     <label className="tr-field"><span>{p.name} 的资料<small>他是谁、什么性格、怎么说话、怎么叫你。AI 会照着这个来学他的口吻；他的字卡也会自动带几句过去</small></span>
       <textarea className="bulk" rows={4} value={about} onChange={e=>setAbout(e.target.value.slice(0,1500))} onBlur={()=>{if(about.trim()!==(b.tarotAbout??''))setBox(p.id,{tarotAbout:about.trim()});}} placeholder="比如：出自哪部作品，冷淡但护短，说话短、不爱用语气词，叫我「小朋友」" aria-label="他的资料"/></label>
     <div className="rowbtn"><button className="linkish" aria-expanded={showP} onClick={()=>setShowP(v=>!v)}>{showP?'收起解牌的指令':'看看解牌的指令'}</button></div>

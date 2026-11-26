@@ -3,7 +3,7 @@
 // 以及逆位时的他、逆位时他对你。都是照着韦特牌的画面和通行牌意自己写的，顺序和 tarot.ts 一样。
 import {cards,suitOf,toneOf,type Drawn,type SpreadId} from './tarot';
 
-export type Mj={pic:string;trait:string;doing:string;mood:string;love:string;scene:string;rv:string;rl:string};
+export type Mj={pic:string;trait:string;doing:string;mood:string;love:string;scene:string;rv:string;rl:string;rt:string};
 // 牌名|画面|性子|在做什么|状态|对你|场景线索|逆位的他|逆位·对你
 const rows=`
 愚者|背着小包袱走在崖边，脚边跟着一只小狗|随性、爱自由、有点孩子气|出门了、在路上、临时起意去做一件事|轻松，没想太多|想到你就来了，不带什么目的|户外、高处、清晨；小狗、背包|想动又没动，或者冒冒失失做了件傻事|想靠近又怕唐突，还没准备好
@@ -85,9 +85,90 @@ const rows=`
 星币王后|坐在花丛中的宝座上，怀里抱着金币，脚边一只兔子|会过日子、细心、温暖|在做饭、收拾家、照顾人|踏实、温暖|把你的吃穿冷暖放在心上|厨房、花园、家里；兔子|顾了别人忘了自己，有点操心过头|操心过头，怕把你管烦了
 星币国王|坐在饰着牛头的宝座上，身披葡萄纹的长袍|可靠、有实力、大方|在赚钱、管着一摊事、稳稳地掌着家|稳，笃定|给你实打实的安全感|办公室、自家地盘、丰盛的饭桌|太看重现实，或者只顾忙忘了陪你|忙着顾现实，少陪了你
 `.trim().split('\n').map(l=>l.split('|'));
-export const mj:Mj[]=rows.map(r=>({pic:r[1],trait:r[2],doing:r[3],mood:r[4],love:r[5],scene:r[6],rv:r[7],rl:r[8]}));
+// 逆位时的性子：这张牌的另一面（收着的、过了头的，或者正在走出来的）。一行一张，顺序同上
+const rts=`
+冒失、想一出是一出，或者其实胆小不敢迈步
+嘴上说得好听、爱耍小聪明，或者有本事却不自信
+闷着不说、让人猜，心事藏得太深
+黏人、爱操心，或者不太会照顾自己
+固执、控制欲强，不肯低头
+不爱守规矩、有自己的一套，不服管
+容易摇摆、选择困难，怕做错决定
+急躁、好强过头，或者一遇阻就泄劲
+看着强其实没底气，情绪爱自己压着
+孤僻、把自己关起来，不爱求人
+容易被情况带着走，情绪起伏大
+爱较真、心里记账，或者遇事会回避
+爱钻牛角尖、拖着不动，容易委屈自己
+念旧、放不下，不喜欢改变
+容易走极端、没耐心，情绪忽高忽低
+欲望重但知道收，其实一直在克制自己
+什么都憋着硬撑，怕变动，憋久了才炸
+容易灰心，不太相信好事会轮到自己
+表面迷糊其实看得清，多疑但想通得也快
+爱逞强装没事，外面热闹、心里累
+爱自责、放不下过去，决定下得慢
+完美主义、总觉得差一点，收尾拖拉
+三分钟热度，起头快、后劲不足
+想得多做得少，犹豫着不敢迈出去
+没耐心等，容易着急和失望
+表面合群，其实心里没着落、不太恋家
+嘴上不饶人却不爱真吵，会躲开冲突
+好面子、需要被夸，没人认可就失落
+外强中干，扛久了会想逃
+急起来没章法，或者一拖再拖
+疑心重、不肯示弱，其实早就累了
+不会拒绝、什么都揽，把自己压垮
+小孩脾气、没长性，说过的常忘
+暴躁、冲动、没耐心，来得快去得也快
+爱吃醋、好强，没安全感时会带刺
+霸道、急脾气，听不进别人的话
+感情闷在心里，不太会表达
+别扭、不肯先低头，其实很在意
+贪玩、容易玩过头，或者在人群里反而落寞
+外冷内热，慢半拍才反应过来
+伤过心但会自己爬起来，嘴上不提
+太念旧，有长不大的一面
+幻想多，但关键时候拎得清
+嘴上说走，其实舍不得
+贪心、不容易满足，有点自我
+向往家，但对亲密关系有点没信心
+情绪化、爱闹小别扭，玻璃心
+嘴甜但犹豫，情绪来了说变就变
+太敏感、容易多想，把委屈咽下去
+情绪压着不说，表面稳、心里翻浪
+想得乱、话说不清，或者嘴太利会伤人
+逃避选择，拖到憋不住才摊牌
+伤口藏着，慢热，不轻易再交心
+闲不下来、不会休息，累了也硬撑
+嘴硬但会后悔，丢了面子会记着
+放不下，带着心事往前走
+藏不住秘密，心虚了会自己招
+爱自己吓自己，其实有本事挣脱
+把担心憋在心里，嘴上说没事
+不认输、死撑到底，但恢复得也快
+嘴硬、爱抬杠，说话带刺
+莽、说话不过脑子，事后会后悔
+嘴硬心软，用冷淡保护自己
+严厉、爱板着脸，其实一逗就破功
+不太会抓机会，对现实的事有点迷糊
+顾此失彼，容易手忙脚乱
+独来独往、不爱配合，或者做事不上心
+看着小气，对在乎的人其实很舍得
+自尊心强，再难也不开口求人
+爱计较得失，给出去的会记着
+没耐心、容易泄气，怀疑自己白忙
+容易敷衍、三心二意，或者钻进去就出不来
+看着独立，其实怕孤单
+怕被家里和规矩绑住，嫌日子太闷
+心不定、爱拖延，学东西三天打鱼
+慢吞吞、有点死板，推一下动一下
+操心过头、管得多，忘了顾自己
+太现实、工作狂，不太会表达感情
+`.trim().split('\n');
+export const mj:Mj[]=rows.map((r,i)=>({pic:r[1],trait:r[2],doing:r[3],mood:r[4],love:r[5],scene:r[6],rv:r[7],rl:r[8],rt:rts[i]??''}));
 if(import.meta.env.DEV){
-  if(rows.length!==cards.length)console.error('传讯读法的张数不对',rows.length);
+  if(rows.length!==cards.length||rts.length!==cards.length||rts.some(x=>!x))console.error('传讯读法的张数不对',rows.length,rts.length);
   rows.forEach((r,i)=>{if(r.length!==9||r[0]!==cards[i]?.name||r.some(x=>!x))console.error('传讯读法这一行有问题',i,r[0]);});
 }
 
@@ -96,23 +177,23 @@ export type Aspect='trait'|'tone'|'doing'|'mood'|'love'|'say'|'link'|'me';
 export const aspectAt:Record<SpreadId,Aspect[]>={
   day:['say'],one:['say'],heart:['mood','love','say'],link:['link','me','mood','say'],match:['trait','tone','doing'],time:['say','say','say'],
 };
-const linkUp=['线是通的，可以说话。','线很稳，他听得见你。'],linkRev='线上有点杂音。慢一点，一句一句来。';
 /** 这张牌放在这个位置，在传讯里读作什么。say（他想说的话）不在这里出，用牌本身的那句话 */
 export function readAt(d:Drawn,a:Aspect):{label:string;text:string}|null{
   const m=mj[d.c];if(!m)return null;
   switch(a){
-    case 'trait':return {label:'他的性子',text:m.trait+(d.r?'（逆位：这一面收着没露，或者过了头）':'')};
+    case 'trait':return {label:'他的性子',text:d.r?m.rt:m.trait};
     case 'tone':return {label:'他说话的样子',text:toneOf(d)};
     case 'doing':return {label:'他在做什么',text:d.r?m.rv:m.doing};
     case 'mood':return {label:'他的状态',text:d.r?m.rv:m.mood+'；'+m.doing.split('、')[0]};
     case 'love':return {label:'他对你',text:d.r?m.rl:m.love};
-    case 'link':return {label:'这条线',text:d.r?linkRev:linkUp[d.c===1||d.c===19||d.c===21||d.c===37?1:0]};
-    case 'me':return {label:'你现在',text:(d.r?cards[d.c].rev:cards[d.c].up).join('、')+(d.r?'。心先放稳一点再问。':'。')};
+    // 线顺不顺不拿正逆位来定，看这张牌本身说的是什么气氛
+    case 'link':return {label:'这条线',text:'这次线上的气氛：'+(d.r?cards[d.c].rev:cards[d.c].up).join('、')};
+    case 'me':return {label:'你现在',text:d.r?cards[d.c].revLine:cards[d.c].upLine};
     default:return null;
   }
 }
 /** 牌库里、「其他读法」里用：这张牌在传讯里的几面 */
-export const facets=(c:number):[string,string][]=>{const m=mj[c];return m?[['他的性子',m.trait],['他在做什么',m.doing],['他的状态',m.mood],['他对你',m.love],['场景线索',m.scene],['逆位的他',m.rv],['逆位 · 他对你',m.rl]]:[];};
+export const facets=(c:number):[string,string][]=>{const m=mj[c];return m?[['他的性子',m.trait],['他在做什么',m.doing],['他的状态',m.mood],['他对你',m.love],['场景线索',m.scene],['逆位 · 性子',m.rt],['逆位的他',m.rv],['逆位 · 他对你',m.rl]]:[];};
 
 /* 元素：不是牌义，是这张牌「以什么方式在动」。几张连着读，看它怎么流 */
 const flowWord=['起了念头、想行动','动了感情','在想、在说','落到实处'];
@@ -128,9 +209,9 @@ export function flowOf(ds:Drawn[]):string{
 export const guide:[string,string][]=[
   ['先看画面','每张牌下面都写了画面：牌上的人在做什么、手里拿着什么。第一眼的感觉往往最准，比背下来的字重要。'],
   ['再看位置','每个位置问的东西不一样：性子、状态、对你、想说的话。同一张牌，放在不同位置读的是不同的一面。'],
-  ['逆位不是坏','多半是这股劲没顺：收着没说、迟了、过了头，或者在说已经过去的事。重点是他想回到正位。'],
+  ['逆位怎么读','逆位不等于坏，也不只是「不顺」。常见的几种：这股劲往里收着、没说出口；来得迟一点；过了头或不够。本来就难的牌（高塔、恶魔、宝剑八九十）逆位，反而是在松开、好转。聊到以前的事时，也可能只是在说过去。先看这张牌下面写的逆位读法，再看旁边的牌。问「是不是」的时候，别直接拿正逆位当是非，除非你们事先约好了。'],
   ['连起来读','几张牌是一句话，不是各说各的。看元素怎么走：权杖是火，管行动；圣杯是水，管感情；宝剑是风，管想法和话；星币是土，管现实。'],
-  ['拿不准就补一张','一张说不清就再补一张，最多两张。抽到不合心意的牌别马上重抽，也别为了「连上」反复对。'],
+  ['拿不准就补一张','一张说不清就再补一张（这里最多补两张）。抽到不合心意的牌别马上重抽，也别为了「连上」反复对。'],
   ['磨你们自己的牌意','同一张牌，在你们之间可以有专属的意思。哪次读得特别准，就点「写我们的牌意」记下来，以后优先看它。'],
   ['心稳了再来','烦躁、生气、难过的时候先别抽，牌会照出你自己的情绪。你的感觉，比任何解读都准。'],
 ];
