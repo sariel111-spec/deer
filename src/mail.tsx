@@ -52,24 +52,27 @@ export function MailBox({p}:{p:Persona}){
   if(view.k==='read'&&open)return <Read key={open.id} p={p} l={open} all={all} patch={patch} drop={drop} go={setView} back={()=>backFrom(p.id)}/>;
   const out=cameFrom[p.id]?.startsWith('#/c/')?cameFrom[p.id]:'#/us/'+p.id;
   const shown=[...all].reverse().filter(l=>tab==='all'||(tab==='in'?l.from==='ta':tab==='out'?l.from==='me':!!l.star));
+  const count={in:all.filter(l=>l.from==='ta').length,out:all.filter(l=>l.from==='me').length,star:all.filter(l=>l.star).length};
+  // 信跨了不止一个月：按月分开，每个月上面一行小字
+  const monthOf=(t:number)=>{const d=new Date(t);return d.getFullYear()===new Date().getFullYear()?`${d.getMonth()+1}月`:`${d.getFullYear()}年${d.getMonth()+1}月`;};
+  const months=new Set(shown.map(l=>monthOf(l.at))).size>1;
   const draft=loadDraft(p.id).t.trim();
   return <main className="page sub ml" style={{'--accent':p.accent} as React.CSSProperties}>
     <header className="bar"><a className="ico" href={out} aria-label="返回"><ChevronLeft size={28} strokeWidth={1.8}/></a><h1>信箱</h1>
       <button className="ico" onClick={()=>setPace(true)} aria-label="信的设置"><SlidersHorizontal size={22} strokeWidth={1.7}/></button>
       <button className="ico" onClick={()=>setView({k:'write'})} aria-label="写一封信"><SquarePen size={23} strokeWidth={1.7}/></button></header>
-    {all.length>=5&&<div className="chips ml-tabs" role="radiogroup" aria-label="看哪些信">
-      {([['all','全部'],['in','来信'],['out','寄出'],['star','收藏']] as const).map(([id,n])=><button key={id} role="radio" aria-checked={tab===id} aria-pressed={tab===id} className="chip" onClick={()=>setTab(id)}>{n}</button>)}
+    {all.length>0&&<div className="seg ml-tabs" role="tablist" aria-label="看哪些信">
+      {([['all','全部'],['in','来信'],['out','寄出'],['star','收藏']] as const).map(([id,n])=><button key={id} role="tab" aria-selected={tab===id} onClick={()=>setTab(id)}>{n}{id!=='all'&&count[id]>0&&<small>{count[id]}</small>}</button>)}
     </div>}
     {draft&&<button className="ml-draft" onClick={()=>setView({k:'write'})}><small>写到一半的信</small><span>{draft.split('\n')[0]}</span></button>}
-    {shown.length?<ul className="ml-list">{shown.map(l=>{const his=l.from==='ta',fresh=his&&!l.read;return <li key={l.id}>
+    {shown.length?<ul className="ml-list">{shown.map((l,i)=>{const his=l.from==='ta',fresh=his&&!l.read,head=months&&(i===0||monthOf(shown[i-1].at)!==monthOf(l.at));return <li key={l.id}>
+      {head&&<h3 className="ml-month">{monthOf(l.at)}</h3>}
       <button className={`ml-env${fresh?' new':''}`} onClick={()=>setView({k:'read',id:l.id})} aria-label={`${his?`${p.name} 的来信`:`寄给 ${p.name} 的信`}${fresh?'，还没拆':''}：${first(l)}`}>
-        <small className="ml-to">{his?(l.pro?`${p.name} 写来的`:`${p.name} 的回信`):l.kept?'写了没寄':`寄给 ${p.name}`}</small>
+        <small className="ml-to">{his?(l.pro?`${p.name} 写来的`:`${p.name} 的回信`):l.kept?'写了没寄':`寄给 ${p.name}`}{waiting(l)?' · 回信在路上':l.got?' · 已回信':''}{l.img&&!fresh?' · 有照片':''}{l.star&&<Bookmark className="ml-star" size={12} strokeWidth={1.8} fill="currentColor"/>}</small>
         <b>{fresh?'还没拆开':first(l)}</b>
-        <small className="ml-when">{near(l.at)}{waiting(l)?' · 回信在路上':l.got?' · 已回信':''}{l.img&&!fresh?' · 有照片':''}</small>
-        {l.star&&<Bookmark className="ml-star" size={14} strokeWidth={1.8} fill="currentColor"/>}
         <Post top={his?'已送达':l.kept?'没寄出':'已寄出'} t={l.at}/>
       </button></li>;})}</ul>
-      :all.length?<p className="empty">这里还没有信。</p>
+      :all.length?<p className="empty">{tab==='star'?'还没有收藏的信。读信时点右上角的书签就收在这里。':'这里还没有信。'}</p>
       :<div className="ml-none"><p>还没有信。<br/>写一封寄给 {p.name}，过一阵他会回你一封。</p><button className="btn" onClick={()=>setView({k:'write'})}>写第一封信</button></div>}
     {pace&&<Pace p={p} close={()=>setPace(false)}/>}
   </main>;
@@ -79,8 +82,8 @@ export function MailBox({p}:{p:Persona}){
 function Pace({p,close}:{p:Persona;close:()=>void}){
   const b=box(p.id);
   const Row=({title,items,cur,set}:{title:string;items:{name:string;note:string}[];cur:number;set:(i:number)=>void})=><>
-    <h3>{title}</h3>
-    <div className="chips" role="radiogroup" aria-label={title}>{items.map((x,i)=><button key={x.name} role="radio" aria-checked={cur===i} aria-pressed={cur===i} className="chip" onClick={()=>set(i)}>{x.name}<small>{x.note}</small></button>)}</div>
+    <h3 className="ml-row"><span>{title}</span><small>{items[cur]?.note}</small></h3>
+    <div className="seg sm ml-seg" role="radiogroup" aria-label={title}>{items.map((x,i)=><button key={x.name} role="radio" aria-checked={cur===i} aria-pressed={cur===i} className="chip" onClick={()=>set(i)}>{x.name}</button>)}</div>
   </>;
   const [call,setCall]=useState(b.mailCall??''),[sign,setSign]=useState(b.mailSign??'');
   const pics=b.mailPics??[],pick=useRef<HTMLInputElement>(null),[busy,setBusy]=useState(false),[gone,setGone]=useState('');
@@ -100,8 +103,7 @@ function Pace({p,close}:{p:Persona;close:()=>void}){
       <button className="add" onClick={()=>pick.current?.click()} disabled={busy} aria-label="加照片"><Plus size={22} strokeWidth={1.6}/></button>
     </div>
     <input ref={pick} type="file" accept="image/*" multiple hidden onChange={e=>{const fs=[...(e.target.files??[])];e.target.value='';void addPics(fs);}}/>
-    <p className="hint">放几张进来，他偶尔会挑一张夹在信里。不放就只有字。</p>
-    <p className="hint">信是用 {p.name} 的字卡连成的。他睡觉的钟点不送信。</p>
+    <p className="hint">放几张进来，他偶尔会挑一张夹在信里。</p>
   </Sheet>;
 }
 
@@ -191,7 +193,7 @@ function Read({p,l,all,patch,drop,go,back}:{p:Persona;l:Letter;all:Letter[];patc
       {!sealed&&<><button className="ico" onClick={()=>patch(l.id,{star:!l.star})} aria-label={l.star?'取消收藏':'收藏这封信'} aria-pressed={!!l.star}><Bookmark size={22} strokeWidth={1.7} fill={l.star?'currentColor':'none'}/></button>
         <button className="ico" onClick={()=>{setSure(false);setMore(true);}} aria-label="更多"><Ellipsis size={23} strokeWidth={1.7}/></button></>}</header>
     {sealed?<div className="ml-sealed">
-      <button className="ml-big" onClick={unseal} aria-label="拆开这封信"><span className="ml-from">来自 {p.name}</span><i aria-hidden="true"/><Post top="已送达" t={l.at}/></button>
+      <button className="ml-big" onClick={unseal} aria-label="拆开这封信"><span className="ml-from">致 {callOf(p)}</span><i aria-hidden="true"/><Post top="已送达" t={l.at}/></button>
       <p>{near(l.at)}送到的{l.pro?'，是他主动写来的':''}</p>
       <button className="btn" onClick={unseal}>拆开这封信</button>
     </div>:<>

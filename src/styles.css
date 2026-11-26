@@ -632,19 +632,20 @@ img{-webkit-user-drag:none;-webkit-touch-callout:none}
 .tr-hand .tr-auto{display:block;margin-top:10px;font-size:12px;text-align:left;color:var(--mute);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
 /* 信箱 */
 .ml{--paper:"Songti SC","Noto Serif SC","Source Han Serif SC",STSong,"SimSun",serif}
-.ml-tabs{margin-top:14px}
+.ml-tabs{margin-top:4px}.ml-tabs button{display:flex;align-items:center;justify-content:center;gap:5px}.ml-tabs small{font-size:11.5px;font-weight:400;color:var(--mute)}
+.ml-month{margin:10px 2px 8px;font-size:12.5px}.ml-list li:first-child .ml-month{margin-top:0}
 .ml-way{margin-top:16px;font-size:13px;color:var(--mute);text-align:center}
 .ml-way::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:8px;vertical-align:middle;animation:blink 1.6s infinite both}
 .ml-draft{display:grid;gap:2px;width:100%;margin-top:14px;padding:11px 14px;border-radius:12px;background:var(--soft);text-align:left}
 .ml-draft small{font-size:11.5px;color:var(--mute)}.ml-draft span{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ml-list{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:10px}
-.ml-env{position:relative;display:grid;align-content:center;gap:4px;width:100%;min-height:96px;padding:16px 84px 16px 18px;border-radius:6px;background:var(--bg);box-shadow:inset 0 0 0 1px var(--line);text-align:left;transition:transform .15s var(--ease),box-shadow .15s}
+.ml-env{position:relative;display:grid;align-content:center;gap:5px;width:100%;min-height:80px;padding:14px 84px 14px 18px;border-radius:6px;background:var(--bg);box-shadow:inset 0 0 0 1px var(--line);text-align:left;transition:transform .15s var(--ease),box-shadow .15s}
 .ml-env:active{transform:scale(.985)}
 .ml-env b{font-family:var(--paper);font-size:16px;font-weight:500;line-height:1.4;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .ml-to,.ml-when{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ml-env.new{box-shadow:inset 0 0 0 1.5px var(--fg)}.ml-env.new b{font-weight:700}
+.ml-env.new b{font-weight:700}.ml-env.new .ml-to{color:var(--fg)}
 .ml-env.new .ml-to::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#3A82F7;margin-right:7px;vertical-align:1px}
-.ml-star{position:absolute;right:16px;bottom:13px;color:var(--mute)}
+.ml-star{display:inline-block;margin-left:6px;vertical-align:-1px;color:var(--mute)}
 .ml-post{position:absolute;right:16px;top:50%;display:grid;place-content:center;justify-items:center;gap:1px;width:52px;height:52px;margin-top:-26px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--mute);color:var(--mute);transform:rotate(-12deg);opacity:.75;pointer-events:none}
 .ml-post i{font-style:normal;font-size:9px;letter-spacing:.06em}.ml-post b{font-family:inherit;font-size:11.5px;font-weight:600;letter-spacing:.02em}
 .ml-none{display:grid;justify-items:center;gap:18px;padding:56px 0;text-align:center;color:var(--mute);font-size:14px;line-height:1.8}
@@ -770,17 +771,24 @@ button.note{cursor:pointer}
 .ck-form .btn.danger{margin-top:10px;color:var(--red)}
 .page>ul.ck-line{margin-left:16px;margin-right:16px}
 
-/* ── 信里夹的照片：一张白边拍立得，斜斜夹在信纸上 ── */
-.ml-photo{position:relative;display:block;width:min(64%,250px);margin:18px 0 8px 2px;padding:8px 8px 28px;background:#fff;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.14),0 10px 24px rgba(0,0,0,.10);transform:rotate(-2deg)}
-.ml-photo img{display:block;width:100%;max-height:320px;object-fit:cover;background:#f2f2f2}
+/* ── 信里夹的照片：干净的一张图，和信纸一样宽，小圆角 ── */
+.ml-photo{position:relative;display:block;width:100%;margin:16px 0 6px;padding:0;border-radius:6px;overflow:hidden;background:var(--soft)}
+.ml-photo img{display:block;width:100%;max-height:420px;object-fit:cover}
 button.ml-photo{cursor:zoom-in}
-.ml-photo>button{position:absolute;top:-9px;right:-9px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--fg);color:var(--bg);transform:rotate(2deg)}
+.ml-photo>button{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.55);color:#fff}
 .ml-sign{position:relative}
 .ml-clip{position:absolute;left:-6px;top:50%;margin-top:-18px;width:36px;height:36px;display:grid;place-items:center;color:var(--mute);font-family:var(--font,inherit)}
 /* 信的设置里：他的照片 */
-.ml-pics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
-.ml-pics button{position:relative;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:var(--soft)}
+.ml-pics{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-top:8px}
+.ml-pics button{position:relative;aspect-ratio:1/1;overflow:hidden;background:var(--soft)}
 .ml-pics img{width:100%;height:100%;object-fit:cover;display:block}
 .ml-pics .add{display:grid;place-items:center;color:var(--mute)}
 .ml-pics .sure span{position:absolute;inset:0;display:grid;place-items:center;padding:4px;background:rgba(0,0,0,.6);color:#fff;font-size:11.5px;line-height:1.3;text-align:center}
-@media (min-width:700px){.ml-pics{grid-template-columns:repeat(6,1fr)}}
+@media (min-width:700px){.ml-pics{grid-template-columns:repeat(5,1fr)}}
+
+/* 信的设置：每组一行——标题旁边是选中那项的说明，下面一条分段 */
+.ml-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.ml-row small{font-size:12px;font-weight:400;color:var(--mute)}
+.ml-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
+.ml-seg .chip{justify-content:center;min-height:32px;background:none;border-radius:8px;font-size:13.5px}
+.ml-seg .chip[aria-pressed=true]{background:var(--bg);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
