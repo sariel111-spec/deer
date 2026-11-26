@@ -1,5 +1,5 @@
 import {useSyncExternalStore} from 'react';
-import {adopt,delKey,dropImageCache,dump,getKey,onChange,readKey,setKey,storageDown,type Reading,type Box,type Deck,type Dump,type Grave,type Msg,type Pack,type Persona,type State} from './db';
+import {adopt,delKey,dropImageCache,dump,getKey,onChange,readKey,setKey,storageDown,type Reading,type Letter,type Box,type Deck,type Dump,type Grave,type Msg,type Pack,type Persona,type State} from './db';
 
 /* 同步：把数据放进你自己的一个私有 GitHub 仓库。
    不是整包覆盖——每台设备先把云端的拿下来和本机的合并，再把合并后的结果传上去；
@@ -109,12 +109,17 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
     }else{msgs[p.id]=lm;graves[p.id]=lg;}
     const lb=l.boxes[p.id],rb=r.x[p.id];
     const b=rb&&(rb.at??0)>(lb?.at??0)?rb:lb,o=b===rb?lb:rb;
-    if(b&&o&&(b.tarot||o.tarot||b.tarotMine||o.tarotMine||b.tarotGone||o.tarotGone)){
-      // 小功能整份听新的那边；只有塔罗的记录和专属牌意两边并起来——在手机上抽的牌，不会因为电脑上别的改动更晚就没了
+    if(b&&o){
+      // 小功能整份听新的那边；只有塔罗的记录、专属牌意和信箱里的信两边并起来——在手机上抽的牌、写的信，不会因为电脑上别的改动更晚就没了
       const gone=[...new Set([...(o.tarotGone??[]),...(b.tarotGone??[])])].slice(-400),dead=new Set(gone),m=new Map<string,Reading>();
       for(const x of [...(o.tarot??[]),...(b.tarot??[])])if(!dead.has(x.id))m.set(x.id,x);
       const tarot=[...m.values()].sort((x,y)=>x.at-y.at||(x.id<y.id?-1:1)).slice(-300),mine={...o.tarotMine,...b.tarotMine};
-      boxes[p.id]={...b,...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
+      // 信：按封合并。同一封两边都有时听后改的那边，但「读过了」「回信到了」只要一边是就算
+      const mgone=[...new Set([...(o.mailGone??[]),...(b.mailGone??[])])].slice(-400),mdead=new Set(mgone),lm=new Map<string,Letter>();
+      for(const x of o.letters??[])if(!mdead.has(x.id))lm.set(x.id,x);
+      for(const x of b.letters??[])if(!mdead.has(x.id)){const y=lm.get(x.id),w=y&&(y.u??0)>(x.u??0)?y:x;lm.set(x.id,y?{...w,...(x.read||y.read?{read:true}:{}),...(x.got||y.got?{got:true}:{})}:x);}
+      const letters=[...lm.values()].sort((x,y)=>x.at-y.at||(x.id<y.id?-1:1));
+      boxes[p.id]={...b,letters,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
     }else if(b)boxes[p.id]=b;
   }
   return {state,msgs,boxes,graves};

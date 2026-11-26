@@ -6,7 +6,7 @@ import {lines,sent} from './engine';
 import {Avatar,Pic,dayLabel} from './App';
 import {Sheet,Switch,say} from './pages';
 import {Sub} from './more';
-import {aiBase,aiHand,aiProv,bestOf,hands,modelChosen,provs,setAiBase,setAiHand,setAiProv,DEFAULT_PROMPT,dsAuto,dsChat,dsKey,dsModel,dsModels,dsPrompt,promptEdited,setDsAuto,setDsKey,setDsModel,setDsPrompt,type Msg as AiMsg} from './ai';
+import {aiBase,aiHand,aiProv,bestOf,hands,modelChosen,onPhone,provs,setAiBase,setAiHand,setAiProv,DEFAULT_PROMPT,dsAuto,dsChat,dsKey,dsModel,dsModels,dsPrompt,promptEdited,setDsAuto,setDsKey,setDsModel,setDsPrompt,type Msg as AiMsg} from './ai';
 import {TOTAL,askKinds,asks,cards,groups,markOf,shuffleWithout,spreads,suitOf,toneOf,voiceAt,type AskKind,type Drawn,type SpreadId} from './tarot';
 import {aspectAt,facets,flowOf,guide,mj,readAt,type Aspect} from './tarotmj';
 
@@ -46,8 +46,6 @@ const Back=()=><span className="tr-back" aria-hidden="true"><i/></span>;
 /* ── 抽牌：洗牌 → 牌轮上选 ── */
 const STEP=3.6;   // 牌轮上相邻两张差几度
 // 洗牌时偶尔会有一张自己跳出来（跳牌）：算作他急着想说的，单独记着
-/** 是不是在手机或平板上（那就直接唤起 App，不开网页） */
-const onPhone=()=>/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
 const jumpChance=()=>{const w=(window as unknown as {__trJump?:number}).__trJump;return typeof w==='number'?w:.15;};
 function Ritual({n,rev,done,what,pos,skip=[]}:{n:number;rev:boolean;done:(got:Drawn[],jump?:Drawn)=>void;what:string;pos?:string[];skip?:number[]}){
   const [deck,setDeck]=useState(()=>shuffleWithout(rev,skip));

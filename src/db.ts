@@ -26,7 +26,9 @@ export type Pack={id:string;name:string;ids:string[];his?:boolean;who?:string[];
 export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>;stickers?:string[];packs?:Pack[]};   // dead：删掉的人和分组，同步时别的设备也跟着删
 export type Grave={dead:string[];cleared:number};   // 一位的聊天里删掉的消息、清空的时刻
 // 每一位各自的小功能数据，单独存一份（x:<pid>），不和聊天记录混在一起
-export type Letter={id:string;from:'me'|'ta';text:string;at:number;read?:boolean};
+// 一封信。re：回的是哪一封；我寄出的信上带着 due（他的回信几点到）、plan（回信写的什么，寄出时就定好，这样每台设备收到的是同一封）、got（回信到了）；
+// star 收藏；kept 写了没寄；pro 他主动写来的；ai 解读
+export type Letter={id:string;from:'me'|'ta';text:string;at:number;read?:boolean;re?:string;due?:number;plan?:string;got?:boolean;star?:boolean;kept?:boolean;pro?:boolean;ai?:string;u?:number};   // u：这封信上次被改动的时刻（收藏、解读），同步时同一封听后改的那边
 export type Diary={id:string;at:number;text:string;mood:string;note?:string};
 export type Day={id:string;name:string;date:string;yearly:boolean};
 export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt?:string};
@@ -37,6 +39,7 @@ export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string}[];listen:number;focus:{n:number;min:number};
   cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number;
   call?:{at:number};ring?:{at:number};
+  mailGone?:string[];mailPace?:number;mailLen?:number;mailPro?:number;mailNext?:{at:number;text:string};   // 信箱：删掉的信（同步时别的设备也跟着删）、回信多快、多长、他会不会主动写信、下一封主动的信
   tarot?:Reading[];tarotRev?:boolean;tarotGone?:string[];tarotMine?:Record<string,string>;tarotAbout?:string;tarotSign?:number[]};   // tarotGone：删掉的那几次（同步时别的设备也跟着删）；tarotMine：你们自己磨合出来的牌意（第几张牌 → 你写的话）   // tarot：塔罗的记录；tarotRev=false 表示只抽正位   // call：视频通话从什么时候开始（一直到你挂断）；ring：他正打过来
 export const blankBox=():Box=>({letters:[],mailDue:0,diary:[],days:[],lines:[],answers:{},checks:[],listen:0,focus:{n:0,min:0},cycle:{starts:[],len:5,gap:28},posts:[]});
 

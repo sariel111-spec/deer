@@ -1,4 +1,4 @@
-import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Persona,type When} from './db';
+import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Letter,type Persona,type When} from './db';
 import {notify,blip,badge,clearNotes} from './alive';
 import {pushWas,type Ahead} from './push';
 
@@ -51,13 +51,45 @@ export function lines(p:Persona,n=1):string[]{
   while(out.length<n&&all.length)out.push(all.splice(Math.floor(Math.random()*all.length),1)[0]);
   return out;
 }
-// 你写了信之后，过一阵他回一封：几句字卡连成一封
+/* 信箱。回信等多久（分钟）、写多长（几句字卡）、主动来信隔多久（分钟） */
+export const mailPaces=[{name:'一会儿',note:'20 分钟到 3 小时',r:[20,180]},{name:'半天',note:'3 到 10 小时',r:[180,600]},{name:'隔天',note:'10 到 24 小时',r:[600,1440]}];
+export const mailLens=[{name:'短',note:'三五句',r:[3,5]},{name:'中',note:'六到九句',r:[6,9]},{name:'长',note:'十来句',r:[10,14]}];
+export const mailPros=[{name:'不会',note:'只回你写的信',r:[0,0]},{name:'偶尔',note:'三到七天一封',r:[4320,10080]},{name:'常常',note:'一两天一封',r:[1440,2880]}];
+const pickOf=<T,>(a:T[],i:number|undefined,d:number)=>a[i??d]??a[d];
+// 他在睡觉的钟点信不送到，顺延到他醒来
+const awakeAt=(p:Persona,t:number)=>{let x=t;for(let i=0;i<96&&asleep(p,x);i++)x+=15*60000;return x;};
+const letterText=(p:Persona,len:number|undefined)=>{const [a,b]=pickOf(mailLens,len,1).r;return lines(p,a+Math.floor(Math.random()*(b-a+1))).join('\n');};
+/** 寄出一封信：回信的时间和内容当场定好，存在这封信上，到点再送到 */
+export function sendLetter(p:Persona,text:string,re?:string):Letter{
+  const b=box(p.id),now=Date.now(),[a,z]=pickOf(mailPaces,b.mailPace,0).r,plan=letterText(p,b.mailLen);
+  const l:Letter={id:uid(),from:'me',text,at:now,read:true,...(re?{re}:{}),...(plan?{due:awakeAt(p,now+rand(a,z)*60000),plan}:{})};
+  setBox(p.id,{letters:[...b.letters,l]});
+  return l;
+}
+const nextPro=(p:Persona,from:number,pro:number|undefined,len:number|undefined)=>{const [a,z]=pickOf(mailPros,pro,0).r,text=a?letterText(p,len):'';return text?{at:awakeAt(p,from+rand(a,z)*60000),text}:undefined;};
+/** 改了「他会不会主动写信」之后：重新排下一封 */
+export function planProMail(p:Persona){const b=box(p.id);setBox(p.id,{mailNext:nextPro(p,Date.now(),b.mailPro,b.mailLen)});}
+// 到点的信送到：你寄出的信各回一封；他主动写的按间隔来
 function mail(p:Persona,now:number){
-  const b=box(p.id);if(!b.mailDue||now<b.mailDue)return;
-  const ls=lines(p,3+Math.floor(Math.random()*3));
-  if(!ls.length){setBox(p.id,{mailDue:0});return;}
-  setBox(p.id,{mailDue:0,letters:[...b.letters,{id:uid(),from:'ta',text:ls.join('\n'),at:now}]});
-  if(!(pushWas()&&b.mailDue<backAt))notify(p,'给你回了一封信');
+  const b=box(p.id),gone=new Set(b.mailGone??[]),have=new Set(b.letters.map(l=>l.id));
+  const add:Letter[]=[];let letters=b.letters,first=0,pro=false,patch:Partial<typeof b>={};
+  const due=letters.filter(l=>l.from==='me'&&l.due&&l.plan&&!l.got&&now>=l.due);
+  if(due.length){
+    for(const l of due){const id='r'+l.id;if(!have.has(id)&&!gone.has(id)){add.push({id,from:'ta',text:l.plan!,at:l.due!,re:l.id});first=first?Math.min(first,l.due!):l.due!;}}
+    const ids=new Set(due.map(l=>l.id));letters=letters.map(l=>ids.has(l.id)?{...l,got:true}:l);
+  }
+  // 更新之前寄出、还没等到回信的那一封
+  if(b.mailDue&&now>=b.mailDue){const t=letterText(p,b.mailLen);if(t){add.push({id:uid(),from:'ta',text:t,at:now});first=first||b.mailDue;}patch.mailDue=0;}
+  if(pickOf(mailPros,b.mailPro,0).r[0]){
+    if(!b.mailNext){const n=nextPro(p,now,b.mailPro,b.mailLen);if(n)patch.mailNext=n;}   // 没有字卡时排不出来，就先不排
+    else if(now>=b.mailNext.at){
+      const id='p'+b.mailNext.at;if(!have.has(id)&&!gone.has(id)){add.push({id,from:'ta',text:b.mailNext.text,at:b.mailNext.at,pro:true});pro=!first;first=first||b.mailNext.at;}
+      patch.mailNext=nextPro(p,now,b.mailPro,b.mailLen);
+    }
+  }
+  if(!add.length&&!due.length&&!Object.keys(patch).length)return;
+  setBox(p.id,{...patch,letters:[...letters,...add].sort((x,y)=>x.at-y.at)});
+  if(add.length&&!(pushWas()&&first<backAt))notify(p,pro?'给你写了一封信':'给你回了一封信');
 }
 
 /* 提前排好的话（只在这台设备上）：离开前台时交给云端推送，回来时聊天里补上的就是同样几句 */
@@ -280,8 +312,10 @@ export function ahead():Ahead[]{
       });
     }else delete plans.pq[p.id];
     // 他的回信
-    const due=box(p.id).mailDue;
-    if(due)out.push({at:Math.max(due,now),title:p.name,body:'给你回了一封信',pid:p.id});
+    const bx=box(p.id);
+    for(const l of bx.letters)if(l.from==='me'&&l.due&&l.plan&&!l.got)out.push({at:Math.max(l.due,now),title:p.name,body:'给你回了一封信',pid:p.id});
+    if(bx.mailDue)out.push({at:Math.max(bx.mailDue,now),title:p.name,body:'给你回了一封信',pid:p.id});
+    if(bx.mailPro&&bx.mailNext)out.push({at:Math.max(bx.mailNext.at,now),title:p.name,body:'给你写了一封信',pid:p.id});
   }
   for(const id of Object.keys(plans.pq))if(!who(id))delete plans.pq[id];
   for(const id of Object.keys(plans.rq))if(!who(id))delete plans.rq[id];

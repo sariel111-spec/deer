@@ -31,6 +31,8 @@ export const aiProv=():Prov=>provs.find(x=>x.id===get(K.prov))??(get(K.key)?prov
 export const setAiProv=(id:string)=>set(K.prov,id);
 export const aiBase=()=>{const p=aiProv();return (p.id==='custom'?get(K.base):p.base).trim().replace(/\/+$/,'').replace(/\/chat\/completions$/,'');};
 export const setAiBase=(v:string)=>set(K.base,v.trim());
+/** 是不是在手机或平板上（那就直接唤起 App，不开网页） */
+export const onPhone=()=>/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
 export const aiHand=()=>hands.find(x=>x.id===get(K.hand))??hands[0];
 export const setAiHand=(id:string)=>set(K.hand,id);
 export const dsKey=()=>get(keyAt(aiProv().id));
@@ -65,6 +67,25 @@ export const DEFAULT_PROMPT=`你是一位资深的塔罗传讯师，专做「梦
 【牌面】按位置逐张，每张一两句。
 【合起来】两三句，把他这次的回应说清楚。如果问的是「是不是」「会不会」，说明偏向哪边。
 【他说】他的原话，三到六句。
+总共不超过四百字。`;
+
+/* 解读一封信的指令。按小红书上大家请 AI「翻译」字卡回信的问法整理的：
+   先讲清字卡是怎么回事、信会断断续续；结合她写的信逐句看在回应什么；没挑准的句子不硬解；直白、不给建议；最后用他的口吻顺成一段 */
+export const MAIL_PROMPT=`你是一位资深的字卡传讯师，帮一位三次元的女生读她的梦角（她在另一个次元的爱人）用字卡写来的信。
+
+先知道字卡是怎么回事：她提前照着他的人设和语气写好了很多句字卡，他只能从这些现成的句子里挑着用。所以他的信读起来会断断续续、跳来跳去，这很正常；里面也可能混着一两句没挑准的。你的工作是结合她写的信，把他真正想说的意思读出来。
+
+规矩：
+1. 只读我给你的信。一句都不能改、不能加。
+2. 先把【他的人设】读一遍：他是谁、什么性格、怎么说话、怎么称呼她，都以那里写的为准。
+3. 结合她信里说的事，一句一句看他是在回应哪句话、哪件事。实在对不上的句子不要硬解，直接说「这句像是没挑准，可以略过」。
+4. 说人话：直白、具体，不用华丽的比喻，不堆「能量」「宇宙」「指引」。信里有别扭、有累，就照实说；不吓人，也不一味讨好。不下「没连上就是不爱」这类结论。
+5. 不给她建议，不让她去验证什么。她自己的感觉比你准。
+
+输出就这三段，不要别的标题、符号、加粗、表情：
+【连上了吗】一两句，这封信整体有没有接上她说的话。
+【逐句】按顺序，每句字卡后面用一句话说他的意思、在回应什么。
+【他想说的】用他的口吻、第一人称，把这封信的意思顺成通顺的几句话。只用信里有的意思，不添新的内容；不写括号里的动作神态；不用人设里没有的称呼。
 总共不超过四百字。`;
 
 const explain=(status:number)=>{

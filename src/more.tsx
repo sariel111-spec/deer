@@ -1,17 +1,18 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Aperture,Bookmark,CalendarHeart,ChevronLeft,ClipboardList,Dices,Droplet,Headphones,Heart,Image as ImageIcon,Images,Mail,MapPin,MessageCircle,NotebookPen,Pause,Play,Plus,Puzzle,Quote,
+import {Aperture,Bookmark,CalendarHeart,ChevronLeft,ClipboardList,Dices,Droplet,Heart,Image as ImageIcon,Images,Mail,MapPin,MessageCircle,NotebookPen,Plus,Puzzle,Quote,
   SlidersHorizontal,Sparkles,SquarePen,Timer,Trash2,type LucideIcon} from 'lucide-react';
-import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Letter,type Persona} from './db';
+import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Persona} from './db';
 import {lines,sent} from './engine';
 import {Avatar,Pic,backTo,dayLabel} from './App';
 import {Num,Sheet,say,todayLine} from './pages';
 import {TarotPage} from './tarotpage';
+import {MailBox} from './mail';
 
 // 主页上摆出来的全部功能。顺序就是宫格里的顺序
 export const feats:{id:string;name:string;icon:LucideIcon}[]=[
   {id:'mail',name:'信箱',icon:Mail},{id:'diary',name:'日记',icon:NotebookPen},{id:'days',name:'纪念日',icon:CalendarHeart},{id:'today',name:'今日一句',icon:Quote},
   {id:'pick',name:'帮我选',icon:Dices},{id:'ask',name:'问卷',icon:ClipboardList},{id:'draw',name:'塔罗',icon:Sparkles},{id:'match',name:'默契',icon:Puzzle},
-  {id:'check',name:'报备',icon:MapPin},{id:'listen',name:'一起听',icon:Headphones},{id:'focus',name:'专注',icon:Timer},{id:'cycle',name:'经期',icon:Droplet},
+  {id:'check',name:'报备',icon:MapPin},{id:'focus',name:'专注',icon:Timer},{id:'cycle',name:'经期',icon:Droplet},
   {id:'feed',name:'动态',icon:Aperture},{id:'fav',name:'收藏',icon:Bookmark},{id:'album',name:'相册',icon:Images},{id:'pace',name:'节奏',icon:SlidersHorizontal},
 ];
 
@@ -28,31 +29,6 @@ export function Sub({p,title,act,children,cls=''}:{p:Persona;title:string;act?:R
   </main>;
 }
 const AddBtn=({on,label,pen}:{on:()=>void;label:string;pen?:boolean})=><button className="ico" onClick={on} aria-label={label}>{pen?<SquarePen size={23} strokeWidth={1.7}/>:<Plus size={26} strokeWidth={1.7}/>}</button>;
-
-/* 信箱 */
-function MailBox({p}:{p:Persona}){
-  const b=box(p.id),me=S().prefs;
-  const [w,setW]=useState(false),[t,setT]=useState(''),[open,setOpen]=useState<Letter|null>(null);
-  const send=()=>{const x=t.trim();if(!x)return;
-    setBox(p.id,{letters:[...b.letters,{id:uid(),from:'me',text:x,at:Date.now(),read:true}],mailDue:b.mailDue||Date.now()+(20+Math.random()*160)*60000});
-    setT('');setW(false);say('寄出去了');};
-  const read=(l:Letter)=>{setOpen(l);if(l.from==='ta'&&!l.read)setBox(p.id,{letters:b.letters.map(x=>x.id===l.id?{...x,read:true}:x)});};
-  return <Sub p={p} title="信箱" act={<AddBtn on={()=>setW(true)} label="写一封信" pen/>}>
-    {b.letters.length?<ul className="rows">{[...b.letters].reverse().map(l=><li key={l.id}><button onClick={()=>read(l)} className={l.from==='ta'&&!l.read?'new':''}>
-      <Avatar id={l.from==='me'?me.myAvatar:p.avatar} name={l.from==='me'?me.myName:p.name} size={48}/>
-      <span className="who"><b>{l.from==='me'?`寄给 ${p.name}`:`${p.name} 的来信`}</b><span>{l.text.split('\n')[0]}</span></span>
-      <small>{dayLabel(l.at).split(' ')[0]}</small>{l.from==='ta'&&!l.read&&<i className="dot"/>}
-    </button></li>)}</ul>:<p className="empty">还没有信。写一封寄给他，过一阵他会回你一封。</p>}
-    {w&&<Sheet title={`写给 ${p.name}`} close={()=>setW(false)}>
-      <textarea className="bulk tall" rows={8} value={t} onChange={e=>setT(e.target.value)} placeholder="想说的话，慢慢写" aria-label="信的内容" autoFocus/>
-      <button className="btn" onClick={send} disabled={!t.trim()}>寄出</button>
-    </Sheet>}
-    {open&&<Sheet title={open.from==='me'?`寄给 ${p.name}`:`${p.name} 的来信`} close={()=>setOpen(null)}>
-      <p className="letter">{open.text}</p><small className="when">{dayLabel(open.at)}</small>
-      <div className="rowbtn"><button className="chip danger" onClick={()=>{setBox(p.id,{letters:b.letters.filter(x=>x.id!==open.id)});setOpen(null);}}>删掉这封</button></div>
-    </Sheet>}
-  </Sub>;
-}
 
 /* 日记 */
 const moods=['开心','平静','想你','累','难过'];
@@ -174,31 +150,6 @@ function CheckPage({p}:{p:Persona}){
   </Sub>;
 }
 
-/* 一起听 */
-function ListenPage({p}:{p:Persona}){
-  const me=S().prefs,b=box(p.id);
-  const au=useRef<HTMLAudioElement>(null),file=useRef<HTMLInputElement>(null),acc=useRef(0);
-  const [song,setSong]=useState<{url:string;name:string}|null>(null),[on,setOn]=useState(false),[sec,setSec]=useState(0);
-  useEffect(()=>{if(!on)return;const id=setInterval(()=>{setSec(s=>s+1);acc.current++;},1000);return()=>clearInterval(id);},[on]);
-  // 离开或暂停时，把这次听的时间记进总数
-  const bank=()=>{if(acc.current>0){setBox(p.id,{listen:box(p.id).listen+acc.current});acc.current=0;}};
-  useEffect(()=>()=>{bank();},[]);
-  useEffect(()=>()=>{if(song)URL.revokeObjectURL(song.url);},[song]);
-  const load=(f?:File)=>{if(!f)return;setSong({url:URL.createObjectURL(f),name:f.name.replace(/\.[^.]+$/,'')});setSec(0);setTimeout(()=>{void au.current?.play().catch(()=>{});},60);};
-  return <Sub p={p} title="一起听">
-    <div className="player">
-      <div className={`pairav${on?' on':''}`}><Avatar id={me.myAvatar} name={me.myName} size={84}/><Avatar id={p.avatar} name={p.name} size={84}/></div>
-      <b>{song?song.name:'还没有选歌'}</b>
-      <span>{song?`这次一起听了 ${mmss(sec)}`:'从手机里选一首，和他一起听'}</span>
-      {song&&<button className="playbtn" onClick={()=>{const a=au.current;if(!a)return;if(a.paused)void a.play();else a.pause();}} aria-label={on?'暂停':'播放'}>{on?<Pause size={26} fill="currentColor" strokeWidth={0}/>:<Play size={26} fill="currentColor" strokeWidth={0}/>}</button>}
-      <button className="chip" onClick={()=>file.current?.click()}>{song?'换一首':'选一首歌'}</button>
-      <input ref={file} type="file" accept="audio/*" hidden onChange={e=>{load(e.target.files?.[0]);e.target.value='';}}/>
-      {song&&<audio ref={au} src={song.url} loop onPlay={()=>setOn(true)} onPause={()=>{setOn(false);bank();}}/>}
-    </div>
-    <p className="hint center">一共一起听了 {Math.floor((b.listen+acc.current)/60)} 分钟</p>
-  </Sub>;
-}
-
 /* 专注 */
 function FocusPage({p}:{p:Persona}){
   const b=box(p.id);
@@ -280,7 +231,7 @@ export function Feature({id,p}:{id:string;p:Persona}){
   switch(id){
     case 'mail':return <MailBox p={p}/>;case 'diary':return <DiaryPage p={p}/>;case 'days':return <DaysPage p={p}/>;case 'today':return <TodayPage p={p}/>;
     case 'pick':return <PickPage p={p}/>;case 'ask':return <AskPage p={p}/>;case 'draw':return <TarotPage p={p}/>;case 'match':return <MatchPage p={p}/>;
-    case 'check':return <CheckPage p={p}/>;case 'listen':return <ListenPage p={p}/>;case 'focus':return <FocusPage p={p}/>;case 'cycle':return <CyclePage p={p}/>;
+    case 'check':return <CheckPage p={p}/>;case 'focus':return <FocusPage p={p}/>;case 'cycle':return <CyclePage p={p}/>;
     case 'feed':return <FeedPage p={p}/>;case 'fav':return <FavPage p={p}/>;case 'album':return <AlbumPage p={p}/>;
     default:return <Sub p={p} title="功能"><p className="empty">没有这个页面。</p></Sub>;
   }
