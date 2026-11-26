@@ -1,12 +1,12 @@
 // 信箱：给他写信，过一阵收到他的回信（几句字卡连成一封）。慢一点的传讯。
 // 信封列表 → 拆开 → 信纸；写信有草稿、可以写了不寄；回信看得到原信；可以请 AI 读一读。
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Bookmark,ChevronLeft,Ellipsis,SlidersHorizontal,SquarePen} from 'lucide-react';
-import {S,box,setBox,uid,type Letter,type Persona} from './db';
+import {Bookmark,ChevronLeft,Ellipsis,ImagePlus,Plus,SlidersHorizontal,SquarePen,X} from 'lucide-react';
+import {S,box,putImage,setBox,uid,type Letter,type Persona} from './db';
 import {mailLens,mailPaces,mailPros,planProMail,sendLetter} from './engine';
 import {MAIL_PROMPT,dsAuto,type Msg as AiMsg} from './ai';
 import {AiBlock} from './aiui';
-import {nav} from './App';
+import {Pic,nav} from './App';
 import {Sheet,say} from './pages';
 import {letterImage} from './mailimg';
 
@@ -34,8 +34,8 @@ const waiting=(l:Letter)=>l.from==='me'&&!!l.due&&!!l.plan&&!l.got;
 const callOf=(p:Persona)=>box(p.id).mailCall?.trim()||S().prefs.myName;
 const signOf=(p:Persona)=>box(p.id).mailSign?.trim()||p.name;
 const draftKey=(pid:string)=>'cx-mail-draft:'+pid;
-const loadDraft=(pid:string):{t:string;re?:string}=>{try{const d=JSON.parse(localStorage.getItem(draftKey(pid))||'null');if(d&&typeof d.t==='string')return d;}catch{/* */}return {t:''};};
-const saveDraft=(pid:string,t:string,re?:string)=>{try{if(t.trim())localStorage.setItem(draftKey(pid),JSON.stringify({t,re}));else localStorage.removeItem(draftKey(pid));}catch{/* 存不了就算了 */}};
+const loadDraft=(pid:string):{t:string;re?:string;img?:string}=>{try{const d=JSON.parse(localStorage.getItem(draftKey(pid))||'null');if(d&&typeof d.t==='string')return d;}catch{/* */}return {t:''};};
+const saveDraft=(pid:string,t:string,re?:string,img?:string)=>{try{if(t.trim()||img)localStorage.setItem(draftKey(pid),JSON.stringify({t,re,img}));else localStorage.removeItem(draftKey(pid));}catch{/* 存不了就算了 */}};
 
 /** 邮戳：一个细圈，里面是状态和日期 */
 const Post=({top,t}:{top:string;t:number})=><span className="ml-post" aria-hidden="true"><i>{top}</i><b>{md(t)}</b></span>;
@@ -65,7 +65,7 @@ export function MailBox({p}:{p:Persona}){
       <button className={`ml-env${fresh?' new':''}`} onClick={()=>setView({k:'read',id:l.id})} aria-label={`${his?`${p.name} 的来信`:`寄给 ${p.name} 的信`}${fresh?'，还没拆':''}：${first(l)}`}>
         <small className="ml-to">{his?(l.pro?`${p.name} 写来的`:`${p.name} 的回信`):l.kept?'写了没寄':`寄给 ${p.name}`}</small>
         <b>{fresh?'还没拆开':first(l)}</b>
-        <small className="ml-when">{near(l.at)}{waiting(l)?' · 回信在路上':l.got?' · 已回信':''}</small>
+        <small className="ml-when">{near(l.at)}{waiting(l)?' · 回信在路上':l.got?' · 已回信':''}{l.img&&!fresh?' · 有照片':''}</small>
         {l.star&&<Bookmark className="ml-star" size={14} strokeWidth={1.8} fill="currentColor"/>}
         <Post top={his?'已送达':l.kept?'没寄出':'已寄出'} t={l.at}/>
       </button></li>;})}</ul>
@@ -83,6 +83,10 @@ function Pace({p,close}:{p:Persona;close:()=>void}){
     <div className="chips" role="radiogroup" aria-label={title}>{items.map((x,i)=><button key={x.name} role="radio" aria-checked={cur===i} aria-pressed={cur===i} className="chip" onClick={()=>set(i)}>{x.name}<small>{x.note}</small></button>)}</div>
   </>;
   const [call,setCall]=useState(b.mailCall??''),[sign,setSign]=useState(b.mailSign??'');
+  const pics=b.mailPics??[],pick=useRef<HTMLInputElement>(null),[busy,setBusy]=useState(false),[gone,setGone]=useState('');
+  const addPics=async(fs:File[])=>{if(!fs.length)return;setBusy(true);let n=0,bad=0;
+    for(const f of fs.slice(0,40)){try{const id=await putImage(f,1400);setBox(p.id,{mailPics:[...(box(p.id).mailPics??[]),id].slice(-80)});n++;}catch{bad++;}}
+    setBusy(false);say(n?`加了 ${n} 张${bad?`，${bad} 张读不了`:''}`:'这些图片读不了，换几张试试');};
   return <Sheet title="信的设置" close={close}>
     <h3>称呼和落款</h3>
     <label className="ml-field"><span>他在信里叫你</span><input value={call} onChange={e=>setCall(e.target.value.slice(0,12))} onBlur={()=>{if(call.trim()!==(b.mailCall??''))setBox(p.id,{mailCall:call.trim()});}} placeholder={S().prefs.myName} aria-label="他在信里叫你"/></label>
@@ -90,6 +94,13 @@ function Pace({p,close}:{p:Persona;close:()=>void}){
     <Row title="他多久回信" items={mailPaces} cur={b.mailPace??0} set={i=>setBox(p.id,{mailPace:i})}/>
     <Row title="回信写多长" items={mailLens} cur={b.mailLen??1} set={i=>setBox(p.id,{mailLen:i})}/>
     <Row title="他会主动写信吗" items={mailPros} cur={b.mailPro??0} set={i=>{setBox(p.id,{mailPro:i});planProMail(p);}}/>
+    <h3>{p.name} 会夹在信里的照片</h3>
+    <div className="ml-pics">
+      {pics.map(x=><button key={x} className={gone===x?'sure':''} onClick={()=>{if(gone!==x){setGone(x);return;}setGone('');setBox(p.id,{mailPics:(box(p.id).mailPics??[]).filter(y=>y!==x)});}} aria-label={gone===x?'再点一次，拿掉这张':'他的一张照片，点两次拿掉'}><Pic id={x} alt=""/>{gone===x&&<span>再点一次拿掉</span>}</button>)}
+      <button className="add" onClick={()=>pick.current?.click()} disabled={busy} aria-label="加照片"><Plus size={22} strokeWidth={1.6}/></button>
+    </div>
+    <input ref={pick} type="file" accept="image/*" multiple hidden onChange={e=>{const fs=[...(e.target.files??[])];e.target.value='';void addPics(fs);}}/>
+    <p className="hint">放几张进来，他偶尔会挑一张夹在信里。不放就只有字。</p>
     <p className="hint">信是用 {p.name} 的字卡连成的。他睡觉的钟点不送信。</p>
   </Sheet>;
 }
@@ -100,19 +111,21 @@ function Write({p,re,edit,close}:{p:Persona;re?:Letter;edit?:Letter;close:()=>vo
   // edit：接着改一封写了没寄的信（不走草稿）。点「回信」进来、而留着的草稿是给别的信写的：从空白开始（原来的草稿等真的动笔了才会被换掉）
   const ref=edit?box(p.id).letters.find(l=>l.id===edit.re):re??(d.re?box(p.id).letters.find(l=>l.id===d.re):undefined);
   const [t,setT]=useState(edit?edit.text:re&&d.re!==re.id?'':d.t),ta=useRef<HTMLTextAreaElement>(null),typed=useRef(false);
-  useEffect(()=>{if(typed.current&&!edit)saveDraft(p.id,t,ref?.id);},[t]);
+  const [img,setImg]=useState(edit?edit.img??'':re&&d.re!==re.id?'':d.img??''),file=useRef<HTMLInputElement>(null);   // 夹在信里的那张照片
+  const clip=async(f?:File|null)=>{if(!f)return;try{typed.current=true;setImg(await putImage(f,1400));}catch{say('这张图片读不了，换一张试试');}};
+  useEffect(()=>{if(typed.current&&!edit)saveDraft(p.id,t,ref?.id,img||undefined);},[t,img]);
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!document.querySelector('.veil'))close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[]);
   // 写完之后回信箱列表：从列表进来的原路返回；从某封信点「回信」进来的，把这一页换成列表
   const done=()=>{if(nav.from===baseOf(p.id))history.back();else location.replace(baseOf(p.id));};
   const gone=(id:string)=>{const now=box(p.id);return {letters:now.letters.filter(x=>x.id!==id),mailGone:[...(now.mailGone??[]),id].slice(-400)};};
   useEffect(()=>{const el=ta.current;if(!el)return;el.style.height='auto';el.style.height=Math.max(el.scrollHeight,260)+'px';},[t]);
   const reId=ref?.id;
-  const send=()=>{const x=t.trim();if(!x)return;const l=sendLetter(p,x,reId);
+  const send=()=>{const x=t.trim();if(!x)return;const l=sendLetter(p,x,reId,img||undefined);
     if(edit){setBox(p.id,gone(edit.id));goTo(p.id,{k:'read',id:l.id},true);}else{saveDraft(p.id,'');done();}
     say(l.plan?'寄出去了':`寄出去了。${p.name} 还没有能用的字卡，回不了信`);};
   const keep=()=>{const x=t.trim();if(!x)return;
-    if(edit){setBox(p.id,{letters:box(p.id).letters.map(l=>l.id===edit.id?{...l,text:x,u:Date.now()}:l)});close();say('改好了');return;}
-    setBox(p.id,{letters:[...box(p.id).letters,{id:uid(),from:'me',text:x,at:Date.now(),read:true,kept:true,...(reId?{re:reId}:{})}]});saveDraft(p.id,'');done();say('留在信箱里了，没有寄出');};
+    if(edit){setBox(p.id,{letters:box(p.id).letters.map(l=>l.id===edit.id?{...l,text:x,img:img||undefined,u:Date.now()}:l)});close();say('改好了');return;}
+    setBox(p.id,{letters:[...box(p.id).letters,{id:uid(),from:'me',text:x,at:Date.now(),read:true,kept:true,...(reId?{re:reId}:{}),...(img?{img}:{})}]});saveDraft(p.id,'');done();say('留在信箱里了，没有寄出');};
   const pace=mailPaces[box(p.id).mailPace??0]??mailPaces[0];
   return <main className="page sub ml" style={{'--accent':p.accent} as React.CSSProperties}>
     <header className="bar"><button className="ico" onClick={close} aria-label="回到信箱"><ChevronLeft size={28} strokeWidth={1.8}/></button><h1>{edit?'接着改':'写信'}</h1>
@@ -121,8 +134,10 @@ function Write({p,re,edit,close}:{p:Persona;re?:Letter;edit?:Letter;close:()=>vo
     <article className="ml-paper write">
       <time>{full(Date.now())}</time>
       <p className="ml-dear">致 {p.name}：</p>
+      {img&&<div className="ml-photo"><Pic id={img} alt="夹在信里的照片"/><button onClick={()=>{typed.current=true;setImg('');}} aria-label="拿掉这张照片"><X size={15} strokeWidth={2}/></button></div>}
       <textarea ref={ta} className="ml-body" value={t} onChange={e=>{typed.current=true;setT(e.target.value.slice(0,3000));}} placeholder="想说的话，慢慢写" aria-label="信的内容" autoFocus/>
-      <p className="ml-sign">{me.myName}</p>
+      <p className="ml-sign">{!img&&<button className="ml-clip" onClick={()=>file.current?.click()} aria-label="夹一张照片"><ImagePlus size={20} strokeWidth={1.6}/></button>}{me.myName}</p>
+      <input ref={file} type="file" accept="image/*" hidden onChange={e=>{const f=e.target.files?.[0];e.target.value='';void clip(f);}}/>
     </article>
     <p className="hint ml-foot">{p.name} 大概 {pace.note}后回信</p>
     <div className="rowbtn center"><button className="linkish" onClick={keep} disabled={!t.trim()}>{edit?'改好了，先不寄':'只是写下来，不寄'}</button></div>
@@ -133,6 +148,7 @@ function Write({p,re,edit,close}:{p:Persona;re?:Letter;edit?:Letter;close:()=>vo
 function Read({p,l,all,patch,drop,go,back}:{p:Persona;l:Letter;all:Letter[];patch:(id:string,x:Partial<Letter>)=>void;drop:(id:string)=>void;go:(v:View,swap?:boolean)=>void;back:()=>void}){
   const me=S().prefs,his=l.from==='ta';
   const [sealed,setSealed]=useState(his&&!l.read),[fresh,setFresh]=useState(false),[sure,setSure]=useState(false),[pic,setPic]=useState<{url:string;file:File}|null>(null),[drawing,setDrawing]=useState(false),[more,setMore]=useState(false),[whole,setWhole]=useState(false);
+  const [zoom,setZoom]=useState(false);
   useEffect(()=>()=>{if(pic)URL.revokeObjectURL(pic.url);},[pic]);
   const i=all.findIndex(x=>x.id===l.id),older=all[i-1],newer=all[i+1];
   const turn=(to?:Letter)=>{if(to)go({k:'read',id:to.id},true);};
@@ -184,6 +200,7 @@ function Read({p,l,all,patch,drop,go,back}:{p:Persona;l:Letter;all:Letter[];patc
         <Post top={stamp} t={l.at}/>
         <time>{full(l.at)}</time>
         <p className="ml-dear">{dear}</p>
+        {l.img&&<button className="ml-photo" onClick={()=>setZoom(true)} aria-label="夹在信里的照片，点开看大图"><Pic id={l.img} alt="夹在信里的照片"/></button>}
         <div className="ml-body">{l.text}</div>
         <p className="ml-sign">{sign}</p>
       </article>
@@ -200,6 +217,7 @@ function Read({p,l,all,patch,drop,go,back}:{p:Persona;l:Letter;all:Letter[];patc
         {newer?<button className="linkish" onClick={()=>turn(newer)}>下一封 ›</button>:<span/>}
       </nav>}
     </>}
+    {zoom&&l.img&&<button className="viewer" onClick={()=>setZoom(false)} aria-label="关掉大图"><Pic id={l.img} alt="夹在信里的照片"/></button>}
     {more&&!pic&&<Sheet title="" plain close={()=>setMore(false)}>
       <ul className="ml-menu">
         <li><button onClick={()=>{setMore(false);void draw();}}>存成图片</button></li>

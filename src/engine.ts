@@ -67,14 +67,23 @@ const letterText=(p:Persona,len:number|undefined)=>{
   while(out.length<n&&pool.length)out.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
   return out.join('\n');
 };
+/** 他这封信夹不夹照片：照片库里有才夹，大约三封里一封；最近夹过的、已经排好要夹的先不挑 */
+function letterPic(p:Persona):string|undefined{
+  const b=box(p.id),pics=b.mailPics??[];
+  if(!pics.length||Math.random()>=.36)return;
+  const used=new Set([...b.letters.filter(l=>l.from==='ta'&&l.img).slice(-4).map(l=>l.img!),...b.letters.filter(l=>l.planImg&&!l.got).map(l=>l.planImg!),b.mailNext?.img??'']);
+  const fresh=pics.filter(x=>!used.has(x)),pool=fresh.length?fresh:pics;
+  return pool[Math.floor(Math.random()*pool.length)];
+}
 /** 寄出一封信：回信的时间和内容当场定好，存在这封信上，到点再送到 */
-export function sendLetter(p:Persona,text:string,re?:string):Letter{
+export function sendLetter(p:Persona,text:string,re?:string,img?:string):Letter{
   const b=box(p.id),now=Date.now(),[a,z]=pickOf(mailPaces,b.mailPace,0).r,plan=letterText(p,b.mailLen);
-  const l:Letter={id:uid(),from:'me',text,at:now,read:true,...(re?{re}:{}),...(plan?{due:awakeAt(p,now+rand(a,z)*60000),plan}:{})};
+  const pic=plan?letterPic(p):undefined;
+  const l:Letter={id:uid(),from:'me',text,at:now,read:true,...(re?{re}:{}),...(img?{img}:{}),...(plan?{due:awakeAt(p,now+rand(a,z)*60000),plan}:{}),...(pic?{planImg:pic}:{})};
   setBox(p.id,{letters:[...b.letters,l]});
   return l;
 }
-const nextPro=(p:Persona,from:number,pro:number|undefined,len:number|undefined)=>{const [a,z]=pickOf(mailPros,pro,0).r,text=a?letterText(p,len):'';return text?{at:awakeAt(p,from+rand(a,z)*60000),text}:undefined;};
+const nextPro=(p:Persona,from:number,pro:number|undefined,len:number|undefined)=>{const [a,z]=pickOf(mailPros,pro,0).r,text=a?letterText(p,len):'';if(!text)return undefined;const img=letterPic(p);return {at:awakeAt(p,from+rand(a,z)*60000),text,...(img?{img}:{})};};
 /** 改了「他会不会主动写信」之后：重新排下一封 */
 export function planProMail(p:Persona){const b=box(p.id);setBox(p.id,{mailNext:nextPro(p,Date.now(),b.mailPro,b.mailLen)});}
 // 到点的信送到：你寄出的信各回一封；他主动写的按间隔来
@@ -83,7 +92,7 @@ function mail(p:Persona,now:number){
   const add:Letter[]=[];let letters=b.letters,first=0,pro=false,patch:Partial<typeof b>={};
   const due=letters.filter(l=>l.from==='me'&&l.due&&l.plan&&!l.got&&now>=l.due);
   if(due.length){
-    for(const l of due){const id='r'+l.id;if(!have.has(id)&&!gone.has(id)){add.push({id,from:'ta',text:l.plan!,at:l.due!,re:l.id});first=first?Math.min(first,l.due!):l.due!;}}
+    for(const l of due){const id='r'+l.id;if(!have.has(id)&&!gone.has(id)){add.push({id,from:'ta',text:l.plan!,at:l.due!,re:l.id,...(l.planImg?{img:l.planImg}:{})});first=first?Math.min(first,l.due!):l.due!;}}
     const ids=new Set(due.map(l=>l.id));letters=letters.map(l=>ids.has(l.id)?{...l,got:true}:l);
   }
   // 更新之前寄出、还没等到回信的那一封
@@ -91,7 +100,7 @@ function mail(p:Persona,now:number){
   if(pickOf(mailPros,b.mailPro,0).r[0]){
     if(!b.mailNext){const n=nextPro(p,now,b.mailPro,b.mailLen);if(n)patch.mailNext=n;}   // 没有字卡时排不出来，就先不排
     else if(now>=b.mailNext.at){
-      const id='p'+b.mailNext.at;if(!have.has(id)&&!gone.has(id)){add.push({id,from:'ta',text:b.mailNext.text,at:b.mailNext.at,pro:true});pro=!first;first=first||b.mailNext.at;}
+      const id='p'+b.mailNext.at;if(!have.has(id)&&!gone.has(id)){add.push({id,from:'ta',text:b.mailNext.text,at:b.mailNext.at,pro:true,...(b.mailNext.img?{img:b.mailNext.img}:{})});pro=!first;first=first||b.mailNext.at;}
       patch.mailNext=nextPro(p,now,b.mailPro,b.mailLen);
     }
   }

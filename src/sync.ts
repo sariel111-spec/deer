@@ -69,6 +69,8 @@ function imageIds(d:Dump){
     add(p.avatar);add(p.wall);add(p.photo);add(p.homeBg);add(p.callPic);
     for(const m of d.msgs[p.id]??[])if(m.kind==='img')add(m.text);
     for(const x of d.boxes[p.id]?.posts??[])add(x.img);
+    const bx=d.boxes[p.id];for(const l of bx?.letters??[]){add(l.img);add(l.planImg);}
+    for(const x of bx?.mailPics??[])add(x);add(bx?.mailNext?.img);
   }
   return ids;
 }

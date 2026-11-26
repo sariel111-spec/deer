@@ -14,7 +14,7 @@ export const feats:{id:string;name:string;icon:LucideIcon}[]=[
   {id:'mail',name:'信箱',icon:Mail},{id:'days',name:'纪念日',icon:CalendarHeart},
   {id:'pick',name:'帮我选',icon:Dices},{id:'ask',name:'问卷',icon:ClipboardList},{id:'draw',name:'塔罗',icon:Sparkles},{id:'match',name:'默契',icon:Puzzle},
   {id:'check',name:'报备',icon:MapPin},{id:'focus',name:'专注',icon:Timer},{id:'cycle',name:'经期',icon:Droplet},
-  {id:'feed',name:'动态',icon:Aperture},{id:'fav',name:'收藏',icon:Bookmark},{id:'album',name:'相册',icon:Images},{id:'pace',name:'节奏',icon:SlidersHorizontal},
+  {id:'fav',name:'收藏',icon:Bookmark},{id:'album',name:'相册',icon:Images},{id:'pace',name:'节奏',icon:SlidersHorizontal},
 ];
 
 const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -140,33 +140,6 @@ function CyclePage({p}:{p:Persona}){
   </Sub>;
 }
 
-/* 动态 */
-function FeedPage({p}:{p:Persona}){
-  const b=box(p.id),me=S().prefs;
-  const [w,setW]=useState(false),[t,setT]=useState(''),[img,setImg]=useState('');
-  const file=useRef<HTMLInputElement>(null);
-  const post=()=>{if(!t.trim()&&!img)return;setBox(p.id,{posts:[...b.posts,{id:uid(),text:t.trim(),img:img||undefined,at:Date.now(),liked:true,cmt:lines(p,1)[0]}]});setT('');setImg('');setW(false);};
-  return <Sub p={p} title="动态" act={<AddBtn on={()=>setW(true)} label="发一条动态"/>} cls="flush">
-    {b.posts.length?<ul className="posts">{[...b.posts].reverse().map(x=><li key={x.id}>
-      <header><Avatar id={me.myAvatar} name={me.myName} size={32}/><b>{me.myName}</b><button className="ico sm" onClick={()=>setBox(p.id,{posts:b.posts.filter(y=>y.id!==x.id)})} aria-label="删掉这条"><Trash2 size={16} strokeWidth={1.6}/></button></header>
-      {x.img&&<Pic id={x.img} alt="动态里的图片"/>}
-      <div className="pbody">
-        <div className="picons"><Heart size={24} strokeWidth={1.7} fill={x.liked?'var(--red)':'none'} color={x.liked?'var(--red)':'currentColor'}/><MessageCircle size={24} strokeWidth={1.7}/></div>
-        {x.liked&&<p><b>{p.name}</b> 赞了</p>}
-        {x.text&&<p><b>{me.myName}</b> {x.text}</p>}
-        {x.cmt&&<p><b>{p.name}</b> {x.cmt}</p>}
-        <small>{dayLabel(x.at)}</small>
-      </div>
-    </li>)}</ul>:<p className="empty">发一条只有他看得到的动态。他会来点赞、留一句话。</p>}
-    {w&&<Sheet title="新动态" close={()=>setW(false)}>
-      {img?<button className="thumb" onClick={()=>setImg('')} aria-label="拿掉这张图片"><Pic id={img}/></button>:<button className="chip" onClick={()=>file.current?.click()}><ImageIcon size={16} strokeWidth={1.7}/>加一张图片</button>}
-      <input ref={file} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(f)try{setImg(await putImage(f));}catch{say('这张图片读不了，换一张试试');}}}/>
-      <textarea className="bulk tall" rows={4} value={t} onChange={e=>setT(e.target.value)} placeholder="写点什么…" aria-label="动态的文字"/>
-      <button className="btn" onClick={post} disabled={!t.trim()&&!img}>发布</button>
-    </Sheet>}
-  </Sub>;
-}
-
 /* 收藏、相册：都是聊天里攒下来的 */
 function FavPage({p}:{p:Persona}){
   const me=S().prefs,favs=list(p.id).filter(m=>m.fav).reverse();
@@ -187,7 +160,7 @@ export function Feature({id,p}:{id:string;p:Persona}){
     case 'mail':return <MailBox p={p}/>;case 'days':return <DaysPage p={p}/>;case 'today':return <Away to={'#/us/'+p.id}/>;
     case 'pick':return <PickPage p={p}/>;case 'ask':return <AskPage p={p}/>;case 'draw':return <TarotPage p={p}/>;case 'match':return <MatchPage p={p}/>;
     case 'check':return <CheckPage p={p}/>;case 'focus':return <FocusPage p={p}/>;case 'cycle':return <CyclePage p={p}/>;
-    case 'feed':return <FeedPage p={p}/>;case 'fav':return <FavPage p={p}/>;case 'album':return <AlbumPage p={p}/>;
+    case 'feed':return <Away to={'#/us/'+p.id}/>;case 'fav':return <FavPage p={p}/>;case 'album':return <AlbumPage p={p}/>;
     default:return <Sub p={p} title="功能"><p className="empty">没有这个页面。</p></Sub>;
   }
 }
