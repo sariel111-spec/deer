@@ -198,7 +198,6 @@ export function Chat({p}:{p:Persona}){
     {view&&<button className="viewer" onClick={()=>setView('')} aria-label="关掉大图"><Pic id={view} alt="大图"/></button>}
     {more&&<Sheet title="" close={()=>setMore(false)} plain>
       <ul className="apps tools">
-        <li><button onClick={()=>{setMore(false);file.current?.click();}}><span><ImageIcon size={23} strokeWidth={1.5}/></span>图片</button></li>
         <li><button onClick={pat}><span><Hand size={23} strokeWidth={1.5}/></span>拍一拍</button></li>
         <li><a href={`#/f/check/${p.id}`}><span><MapPin size={23} strokeWidth={1.5}/></span>报备</a></li>
         <li><a href={`#/f/pick/${p.id}`}><span><Dices size={23} strokeWidth={1.5}/></span>帮我选</a></li>
