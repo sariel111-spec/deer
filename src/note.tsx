@@ -18,7 +18,7 @@ export function todayLine(p:Persona){
 /** 把今天的这一句记进往日（不用点开也记）。返回今天这一句 */
 export function keepToday(p:Persona){
   const line=todayLine(p),b=box(p.id),today=ymd();
-  if(line&&!b.lines.some(x=>x.date===today))setBox(p.id,{lines:[...b.lines,{date:today,text:line}].slice(-400)});
+  if(line&&!b.lines.some(x=>x.date===today))setBox(p.id,{lines:[...b.lines,{date:today,text:line}].slice(-400)},true);
   return line;
 }
 export const noteNew=(p:Persona)=>box(p.id).lineSeen!==ymd();
@@ -27,9 +27,9 @@ const nice=(date:string)=>{const [y,m,d]=date.split('-').map(Number),n=new Date(
 export function NoteCard({p,close}:{p:Persona;close:()=>void}){
   const today=ymd(),b=box(p.id),line=todayLine(p),mine=b.lines.find(x=>x.date===today);
   const [past,setPast]=useState(false),[only,setOnly]=useState(false),[t,setT]=useState('');
-  useEffect(()=>{if(box(p.id).lineSeen!==today)setBox(p.id,{lineSeen:today});},[]);
+  useEffect(()=>{if(box(p.id).lineSeen!==today)setBox(p.id,{lineSeen:today},true);},[]);
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[close]);
-  const like=(date:string)=>setBox(p.id,{lines:box(p.id).lines.map(x=>x.date===date?{...x,like:!x.like,u:Date.now()}:x)});
+  const like=(date:string)=>setBox(p.id,{lines:box(p.id).lines.map(x=>x.date===date?{...x,like:!x.like,u:Date.now()}:x)},true);
   // 回他这一句：这一句先作为他的话进到聊天里，你的回复引用着它，他照常回你
   const send=()=>{
     const x=t.trim();if(!x||!line)return;

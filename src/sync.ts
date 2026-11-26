@@ -57,7 +57,7 @@ function files(d:Dump):Record<string,string>{
   out[F.state]=canon({personas:d.state.personas,decks:d.state.decks,packs:d.state.packs??[],dead:d.state.dead??{},prefs:{myName:pf.myName,myAvatar:pf.myAvatar,bubble:pf.bubble,at:pf.at,cloud:pf.cloud||undefined}} satisfies Shared);
   for(const p of d.state.personas){
     out[F.m(p.id)]=canon({msgs:d.msgs[p.id]??[],grave:d.graves[p.id]??{dead:[],cleared:0}} satisfies Chat);
-    if(d.boxes[p.id]?.at)out[F.x(p.id)]=canon(d.boxes[p.id]);
+    if(d.boxes[p.id]?.at)out[F.x(p.id)]=canon({...d.boxes[p.id],ring:undefined,call:undefined});   // 响铃、通话中只是这台设备此刻的事，不上传
   }
   return out;
 }
@@ -123,8 +123,11 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
       const dm=new Map<string,Box['lines'][number]>();
       for(const x of [...(o.lines??[]),...(b.lines??[])]){const y=dm.get(x.date);if(!y||(x.u??0)>=(y.u??0))dm.set(x.date,x);}
       const lines=[...dm.values()].sort((x,y)=>x.date<y.date?-1:1).slice(-400);
-      boxes[p.id]={...b,letters,lines,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
-    }else if(b)boxes[p.id]=b;
+      // 自动写的几样不抢「谁晚」（见 db.ts 的 setBox quiet），所以各自有规则：看过今天这一句取晚的那天；下一封主动来信取排得晚的；响铃 / 通话只认本机
+      const seen=[b.lineSeen,o.lineSeen].filter(Boolean).sort().at(-1);
+      const mn=b.mailNext&&o.mailNext?(o.mailNext.at>b.mailNext.at?o.mailNext:b.mailNext):(b.at??0)===(o.at??0)?b.mailNext??o.mailNext:b.mailNext;
+      boxes[p.id]={...b,lineSeen:seen,mailNext:mn,ring:lb?.ring,call:lb?.call,letters,lines,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
+    }else if(b)boxes[p.id]=b===rb?{...b,ring:undefined,call:undefined}:b;
   }
   return {state,msgs,boxes,graves};
 }

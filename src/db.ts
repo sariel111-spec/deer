@@ -209,7 +209,9 @@ async function wakeStore(){
   }finally{waking=false;}
 }
 const saveMsgs=(pid:string)=>{touch();emit();void persist('m:'+pid);};
-export const setBox=(pid:string,patch:Partial<Box>)=>{const b={...blankBox(),...boxes.get(pid),...patch,at:Date.now()};boxes.set(pid,b);touch();emit();void persist('x:'+pid);};
+/** quiet：自动发生的事（每天记一句、信到了、他打来）不算「这台设备改过」，不动 at——
+ *  同步时小功能整份听 at 晚的那边，自动写的东西要是也抢这个「晚」，会把另一台设备上真正改过的东西盖掉 */
+export const setBox=(pid:string,patch:Partial<Box>,quiet=false)=>{const old=boxes.get(pid),b={...blankBox(),...old,...patch,at:quiet?(old?.at||1):Date.now()};boxes.set(pid,b);touch();emit();void persist('x:'+pid);};
 const bury=(pid:string,g:Grave)=>{graves.set(pid,g);void persist('d:'+pid,false);};
 
 const tidyUp=(st:State):State=>st.stickers?.length?{...st,stickers:[],packs:[...(st.packs??[]),{id:uid(),name:'默认',ids:st.stickers,created:Date.now(),updated:Date.now()}]}:st;

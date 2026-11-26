@@ -96,7 +96,7 @@ function mail(p:Persona,now:number){
     }
   }
   if(!add.length&&!due.length&&!Object.keys(patch).length)return;
-  setBox(p.id,{...patch,letters:[...letters,...add].sort((x,y)=>x.at-y.at)});
+  setBox(p.id,{...patch,letters:[...letters,...add].sort((x,y)=>x.at-y.at)},!('mailDue' in patch));
   // 聊天里也留一行（点了进信箱）：从推送点进来落在聊天页，也看得到信到了。id 跟着信走，别的设备同步过来不会重复
   for(const l of add){const id='ml'+l.id;if(!list(p.id).some(m=>m.id===id))pushMsg({pid:p.id,from:'ta',kind:'tip',text:l.pro?'给你写了一封信':'给你回了一封信',at:Math.max(Math.min(l.at,now),(list(p.id).at(-1)?.at??0)+1),id});}
   if(add.length&&!(pushWas()&&first<backAt))notify(p,pro?'给你写了一封信':'给你回了一封信','mail');
@@ -232,15 +232,15 @@ export const onCall=()=>S().personas.find(p=>box(p.id).call);
 export const ringing=()=>S().personas.find(p=>{const r=box(p.id).ring;return !!r&&Date.now()-r.at<RING;});
 export const clock=(ms:number)=>{const s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),pad=(n:number)=>String(n).padStart(2,'0');return (h?h+':'+pad(m):pad(m))+':'+pad(s%60);};
 const long=(ms:number)=>{const s=Math.max(1,Math.round(ms/1000));return s<60?`${s} 秒`:s<3600?`${Math.floor(s/60)} 分 ${s%60} 秒`:`${Math.floor(s/3600)} 小时 ${Math.floor(s%3600/60)} 分`;};
-export function callStart(pid:string){if(onCall()||!who(pid))return false;setBox(pid,{call:{at:Date.now()},ring:undefined});return true;}
+export function callStart(pid:string){if(onCall()||!who(pid))return false;setBox(pid,{call:{at:Date.now()},ring:undefined},true);return true;}
 export function callEnd(pid:string){
   const c=box(pid).call;if(!c)return;
-  setBox(pid,{call:undefined});
+  setBox(pid,{call:undefined},true);
   pushMsg({pid,from:'me',kind:'tip',text:`视频通话 ${long(Date.now()-c.at)}`,at:Date.now()});
 }
 export function callDecline(pid:string){
   if(!box(pid).ring)return;
-  setBox(pid,{ring:undefined});
+  setBox(pid,{ring:undefined},true);
   pushMsg({pid,from:'me',kind:'tip',text:'你没有接他的视频通话',at:Date.now()});
 }
 const callId=(p:Persona,at:number)=>'c'+proId(p,at);
@@ -254,7 +254,7 @@ function ring(p:Persona,at:number){
   const id=callId(p,at);unhold(id);
   if(box(p.id).ring?.at===at||list(p.id).some(m=>m.id===id))return;
   if(Date.now()-at>=RING||onCall()){missed(p,at,id);return;}
-  setBox(p.id,{ring:{at}});
+  setBox(p.id,{ring:{at}},true);
   if(!(at<backAt&&pushWas()))notify(p,'邀请你视频通话');
 }
 // 他在某个时刻主动做的那件事：多数时候是一句话，偶尔是一通视频。只由「谁、几点」决定
@@ -356,7 +356,7 @@ function tickBody(now:number){
     mail(p,now);
     // 响了很久没人接
     const r=box(p.id).ring;
-    if(r&&now-r.at>=RING){setBox(p.id,{ring:undefined});missed(p,r.at+RING,callId(p,r.at));}
+    if(r&&now-r.at>=RING){setBox(p.id,{ring:undefined},true);missed(p,r.at+RING,callId(p,r.at));}
   }
 }
 // 这句不满意：给同一条消息换一句
