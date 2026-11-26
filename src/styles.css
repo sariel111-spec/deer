@@ -57,7 +57,7 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .line>span:first-child{display:grid;font-size:15px}
 .line small{font-size:12px;color:var(--mute);line-height:1.5}
 .num{display:inline-flex;align-items:center;gap:6px;color:var(--mute);font-size:14px;flex:none}
-.num input,.num select{width:66px;height:34px;border:0;border-radius:9px;background:var(--soft);text-align:center;font-size:15px;color:var(--fg);outline:0}
+.num input,.num select{width:66px;height:34px;border:0;border-radius:9px;background:var(--soft);text-align:center;font-size:16px;color:var(--fg);outline:0}
 .num select{width:auto;padding:0 8px}
 .switch{appearance:none;flex:none;width:46px;height:28px;border-radius:99px;background:var(--line);position:relative;transition:background-color .2s;cursor:pointer}
 .switch::after{content:'';position:absolute;left:2px;top:2px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s var(--ease)}
@@ -177,7 +177,7 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .bulk{height:auto;padding:11px 13px;line-height:1.6;resize:vertical;display:block;margin-bottom:10px}
 .list-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
 .find{display:flex;align-items:center;gap:6px;height:34px;padding:0 11px;border-radius:99px;background:var(--soft);color:var(--mute)}
-.find input{width:110px;border:0;outline:0;background:none;font-size:14px;color:var(--fg)}
+.find input{width:110px;border:0;outline:0;background:none;font-size:16px;color:var(--fg)}
 .cards li{display:flex;align-items:center;gap:2px;min-height:46px;padding-left:16px;padding-right:6px;border-bottom:1px solid var(--line)}
 .cards span{flex:1;min-width:0;padding:8px 0;overflow-wrap:anywhere}
 .cards .off span{color:var(--mute);text-decoration:line-through}
@@ -794,12 +794,12 @@ button.ml-photo{cursor:zoom-in}
 .ml-seg .chip[aria-pressed=true]{background:var(--bg);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 
 /* ── 主页：一排常用的（ins 的精选），下面是内容 ── */
-.hl{display:flex;gap:0;margin:22px 0 0!important;padding:0 8px 4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.hl{display:flex;gap:0;margin:18px 0 0!important;padding:0 6px 2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .hl::-webkit-scrollbar{display:none}
-.hl li{flex:0 0 20%;min-width:68px}
-.hl a{display:grid;justify-items:center;gap:6px;font-size:12px;color:var(--fg);-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.hl li{flex:0 0 72px}
+.hl a{display:grid;justify-items:center;gap:5px;font-size:11.5px;color:var(--fg);-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
 /* 每个圆：外面一圈细线、留一圈白、里面一个浅底的圆（ins 精选的样子）。有新东西时那圈细线换成 ins 的渐变环 */
-.hl span{position:relative;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:var(--line);transition:transform .15s var(--ease)}
+.hl span{position:relative;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:var(--line);transition:transform .15s var(--ease)}
 .hl span::before{content:'';position:absolute;inset:1px;border-radius:50%;background:var(--bg)}
 .hl span::after{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--soft)}
 .hl span>svg,.hl span>img{position:relative;z-index:1}
@@ -839,3 +839,16 @@ button.ml-photo{cursor:zoom-in}
 .chits small{display:block;margin-top:3px;font-size:12px;color:var(--mute)}
 .chits mark{background:none;color:inherit;font-weight:700}
 .chits a.off p{color:var(--mute)}
+
+/* ── 设置：首页一张短列表，一行一件事，右边是现在的状态 ── */
+.setlist{margin-top:6px}
+.setlist a{display:flex;align-items:center;gap:10px;min-height:56px;padding:0 12px 0 16px;border-bottom:1px solid var(--line);font-size:16px;color:var(--fg)}
+.setlist li:last-child a{border:0}
+.setlist a:active{opacity:.55}
+.setlist span{flex:none}
+.setlist small{flex:1;min-width:0;text-align:right;font-size:14px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.setlist svg{flex:none;color:var(--mute);opacity:.7}
+.sub>h3:first-of-type{margin-top:14px}
+
+/* iPhone：输入框的字小于 16px，一点进去整页会被放大。能打字的地方一律 16px */
+@supports(-webkit-touch-callout:none){input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]),textarea,select{font-size:16px!important}}

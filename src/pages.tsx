@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
-import {Bookmark,Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Grid3x3,Heart,Mail,Menu,Pin,Plus,Search,SlidersHorizontal,Trash2,X} from 'lucide-react';
+import {Bookmark,Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Grid3x3,Heart,Mail,Menu,Pin,Plus,Search,Trash2,X} from 'lucide-react';
 import {S,storage,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
 import {onPush,pushLink,pushLive,pushOff,pushOn,pushPrep,pushSet,pushTest,pushUnlink} from './push';
@@ -8,6 +8,7 @@ import {lines,nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
 import {feats,homeDefault} from './more';
+import {useDismiss} from './ui';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
 
 /* ───────── 小零件 ───────── */
@@ -20,8 +21,9 @@ export function Toast(){
   return t?<div className="toast" role="status">{t}</div>:null;
 }
 export function Sheet({title,close,plain,children}:{title:string;close:()=>void;plain?:boolean;children:React.ReactNode}){
+  const out=useDismiss(close);
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[close]);
-  return <div className="veil" onPointerDown={e=>{if(e.target===e.currentTarget)close();}}>
+  return <div className="veil" {...out}>
     <section className={`sheet${plain?' plain':''}`} role="dialog" aria-modal="true" aria-label={title||'操作'}>
       <i className="grab" aria-hidden="true"/>
       {title&&<header><h2>{title}</h2><button className="ico sm" onClick={close} aria-label="关上"><X size={20}/></button></header>}
@@ -33,8 +35,13 @@ export function Switch({on,set,label,note}:{on:boolean;set:(v:boolean)=>void;lab
   return <label className="line"><span>{label}{note&&<small>{note}</small>}</span><input type="checkbox" className="switch" checked={on} onChange={e=>set(e.target.checked)}/></label>;
 }
 export function Num({label,value,set,min=0,max=9999,unit}:{label:string;value:number;set:(n:number)=>void;min?:number;max?:number;unit:string}){
-  return <label className="line"><span>{label}</span><span className="num"><input type="number" inputMode="numeric" value={value} min={min} max={max}
-    onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))set(Math.max(min,Math.min(max,n)));}}/>{unit}</span></label>;
+  // 打字的时候不去改她打的字：先留着她打的，数字在范围里就直接算数；离开这一格时再收进范围（空着就还是原来的数）
+  const [t,setT]=useState<string|null>(null);
+  const done=()=>{if(t!==null&&t!==''){const n=Math.max(min,Math.min(max,Number(t)));if(n!==value)set(n);}setT(null);};
+  return <label className="line"><span>{label}</span><span className="num"><input type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" value={t??String(value)} aria-label={label}
+    onFocus={e=>{setT(String(value));const el=e.target;setTimeout(()=>{try{el.select();}catch{/* */}},0);}}
+    onChange={e=>{const v=e.target.value.replace(/\D/g,'').slice(0,String(max).length);setT(v);const n=Number(v);if(v!==''&&n>=min&&n<=max&&n!==value)set(n);}}
+    onBlur={done} onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}}/>{unit}</span></label>;
 }
 const shareable=(f:File)=>{try{return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!!navigator.canShare?.({files:[f]});}catch{return false;}};
 const download=(name:string,text:string,type='application/json')=>{
@@ -183,7 +190,7 @@ export function Home({p}:{p:Persona}){
         onPointerUp={()=>clearTimeout(held.current.t)} onPointerLeave={()=>clearTimeout(held.current.t)} onPointerCancel={()=>clearTimeout(held.current.t)}
         onClick={e=>{if(held.current.fired){e.preventDefault();held.current.fired=false;}}} onContextMenu={e=>{e.preventDefault();clearTimeout(held.current.t);held.current.fired=true;setCover(f.id);}}
         aria-label={`${f.name}${dot[f.id]?'，有新的':''}`}>
-        <span>{covers[f.id]?<Pic id={covers[f.id]} alt=""/>:<f.icon size={22} strokeWidth={1.4}/>}</span>{f.name}</a></li>)}
+        <span>{covers[f.id]?<Pic id={covers[f.id]} alt=""/>:<f.icon size={20} strokeWidth={1.4}/>}</span>{f.name}</a></li>)}
     </ul>}
 
     <div className="seg htabs" role="tablist" aria-label="看什么">
@@ -209,7 +216,6 @@ export function Home({p}:{p:Persona}){
       <ul className="hmenu">
         {feats.map(f=><li key={f.id}><a href={`#/f/${f.id}/${p.id}`}><f.icon size={22} strokeWidth={1.5}/>{f.name}</a>
           <button aria-pressed={pinned.includes(f.id)} onClick={()=>setPrefs({hl:pinned.includes(f.id)?pinned.filter(x=>x!==f.id):[...pinned,f.id]})} aria-label={pinned.includes(f.id)?`把 ${f.name} 从主页那一排拿掉`:`把 ${f.name} 放到主页那一排`}><Pin size={18} strokeWidth={1.6} fill={pinned.includes(f.id)?'currentColor':'none'}/></button></li>)}
-        <li><button className="go" onClick={()=>{setMenu(false);setEdit(true);}}><SlidersHorizontal size={22} strokeWidth={1.5}/>资料与节奏</button></li>
       </ul>
       <p className="hint center">点亮图钉的会排在主页；长按主页上的圆圈可以换封面。</p>
     </Sheet>}
@@ -342,7 +348,7 @@ const modeNote=(ios:boolean)=>({
 });
 const span=(ms:number)=>{const s=Math.round(ms/1000);return s<60?`${s} 秒`:s<3600?`${Math.floor(s/60)} 分 ${s%60} 秒`:`${Math.floor(s/3600)} 小时 ${Math.floor(s%3600/60)} 分`;};
 
-export function Settings(){
+export function Settings({sec=''}:{sec?:string}){
   useVer();
   const st=S(),pf=st.prefs;
   const [s,setS]=useState(status());
@@ -351,26 +357,42 @@ export function Settings(){
   useEffect(()=>{const t=setInterval(()=>setS(status()),1500);return()=>clearInterval(t);},[]);
   const slot=useRef<HTMLDivElement>(null);
   useEffect(()=>onPip(()=>setS(status())),[]);
-  useEffect(()=>{pipSlot(slot.current);return()=>pipSlot(null);},[st.prefs.audio]);
+  useEffect(()=>{pipSlot(slot.current);return()=>pipSlot(null);},[st.prefs.audio,sec]);
   const [bak,setBak]=useState<File|null>(null);
   const [check,setCheck]=useState(false);
   const mode=st.prefs.mode??'loop',away=lastAway();
   const [pl,setPl]=useState(pushLive());
   const [addr,setAddr]=useState('');
+  const mine=useRef<HTMLInputElement>(null),sy=useSync();
+  // 设置分成几页：首页是一张短列表，点一行进那一页（地址里带着，返回键能回来）
+  const themeName={auto:'跟随系统',light:'浅色',dark:'深色'}[pf.theme],bubbleName={ins:'ins',mono:'黑白',accent:'点缀色',line:'细边'}[pf.bubble];
+  const secs:[string,string,string][]=[['me','我',pf.myName],['look','外观',`${themeName} · ${bubbleName}`],
+    ['bg','通知与后台',pl?'云端推送开着':pf.audio?'后台保活开着':s.notify==='granted'&&pf.notify?'通知开着':'没开'],
+    ['sync','同步',sy.on?(sy.busy?'正在同步…':sy.err?'出了点问题':'开着'):'没连'],['backup','备份','']];
+  const title=secs.find(x=>x[0]===sec)?.[1];
   useEffect(()=>{void pushPrep();return onPush(()=>setPl(pushLive()));},[]);
-  return <main className="page">
+  if(!title)return <main className="page">
     <header className="bar"><h1>设置</h1></header>
-
-    <h3>我</h3>
+    <ul className="setlist">{secs.map(([id,n,v])=><li key={id}><a href={'#/set/'+id}><span>{n}</span><small>{v}</small><ChevronRight size={18} strokeWidth={1.6}/></a></li>)}</ul>
+    <p className="foot">回复是从你放进去的字卡里随机抽的。</p>
+  </main>;
+  return <main className="page sub">
+    <header className="bar"><a className="ico" href="#/set" onClick={backTo('#/set')} aria-label="回到设置"><ChevronLeft size={28} strokeWidth={1.8}/></a><h1>{title}</h1></header>
+    {sec==='me'&&<>
+    <div className="me-row">
+      <button className="pick" onClick={()=>mine.current?.click()} aria-label="换我的头像"><Avatar id={pf.myAvatar} name={pf.myName} size={76}/><span>换头像</span></button>
+      <input ref={mine} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(f)try{setPrefs({myAvatar:await putImage(f,512)});}catch{say('这张图片读不了，换一张试试');}}}/>
+    </div>
     <label className="field"><span>我的名字</span><input value={pf.myName} onChange={e=>setPrefs({myName:e.target.value})}/></label>
-
-    <h3>外观</h3>
+    </>}
+    {sec==='look'&&<>
     <div className="line"><span>明暗</span><div className="seg sm">{([['auto','跟随系统'],['light','浅色'],['dark','深色']] as const).map(([id,n])=><button key={id} aria-pressed={pf.theme===id} onClick={()=>setPrefs({theme:id})}>{n}</button>)}</div></div>
     <div className="line"><span>我的气泡</span><div className="seg sm">{([['ins','ins'],['mono','黑白'],['accent','点缀色'],['line','细边']] as const).map(([id,n])=><button key={id} aria-pressed={pf.bubble===id} onClick={()=>setPrefs({bubble:id})}>{n}</button>)}</div></div>
     <Switch on={pf.sound} set={v=>setPrefs({sound:v})} label="收到消息时响一声"/>
-
+    </>}
+    {sec==='bg'&&<>
     <h3>云端推送</h3>
-    <p className="hint">他要说的话，到点由云端推到手机。小鹿不用留在后台，也不占声音：听歌、刷视频、锁屏、把小鹿划掉，都收得到。</p>
+    <p className="hint">他要说的话到点由云端推到手机，小鹿不用留在后台。</p>
     {pushSet()?<>
       <Switch on={pl} set={async v=>{const e=v?await pushOn():(await pushOff(),'');const had=v&&!e&&S().prefs.audio;if(had)await audioOn(false);setPl(pushLive());setS(status());say(e||(v?(had?'云端推送开好了，后台保活替你关掉了':'云端推送开好了'):'云端推送关掉了'));}} label="云端推送" note={pl?'开着。离开小鹿时，他接下来的几句话会交给云端按时送到':'开了之后，下面的后台保活可以不用开'}/>
       {pl&&<div className="rowbtn"><button className="chip" onClick={async()=>{const p=st.personas.find(x=>x.id===pf.last)??st.personas[0];if(!p)return;say(await pushTest(p.name,lines(p,1)[0]??'在吗',p.id)?'发出去了，几秒内会弹出来':'没发出去，过一会儿再试');}}>推一条试试</button></div>}
@@ -383,7 +405,7 @@ export function Settings(){
     </>}
 
     <h3>后台保活</h3>
-    <p className="hint">为了让他在你没盯着页面的时候也能找到你，这里一层一层兜着。哪一层在这台设备上不亮，就靠别的层。</p>
+    <p className="hint">没开云端推送时用：让页面在后台不被系统停掉。</p>
     <div className="line"><span>消息通知<small>他找你时弹系统通知</small></span>
       {s.notify==='granted'&&pf.notify?<Dot ok text="已开"/>:<button className="chip" onClick={async()=>{const ok=await askNotify();setS(status());say(ok?'通知开好了':s.ios&&!s.installed?'iPhone 上要先加到主屏幕，再从主屏幕打开来开通知':'浏览器没有同意，去浏览器的网站设置里允许通知');}}>开启</button>}</div>
     <Switch on={pf.audio} set={async v=>{const ok=await audioOn(v);setS(status());if(v&&!ok)say('点一下页面任意位置，它就会接上');}} label="后台保活" note="让页面在你切到别的 app、锁屏的时候不被系统停掉"/>
@@ -416,11 +438,9 @@ export function Settings(){
       <button className="chip" onClick={()=>{const p=st.personas[0];if(p){notify(p,'这是一条测试通知');say(pf.notify?'发了，看看有没有弹出来':'先把上面的通知打开');}}}>发一条测试通知</button>
     </div>
     <p className="hint">页面被彻底关掉之后，他这段时间该说的话会在你下次打开时补上，时间照他本来要发的时刻算。</p>
-
-    <h3>同步</h3>
-    <SyncPanel/>
-
-    <h3>备份</h3>
+    </>}
+    {sec==='sync'&&<SyncPanel/>}
+    {sec==='backup'&&<>
     <p className="hint">不用同步的话，所有东西只存在这台设备上。换手机或清浏览器之前，先导出一份备份。</p>
     {(()=>{const h=storage();return <p className="hint" data-store={h.down||h.waiting?'retry':'ok'}>本机存储：{h.down||h.waiting?`有 ${h.waiting} 项这一下没存进去，正在重试（已经另留了一份，不会丢）`:'正常'}{h.reopened?`。这次打开后重新连过 ${h.reopened} 次`:''}</p>;})()}
     <div className="rowbtn">
@@ -433,7 +453,7 @@ export function Settings(){
       <input ref={file} type="file" accept="application/json,.json" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{await importAll(await f.text());say('导入好了');}catch(x){say(x instanceof Error?x.message:'这个文件读不了');}}}/>
       <button className="chip danger" onClick={async()=>{if(!sure){setSure(true);return;}await disconnect();await wipe();setSure(false);go('#/');}}>{sure?'再点一次，清空这台设备':'清空这台设备上的数据'}</button>
     </div>
-    <p className="foot">回复是从你放进去的字卡里随机抽的。</p>
+    </>}
   </main>;
 }
 

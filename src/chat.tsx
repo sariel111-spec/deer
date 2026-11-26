@@ -5,6 +5,7 @@ import {hisCheck,isTyping,onCall,pool,read,redraw,sent,setActive} from './engine
 import {Tell} from './check';
 import {callOpen} from './call';
 import {PersonaSheet,Sheet,say} from './pages';
+import {useDismiss} from './ui';
 import {Avatar,Pic,dayLabel} from './App';
 
 const hhmm=(t:number)=>new Date(t).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -250,8 +251,8 @@ function PackSheet({k,close,gone}:{k:Pack;close:()=>void;gone:()=>void}){
 type Acts=Record<'reply'|'copy'|'fav'|'again'|'mute'|'unsend'|'drop',(m:Msg)=>void>&{react:(m:Msg,e:string)=>void};
 function Ctx({m,close,act}:{m:Msg;close:()=>void;act:Acts}){
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[close]);
-  const mine=m.from==='me',tip=m.kind==='tip',now=m.react??(m.like?'❤️':'');
-  return <div className={`ctx ${m.from}`} role="dialog" aria-modal="true" aria-label="消息操作" onPointerDown={e=>{if(e.target===e.currentTarget)close();}}>
+  const mine=m.from==='me',tip=m.kind==='tip',now=m.react??(m.like?'❤️':''),out=useDismiss(close);
+  return <div className={`ctx ${m.from}`} role="dialog" aria-modal="true" aria-label="消息操作" {...out}>
     {!tip&&<div className="reacts" role="group" aria-label="贴一个表情">{quick.map(e=><button key={e} aria-pressed={now===e} onClick={()=>act.react(m,e)}>{e}</button>)}</div>}
     <div className={`bubble ghost${m.kind==='img'?' pic':''}${m.st?' st':''}${tip?' tipb':''}`}>{m.kind==='img'?<Pic id={m.text}/>:m.text}</div>
     <div className="cmenu">

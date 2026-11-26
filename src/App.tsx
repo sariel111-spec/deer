@@ -44,7 +44,7 @@ export function App(){
   if(!st.personas.length)page=<Welcome/>;
   else if(a==='inbox')page=<Inbox/>;
   else if(a==='cards')page=<Cards deckId={b}/>;
-  else if(a==='set')page=<Settings/>;
+  else if(a==='set')page=<Settings sec={b}/>;
   else if(a==='f'){const p=who(c)??who(st.prefs.last)??st.personas[0];page=<Feature key={b+p.id} id={b} p={p}/>;}
   else if(a==='c'){const p=who(b)??who(st.prefs.last)??st.personas[0];page=<Chat key={p.id} p={p}/>;}
   else{const p=(a==='us'?who(b):undefined)??who(st.prefs.last)??st.personas[0];page=<Home key={p.id} p={p}/>;}
