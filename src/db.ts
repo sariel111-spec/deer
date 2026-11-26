@@ -18,6 +18,7 @@ export type Persona={
   min:number;max:number;burst:number;ghost:number;join:boolean;joinMax:number;   // 回复：最快/最慢（秒）、一次最多几条、已读不回的概率、是否拼接
   pro:boolean;proMin:number;proMax:number;quietFrom:number;quietTo:number;stick?:boolean;calls?:boolean;        // 主动：间隔（分钟）、他睡觉的钟点；stick：他也会发表情包；calls：他也会打视频过来
   nextAt:number;replyAt:number;readAt:number;created:number;updated:number;
+  fu?:Record<string,number>;   // 每一项是什么时候改的。同步时各项各听各的后改——在手机上换了头像，不会因为电脑上之后改了别的就被换回去
 };
 export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean;ck?:boolean};   // react：贴在这条上的表情；st：这是一张表情包；ck：这是一条报备（聊天里显示成小卡）
 export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number;
@@ -38,7 +39,7 @@ export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt
 // 一次塔罗：kind 是牌阵，cards 是抽到的牌（c 第几张、r 逆位），said 是他当时说的那句，note 是你写的感想
 // ok：「对一对」牌阵里你觉得对不对得上
 export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time'|'link'|'match';date?:string;q?:string;cards:{c:number;r?:boolean}[];said?:string;note?:string;sent?:boolean;ok?:boolean;jump?:{c:number;r?:boolean};ai?:string};   // jump：洗牌时跳出来的那张；ai：AI 解出来的话
-export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string;like?:boolean;u?:number}[];lineSeen?:string;answers:Record<string,string>;
+export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string;like?:boolean;u?:number;at?:number}[];lineSeen?:string;answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string;id?:string;plan?:string}[];ckDecks?:string[];listen:number;   // checks.id：聊天里那条消息；checks.plan：这条报的是哪天的哪条日程；ckDecks：他哪几组字卡算报备
   focus:{n:number;min:number};
   cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number;
@@ -285,7 +286,12 @@ export function addPersona(name:string):Persona{
     nextAt:0,replyAt:0,readAt:now,created:now,updated:now};
   state={...state,personas:[...state.personas,p],prefs:{...state.prefs,last:p.id}};msgs.set(p.id,[]);save();return p;
 }
-export const setPersona=(id:string,patch:Partial<Persona>)=>{state={...state,personas:state.personas.map(p=>p.id===id?{...p,...patch,updated:Date.now()}:p)};save();};
+/** quiet：自动发生的事（读到哪儿、他下一次什么时候开口、等着回的那一句）不算「你改过这个人」，不动 updated，也不记 fu */
+export const setPersona=(id:string,patch:Partial<Persona>,quiet=false)=>{
+  const now=Date.now(),mark=Object.fromEntries(Object.keys(patch).map(k=>[k,now]));
+  state={...state,personas:state.personas.map(p=>p.id===id?(quiet?{...p,...patch}:{...p,...patch,updated:now,fu:{...p.fu,...mark}}):p)};save();
+};
+const deckTouch=(p:Persona,decks:string[]):Persona=>{const now=Date.now();return {...p,decks,updated:now,fu:{...p.fu,decks:now}};};
 export function dropPersona(id:string){
   state={...state,personas:state.personas.filter(p=>p.id!==id),prefs:{...state.prefs,last:state.prefs.last===id?'':state.prefs.last},dead:{...state.dead,[id]:Date.now()}};
   msgs.delete(id);boxes.delete(id);graves.delete(id);void delKey('m:'+id);void delKey('x:'+id);void delKey('d:'+id);save();
@@ -294,7 +300,7 @@ export function addDeck(name:string):Deck{
   const now=Date.now();
   const d:Deck={id:uid(),name,when:'all',use:'both',cards:[],created:now,updated:now};
   // 新分组默认所有人公用，之后可以在分组里改成只给某几位
-  state={...state,decks:[...state.decks,d],personas:state.personas.map(p=>({...p,decks:[...p.decks,d.id]}))};save();return d;
+  state={...state,decks:[...state.decks,d],personas:state.personas.map(p=>deckTouch(p,[...p.decks,d.id]))};save();return d;
 }
 export const setDeck=(id:string,patch:Partial<Deck>)=>{state={...state,decks:state.decks.map(d=>d.id===id?{...d,...patch,updated:Date.now()}:d)};save();};
 export function dropDeck(id:string){
@@ -355,7 +361,7 @@ export function importDecks(groups:{name:string;cards:string[];only?:string[]}[]
       const now=Date.now();
       d={id:uid(),name,when:'all',use:'both',cards:[],created:now,updated:now,...(g.only?.length?{only:g.only}:{})};
       const fits=(p:Persona)=>!g.only?.length||g.only.includes(p.name);
-      state={...state,decks:[...state.decks,d],personas:state.personas.map(p=>fits(p)?{...p,decks:[...p.decks,d!.id]}:p)};
+      state={...state,decks:[...state.decks,d],personas:state.personas.map(p=>fits(p)?deckTouch(p,[...p.decks,d!.id]):p)};
     }
     added+=addCards(d.id,cards.join('\n')).added;n++;
   }

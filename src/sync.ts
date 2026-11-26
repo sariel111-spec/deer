@@ -87,7 +87,30 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
     const decks=pick(l.state.decks,r.state.decks??[]),has=new Set(decks.map(d=>d.id));
     // 已读到哪儿：两边取靠后的那个。在一台设备上看过，另一台不会因为自己别的改动更晚就把红点带回来
     const seenAt=new Map<string,number>();for(const x of [...l.state.personas,...(r.state.personas??[])])seenAt.set(x.id,Math.max(seenAt.get(x.id)??0,x.readAt??0));
-    const personas=pick(l.state.personas,r.state.personas??[]).map(p=>p.decks.every(x=>has.has(x))?p:{...p,decks:p.decks.filter(x=>has.has(x))})
+    // 一个人的资料：每一项各听各的后改（fu 记着每项什么时候改的）。在手机上换了头像，电脑上之后改了别的，两样都留着。
+    // 没记在 fu 里的改动（没更新的旧版本改的）分不清改了哪项，只好算在整个人头上：那一边更晚就整份听它的，和以前一样
+    const lp=new Map(l.state.personas.map(p=>[p.id,p])),rp=new Map((r.state.personas??[]).map(p=>[p.id,p]));
+    const ldk=new Set(l.state.decks.map(d=>d.id)),rdk=new Set((r.state.decks??[]).map(d=>d.id));
+    const AUTO=new Set(['id','created','updated','fu','readAt','nextAt','replyAt']);
+    const loose=(p:Persona)=>p.updated>Math.max(0,...Object.values(p.fu??{}))?p.updated:0;
+    const blend=(w:Persona):Persona=>{
+      const a=lp.get(w.id),b=rp.get(w.id);if(!a||!b)return w;
+      const o=w===a?b:a,lw=loose(w),lo=loose(o),out={...w} as Persona&Record<string,unknown>,fu:Record<string,number>={...w.fu};
+      let decksFrom=w;
+      for(const k of Object.keys(o.fu??{})){
+        if(AUTO.has(k))continue;
+        if(Math.max(o.fu![k],lo)>Math.max(w.fu?.[k]??0,lw)){out[k]=(o as unknown as Record<string,unknown>)[k];fu[k]=o.fu![k];if(k==='decks')decksFrom=o;}
+      }
+      // 字卡分组：另一边有、这一边的设备还根本不认识的分组（刚在那边新建的），并进来，不算「被去掉了」
+      const other=decksFrom===w?o:w,known=decksFrom===a?ldk:rdk;
+      const extra=other.decks.filter(id=>!out.decks.includes(id)&&!known.has(id));
+      if(extra.length)out.decks=[...out.decks,...extra];
+      // 自动的几样：他下一次开口取排得晚的；等着回的那一句，本机有就听本机的
+      out.nextAt=out.pro?Math.max(a.nextAt||0,b.nextAt||0):0;out.replyAt=a.replyAt||b.replyAt||0;
+      if(Object.keys(fu).length)out.fu=fu;
+      return out;
+    };
+    const personas=pick(l.state.personas,r.state.personas??[]).map(blend).map(p=>p.decks.every(x=>has.has(x))?p:{...p,decks:p.decks.filter(x=>has.has(x))})
       .map(p=>(seenAt.get(p.id)??0)>p.readAt?{...p,readAt:seenAt.get(p.id)!}:p);
     const mine=(r.state.prefs?.at??0)>(l.state.prefs.at??0)?{myName:r.state.prefs.myName,myAvatar:r.state.prefs.myAvatar,bubble:r.state.prefs.bubble,at:r.state.prefs.at}:{};
     // 云端推送的地址：新的那边说了算；但没更新的旧版本不认识这一项，别让它把地址冲掉
@@ -122,8 +145,14 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
       for(const x of b.letters??[])if(!mdead.has(x.id)){const y=lm.get(x.id),w=y&&(y.u??0)>(x.u??0)?y:x;lm.set(x.id,y?{...w,...(x.read||y.read?{read:true}:{}),...(x.got||y.got?{got:true}:{})}:x);}
       const letters=[...lm.values()].sort((x,y)=>x.at-y.at||(x.id<y.id?-1:1));
       // 每天的一句：按日子并起来（同一天听后点过喜欢的那边）
+      // 同一天两台设备各定了一句：两边都记了时刻的，听先定下的那句（两边会一致）；分不清先后的，这台设备上显示的那句不换。喜欢听后点的那边
       const dm=new Map<string,Box['lines'][number]>();
-      for(const x of [...(o.lines??[]),...(b.lines??[])]){const y=dm.get(x.date);if(!y||(x.u??0)>=(y.u??0))dm.set(x.date,x);}
+      for(const x of rb!.lines??[])dm.set(x.date,x);
+      for(const x of lb!.lines??[]){
+        const y=dm.get(x.date);if(!y){dm.set(x.date,x);continue;}
+        const text=x.at&&y.at&&y.at<x.at?y:x,lk=(y.u??0)>(x.u??0)?y:x;
+        dm.set(x.date,{date:x.date,text:text.text,...(text.at?{at:text.at}:{}),...(lk.like?{like:true}:{}),...(lk.u?{u:lk.u}:{})});
+      }
       const lines=[...dm.values()].sort((x,y)=>x.date<y.date?-1:1).slice(-400);
       // 报备：两边的并起来（同一刻同一句算一条）
       const cm=new Map<string,Box['checks'][number]>();

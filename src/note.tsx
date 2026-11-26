@@ -18,7 +18,7 @@ export function todayLine(p:Persona){
 /** 把今天的这一句记进往日（不用点开也记）。返回今天这一句 */
 export function keepToday(p:Persona){
   const line=todayLine(p),b=box(p.id),today=ymd();
-  if(line&&!b.lines.some(x=>x.date===today))setBox(p.id,{lines:[...b.lines,{date:today,text:line}].slice(-400)},true);
+  if(line&&!b.lines.some(x=>x.date===today))setBox(p.id,{lines:[...b.lines,{date:today,text:line,at:Date.now()}].slice(-400)},true);
   return line;
 }
 export const noteNew=(p:Persona)=>box(p.id).lineSeen!==ymd();

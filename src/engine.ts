@@ -148,7 +148,7 @@ export function setActive(pid:string){active=pid;if(pid)read(pid);}
 export function read(pid:string){
   const p=who(pid);if(!p)return;
   // 已读记到最后一条为止：别的设备钟快几秒、补发的话排在后面，也都算看过了
-  if(unread(p)>0){setPersona(pid,{readAt:Math.max(Date.now(),list(pid).at(-1)?.at??0)});clearNotes(pid);}
+  if(unread(p)>0){setPersona(pid,{readAt:Math.max(Date.now(),list(pid).at(-1)?.at??0)},true);clearNotes(pid);}
   badge();
 }
 
@@ -161,7 +161,7 @@ function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=fa
   if(sticker){pushMsg({pid:p.id,from:'ta',kind:'img',text,at,st:true,...(id?{id}:{})});text='[表情]';}
   else pushMsg({pid:p.id,from:'ta',kind:'text',text,at,src,re,...(id?{id}:{})});
   const here=!document.hidden&&active===p.id;
-  if(here){setPersona(p.id,{readAt:Math.max(Date.now(),at)});if(!late)blip();}
+  if(here){setPersona(p.id,{readAt:Math.max(Date.now(),at)},true);if(!late)blip();}
   else if(!(late&&pushWas()))notify(p,text);
   badge();
 }
@@ -173,9 +173,9 @@ export function sent(pid:string){
   const seenIn=rand(500,Math.min(2600,Math.max(700,d*.5)));
   setTimeout(()=>seen(pid),seenIn);
   // 已读不回：这一次就停在已读
-  if(Math.random()<p.ghost){if(p.replyAt)setPersona(pid,{replyAt:0});return;}
+  if(Math.random()<p.ghost){if(p.replyAt)setPersona(pid,{replyAt:0},true);return;}
   // 正聊着的时候不插进一条主动消息：把下一次主动的时间从现在重新算
-  setPersona(pid,{...(!p.replyAt||p.replyAt<now?{replyAt:now+Math.max(1400,d)}:{}),...(p.pro?{nextAt:nextTime(p,now)}:{})});
+  setPersona(pid,{...(!p.replyAt||p.replyAt<now?{replyAt:now+Math.max(1400,d)}:{}),...(p.pro?{nextAt:nextTime(p,now)}:{})},true);
 }
 function seen(pid:string){
   const now=Date.now();
@@ -286,8 +286,8 @@ export function nextTime(p:Persona,from:number){
   return Math.round(t);
 }
 function proactive(p:Persona,now:number){
-  if(!p.pro){if(p.nextAt)setPersona(p.id,{nextAt:0});return;}
-  if(!p.nextAt){setPersona(p.id,{nextAt:nextTime(p,now)});return;}
+  if(!p.pro){if(p.nextAt)setPersona(p.id,{nextAt:0},true);return;}
+  if(!p.nextAt){setPersona(p.id,{nextAt:nextTime(p,now)},true);return;}
   if(now<p.nextAt)return;
   // 提前排好的（交给云端推送过的）优先用，这样聊天里出现的就是通知里那几句
   let q=plans.pq[p.id]??[];
@@ -303,7 +303,7 @@ function proactive(p:Persona,now:number){
   if(at<=now){q=[];at=nextTime(p,now);}
   if(q.length)plans.pq[p.id]=q;else delete plans.pq[p.id];
   savePlans();
-  setPersona(p.id,{nextAt:at});
+  setPersona(p.id,{nextAt:at},true);
 }
 
 /* 离开前台时：把接下来要到的话排好，交给云端按时推送 */
@@ -364,7 +364,7 @@ export function tick(){
 function tickBody(now:number){
   for(const p of S().personas){
     if(p.replyAt){
-      if(now>=p.replyAt&&!busy.has(p.id)){const at=p.replyAt,r=plans.rq[p.id],planned=r&&r.at===at?r:undefined;if(r){delete plans.rq[p.id];savePlans();}setPersona(p.id,{replyAt:0});reply(p,at,planned);}
+      if(now>=p.replyAt&&!busy.has(p.id)){const at=p.replyAt,r=plans.rq[p.id],planned=r&&r.at===at?r:undefined;if(r){delete plans.rq[p.id];savePlans();}setPersona(p.id,{replyAt:0},true);reply(p,at,planned);}
       else if(p.replyAt-now<Math.min(6000,(p.min*1000)*.8+1200))setTyping(p.id,true);
     }
     if(!busy.has(p.id)&&!p.replyAt)proactive(p,now);
