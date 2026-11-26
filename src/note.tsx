@@ -6,6 +6,7 @@ import {S,box,list,pushMsg,setBox,type Persona} from './db';
 import {sent} from './engine';
 import {Avatar} from './App';
 import {useDismiss} from './ui';
+import {Over} from './over';
 
 export const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 /** 今天的这一句。当天定下来之后就不变（哪怕之后又改了字卡）；没有字卡就是空的 */
@@ -42,7 +43,7 @@ export function NoteCard({p,close}:{p:Persona;close:()=>void}){
     close();location.hash='#/c/'+p.id;
   };
   const olds=b.lines.filter(x=>x.date!==today).reverse(),anyLike=olds.some(x=>x.like),shown=only?olds.filter(x=>x.like):olds;
-  return <div className="veil nt-veil" {...out}>
+  return <Over><div className="veil nt-veil" {...out}>
     <section className="sheet nt" role="dialog" aria-modal="true" aria-label={past?'往日的每一句':`${p.name} 今天的一句`}>
       <i className="grab" aria-hidden="true"/>
       {past?<>
@@ -65,5 +66,5 @@ export function NoteCard({p,close}:{p:Persona;close:()=>void}){
         <button className="linkish nt-past" onClick={()=>setPast(true)}>往日</button>
       </>}
     </section>
-  </div>;
+  </div></Over>;
 }

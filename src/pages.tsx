@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
-import {Bookmark,Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Grid3x3,Heart,Mail,Menu,Pin,Plus,Search,Trash2,X} from 'lucide-react';
+import {Bookmark,Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Grid3x3,GripHorizontal,Heart,Mail,Menu,Pin,Plus,Search,Trash2,X} from 'lucide-react';
 import {S,storage,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
   type Deck,type Persona,type Use,type When} from './db';
 import {onPush,pushLink,pushLive,pushOff,pushOn,pushPrep,pushSet,pushTest,pushUnlink} from './push';
@@ -9,6 +9,7 @@ import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
 import {feats,homeDefault} from './more';
 import {useDismiss,useTwice} from './ui';
+import {Over} from './over';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
 
 /* ───────── 小零件 ───────── */
@@ -23,35 +24,34 @@ export function Toast(){
 export function Sheet({title,close,plain,children}:{title:string;close:()=>void;plain?:boolean;children:React.ReactNode}){
   const out=useDismiss(close);
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[close]);
-  return <div className="veil" {...out}>
+  return <Over><div className="veil" {...out}>
     <section className={`sheet${plain?' plain':''}`} role="dialog" aria-modal="true" aria-label={title||'操作'}>
       <i className="grab" aria-hidden="true"/>
       {title&&<header><h2>{title}</h2><button className="ico sm" onClick={close} aria-label="关上"><X size={20}/></button></header>}
       {children}
     </section>
-  </div>;
+  </div></Over>;
 }
 export function Switch({on,set,label,note}:{on:boolean;set:(v:boolean)=>void;label:string;note?:string}){
   return <label className="line"><span>{label}{note&&<small>{note}</small>}</span><input type="checkbox" className="switch" checked={on} onChange={e=>set(e.target.checked)}/></label>;
 }
-export function Num({label,value,set,min=0,max=9999,unit,step=1}:{label:string;value:number;set:(n:number)=>void;min?:number;max?:number;unit:string;step?:number}){
-  // 打字的时候不去改她打的字：先留着她打的，数字在范围里就直接算数；离开这一格时再收进范围（空着就还是原来的数）
-  const [t,setT]=useState<string|null>(null);
-  const clamp=(n:number)=>Math.max(min,Math.min(max,n));
-  const done=()=>{if(t!==null&&t!==''){const n=clamp(Number(t));if(n!==value)set(n);}setT(null);};
-  // 两边的 − ＋：点一下走一步，按住不放会连着走（越走越快）。用 ref 是因为按住的那段时间里外面的数一直在变
-  const live=useRef({value,set});live.current={value,set};
-  const hold=useRef(0),fresh=useRef(false);   // fresh：刚点进来那一下把数字全选上，这样直接打就是换掉它
-  const bump=(d:number)=>{const n=clamp(live.current.value+d);if(n!==live.current.value){live.current.value=n;live.current.set(n);}};
-  const lift=()=>clearInterval(hold.current);
-  useEffect(()=>lift,[]);
-  const press=(d:number)=>(e:React.PointerEvent)=>{if(e.button!==0)return;setT(null);bump(d);lift();let n=0;hold.current=window.setInterval(()=>{n++;if(n>4)bump(d*(n>28?5:1));},90);};
-  const btn=(d:number,name:string,off:boolean)=><button type="button" className="nb" disabled={off} aria-label={`${label}${name}`} onPointerDown={press(d)} onPointerUp={lift} onPointerLeave={lift} onPointerCancel={lift}
-    onClick={e=>{if(e.detail===0)bump(d);}} onContextMenu={e=>e.preventDefault()}>{d<0?'−':'+'}</button>;
-  return <div className="line"><span>{label}</span><span className="num">{btn(-step,'减少',value<=min)}<input type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" value={t??String(value)} aria-label={label}
+// 一个能打数字的小格子。打字的时候不去改她打的字：数字在范围里就直接算数；离开这一格时再收进范围（空着就还是原来的数）
+function NumIn({value,set,min,max,label}:{value:number;set:(n:number)=>void;min:number;max:number;label:string}){
+  const [t,setT]=useState<string|null>(null),fresh=useRef(false);   // fresh：刚点进来那一下把数字全选上，直接打就是换掉它
+  const done=()=>{fresh.current=false;if(t!==null&&t!==''){const n=Math.max(min,Math.min(max,Number(t)));if(n!==value)set(n);}setT(null);};
+  return <input type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" value={t??String(value)} aria-label={label}
     onFocus={e=>{setT(String(value));fresh.current=true;try{e.target.select();}catch{/* */}}} onMouseUp={e=>{if(fresh.current){fresh.current=false;e.preventDefault();}}}
     onChange={e=>{const v=e.target.value.replace(/\D/g,'').slice(0,String(max).length);setT(v);const n=Number(v);if(v!==''&&n>=min&&n<=max&&n!==value)set(n);}}
-    onBlur={()=>{fresh.current=false;done();}} onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}}/>{btn(step,'增加',value>=max)}<em>{unit}</em></span></div>;
+    onBlur={done} onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}}/>;
+}
+export function Num({label,value,set,min=0,max=9999,unit}:{label:string;value:number;set:(n:number)=>void;min?:number;max?:number;unit:string}){
+  return <label className="line"><span>{label}</span><span className="num"><NumIn value={value} set={set} min={min} max={max} label={label}/>{unit}</span></label>;
+}
+/** 一行两个数：从几到几（回复要等多久、隔多久主动找你）。前一个改大了，后一个跟着抬；后一个不能比前一个小 */
+export function Range({label,a,b,set,min,max,unit}:{label:string;a:number;b:number;set:(a:number,b:number)=>void;min:number;max:number;unit:string}){
+  return <div className="line"><span>{label}</span><span className="num">
+    <NumIn value={a} set={n=>set(n,Math.max(n,b))} min={min} max={max} label={`${label}，最少`}/>–
+    <NumIn value={b} set={n=>set(a,Math.max(n,a))} min={a} max={max} label={`${label}，最多`}/>{unit}</span></div>;
 }
 const shareable=(f:File)=>{try{return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!!navigator.canShare?.({files:[f]});}catch{return false;}};
 const download=(name:string,text:string,type='application/json')=>{
@@ -71,7 +71,7 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
   // 一行一张图：有图时右边是小缩略图（点它换一张）和「不要」，没图时只有一个「放一张」
   const picRow=(label:string,id:string|undefined,ref:React.RefObject<HTMLInputElement|null>,key:'wall'|'callPic')=><div className="line"><span>{label}</span><span className="pact">
     {id&&<button className="linkish" onClick={()=>set({[key]:undefined})}>不要</button>}
-    {id?<button className="pthumb" onClick={()=>ref.current?.click()} aria-label={`换一张${label}`}><Pic id={id} alt=""/></button>:<button className="chip" onClick={()=>ref.current?.click()}>放一张</button>}
+    {id?<button className="pthumb" onClick={()=>ref.current?.click()} aria-label={`换一张${label}`}><Pic id={id} alt=""/></button>:<button className="linkish" onClick={()=>ref.current?.click()}>放一张</button>}
     <input ref={ref} type="file" accept="image/*" hidden onChange={photo(key,1600)}/></span></div>;
   const mine=st.decks.filter(d=>p.decks.includes(d.id));
   const twice=(k:string,run:()=>void)=>()=>{if(sure!==k){setSure(k);return;}setSure('');run();};
@@ -81,41 +81,38 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
       <input ref={pick} type="file" accept="image/*" hidden onChange={photo('avatar',512)}/>
     </div>
     <label className="prow"><span>名字</span><input value={p.name} onChange={e=>set({name:e.target.value})}/></label>
-    <label className="prow"><span>签名</span><input value={p.bio} onChange={e=>set({bio:e.target.value})} placeholder="名字下面的一句话"/></label>
-    <label className="prow"><span>在一起的日子</span><input type="date" value={p.since} onChange={e=>set({since:e.target.value})}/></label>
+    <label className="prow"><span>签名</span><input value={p.bio} onChange={e=>set({bio:e.target.value})} placeholder="一句话"/></label>
+    <label className="prow"><span>在一起</span><input type="date" value={p.since} onChange={e=>set({since:e.target.value})}/></label>
     {picRow('聊天背景',p.wall,wall,'wall')}
     {picRow('通话画面',p.callPic,face,'callPic')}
 
-    <h3>他回复的节奏</h3>
-    <Num label="最快" value={p.min} set={n=>set({min:n,max:Math.max(n,p.max)})} min={1} max={600} unit="秒"/>
-    <Num label="最慢" value={p.max} set={n=>set({max:Math.max(n,p.min)})} min={p.min} max={3600} unit="秒"/>
-    <Num label="一次最多回" value={p.burst} set={n=>set({burst:n})} min={1} max={6} unit="条"/>
+    <h3>回复</h3>
+    <Range label="隔多久回" a={p.min} b={p.max} set={(a,b)=>set({min:a,max:b})} min={1} max={3600} unit="秒"/>
+    <Num label="一次最多" value={p.burst} set={n=>set({burst:n})} min={1} max={6} unit="条"/>
     <Num label="已读不回" value={Math.round(p.ghost*100)} set={n=>set({ghost:n/100})} min={0} max={90} unit="%"/>
-    <Switch on={p.join} set={v=>set({join:v})} label="把几张字卡拼成一句" note="随机抽几张，用逗号、空格或省略号连起来"/>
+    <Switch on={p.join} set={v=>set({join:v})} label="把字卡拼成一句"/>
     {p.join&&<Num label="最多拼" value={p.joinMax} set={n=>set({joinMax:n})} min={2} max={5} unit="张"/>}
-    <Switch on={p.stick!==false} set={v=>set({stick:v})} label="他也会发表情包" note="从聊天里的表情包库随手挑一张"/>
+    <Switch on={p.stick!==false} set={v=>set({stick:v})} label="发表情包"/>
 
-    <h3>他主动找你</h3>
-    <Switch on={p.pro} set={v=>set({pro:v,nextAt:0})} label="会主动发消息"/>
+    <h3>主动找你</h3>
+    <Switch on={p.pro} set={v=>set({pro:v,nextAt:0})} label="主动发消息"/>
     {p.pro&&<>
-      <Num label="最短隔" value={p.proMin} set={n=>set({proMin:n,proMax:Math.max(n,p.proMax),nextAt:0})} min={1} max={1440} step={5} unit="分钟"/>
-      <Num label="最长隔" value={p.proMax} set={n=>set({proMax:Math.max(n,p.proMin),nextAt:0})} min={p.proMin} max={2880} step={5} unit="分钟"/>
-      <div className="line"><span>他睡觉的时间<small>这段时间不会主动找你</small></span><span className="num">
-        <select value={p.quietFrom} onChange={e=>set({quietFrom:+e.target.value,nextAt:0})} aria-label="几点睡">{hours.map(h=><option key={h} value={h}>{h}:00</option>)}</select>到
+      <Range label="隔多久" a={p.proMin} b={p.proMax} set={(a,b)=>set({proMin:a,proMax:b,nextAt:0})} min={1} max={2880} unit="分钟"/>
+      <div className="line"><span>睡觉</span><span className="num">
+        <select value={p.quietFrom} onChange={e=>set({quietFrom:+e.target.value,nextAt:0})} aria-label="几点睡">{hours.map(h=><option key={h} value={h}>{h}:00</option>)}</select>–
         <select value={p.quietTo} onChange={e=>set({quietTo:+e.target.value,nextAt:0})} aria-label="几点醒">{hours.map(h=><option key={h} value={h}>{h}:00</option>)}</select></span></div>
-      <Switch on={p.calls!==false} set={v=>set({calls:v})} label="他也会打视频过来" note="偶尔不发消息，直接打过来；没接到会在聊天里留一条未接"/>
-      <div className="rowbtn"><button className="chip" onClick={()=>{if(!nudge(p.id))say('他还没有能用的字卡');}}>现在让他说一句试试</button></div>
+      <Switch on={p.calls!==false} set={v=>set({calls:v})} label="打视频过来"/>
+      <button className="trow" onClick={()=>{if(!nudge(p.id))say('他还没有能用的字卡');}}>让他现在说一句</button>
     </>}
 
-    <h3>他用哪些字卡</h3>
+    <h3>字卡</h3>
     {!st.decks.length?<p className="hint">还没有字卡分组。<a className="linkish" href="#/cards" onClick={close}>去加一个</a></p>
       :allDecks?<div className="chips">{st.decks.map(d=><button key={d.id} className="chip" aria-pressed={p.decks.includes(d.id)} onClick={()=>shareDeck(d.id,p.id,!p.decks.includes(d.id))}>{d.name}<small>{d.cards.length}</small></button>)}</div>
       :<button className="line pmore" onClick={()=>setAllDecks(true)} aria-expanded={false}><span>{mine.length?`${mine.length} 个分组，${mine.reduce((n,d)=>n+d.cards.length,0)} 张`:'还没选'}<small>{mine.slice(0,4).map(d=>d.name).join('、')}{mine.length>4?' …':''}</small></span><ChevronDown size={18} strokeWidth={1.6}/></button>}
 
-    <h3>别的</h3>
-    <div className="rowbtn">
-      <button className="chip danger" onClick={twice('clear',()=>{clearMsgs(p.id);say('聊天记录清空了');})}>{sure==='clear'?'再点一次，清空聊天记录':'清空聊天记录'}</button>
-      <button className="chip danger" onClick={twice('drop',()=>{dropPersona(p.id);close();go('#/inbox');})}>{sure==='drop'?'再点一次，连记录一起删掉':'删掉这一位'}</button>
+    <div className="trows">
+      <button className="trow danger" onClick={twice('clear',()=>{clearMsgs(p.id);say('聊天记录清空了');})}>{sure==='clear'?'再点一次，清空聊天记录':'清空聊天记录'}</button>
+      <button className="trow danger" onClick={twice('drop',()=>{dropPersona(p.id);close();go('#/inbox');})}>{sure==='drop'?'再点一次，连记录一起删掉':'删掉这一位'}</button>
     </div>
   </Sheet>;
 }
@@ -147,8 +144,28 @@ export function Home({p}:{p:Persona}){
   useEffect(()=>{if(st.prefs.last!==p.id)setPrefs({last:p.id});},[p.id]);
   const days=p.since?Math.max(1,Math.floor((Date.now()-new Date(p.since+'T00:00:00').getTime())/864e5)+1):0;
   const chatN=ms.filter(m=>m.kind!=='tip').length;
-  // 主页那一排：自己挑过就按挑的，没挑过用默认的几个。顺序照功能表
-  const pinned=st.prefs.hl??homeDefault,row=feats.filter(f=>pinned.includes(f.id));
+  // 主页那一排：自己挑过就按挑的，没挑过用默认的几个。顺序：自己拖过（或动过图钉）之后照自己排的；在那之前照功能表，和以前一样
+  const known=(st.prefs.hl??homeDefault).filter(id=>feats.some(f=>f.id===id));
+  const pinned=st.prefs.hlOrd?known:feats.map(f=>f.id).filter(id=>known.includes(id)),row=pinned.map(id=>feats.find(f=>f.id===id)!);
+  const setHl=(ids:string[])=>setPrefs({hl:ids,hlOrd:true});
+  // 在 ☰ 里按住 ≡ 上下拖，换那一排的顺序。拖的时候不挪真的位置（只用位移画出来），松手才存：这样手指按着的那个东西一直在原处，不会拖到一半断掉
+  const [drag,setDrag]=useState<{id:string;from:number;dy:number;h:number}|null>(null),dragY=useRef(0);
+  const dragTo=drag?Math.max(0,Math.min(pinned.length-1,drag.from+Math.round(drag.dy/drag.h))):-1;
+  const move=(from:number,to:number)=>{if(to===from||to<0||to>=pinned.length)return;const a=[...pinned];a.splice(to,0,a.splice(from,1)[0]);setHl(a);};
+  const grip=(id:string,i:number)=>({
+    onPointerDown:(e:React.PointerEvent<HTMLButtonElement>)=>{if(e.button!==0)return;e.preventDefault();try{e.currentTarget.setPointerCapture(e.pointerId);}catch{/* */}dragY.current=e.clientY;setDrag({id,from:i,dy:0,h:e.currentTarget.closest('li')?.offsetHeight||55});},
+    onPointerMove:(e:React.PointerEvent)=>{if(drag?.id===id)setDrag({...drag,dy:e.clientY-dragY.current});},
+    onPointerUp:()=>{if(drag){move(drag.from,dragTo);setDrag(null);}},
+    onPointerCancel:()=>setDrag(null),
+    onKeyDown:(e:React.KeyboardEvent)=>{if(e.key==='ArrowUp'){e.preventDefault();move(i,i-1);}else if(e.key==='ArrowDown'){e.preventDefault();move(i,i+1);}},
+    onContextMenu:(e:React.MouseEvent)=>e.preventDefault(),
+  });
+  const shift=(i:number):React.CSSProperties|undefined=>{
+    if(!drag)return undefined;
+    if(i===drag.from)return {transform:`translateY(${Math.max(-drag.from*drag.h,Math.min((pinned.length-1-drag.from)*drag.h,drag.dy))}px)`};
+    const d=drag.from<dragTo&&i>drag.from&&i<=dragTo?-drag.h:drag.from>dragTo&&i>=dragTo&&i<drag.from?drag.h:0;
+    return {transform:`translateY(${d}px)`,transition:'transform .16s var(--ease)'};
+  };
   const [menu,setMenu]=useState(false),[tab,setTab]=useState<'pics'|'fav'>('pics'),[view,setView]=useState('');
   // 那一排的封面：默认是一个小图标，长按（电脑上右键）可以换成自己的照片
   const covers=st.prefs.hlPic??{},[cover,setCover]=useState(''),held=useRef({t:0,fired:false}),cfile=useRef<HTMLInputElement>(null);
@@ -174,7 +191,7 @@ export function Home({p}:{p:Persona}){
       <button className="ico" onClick={()=>setMenu(true)} aria-label="更多"><Menu size={25} strokeWidth={1.7}/></button>
     </header>
 
-    <section className="profile">
+    <section className={`profile${line?' noted':''}`}>
       <div className="face">
         {line&&<button className="note" onClick={()=>setNote(true)} aria-label={`${p.name} 今天的一句：${line}${noteNew(p)?'（还没看过）':''}`}><span>{line}</span></button>}
         {line&&noteNew(p)&&<i className="note-dot" aria-hidden="true"/>}
@@ -213,21 +230,24 @@ export function Home({p}:{p:Persona}){
         const body=<>{f.img?<Pic id={f.img} className="favpic" alt="收藏的图片"/>:<p>{f.text}</p>}<small>{f.kind==='mail'&&<Mail size={12} strokeWidth={1.8} aria-hidden="true"/>}{f.kind==='line'&&<Heart size={12} strokeWidth={1.8} aria-hidden="true"/>}{f.who} · {f.kind==='line'?`${new Date(f.at).getMonth()+1}月${new Date(f.at).getDate()}日`:dayLabel(f.at)}</small></>;
         return <li key={f.key}>{f.to?<a href={f.to} onClick={()=>{if(f.jump)try{sessionStorage.setItem('cx-jump',f.jump);}catch{/* */}}}>{body}</a>:<button onClick={()=>setNote(true)}>{body}</button>}</li>;})}</ul>
       :<p className="empty">聊天里长按一句话点「收藏」，它就留在这里。</p>)}
-    {view&&<button className="viewer" onClick={()=>setView('')} aria-label="关掉大图"><Pic id={view} alt="大图"/></button>}
+    {view&&<Over><button className="viewer" onClick={()=>setView('')} aria-label="关掉大图"><Pic id={view} alt="大图"/></button></Over>}
     <input ref={cfile} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';const id=cover;setCover('');if(f&&id)try{setCov(id,await putImage(f,400));}catch{say('这张图片读不了，换一张试试');}}}/>
     {cover&&<Sheet title="" plain close={()=>setCover('')}>
       <ul className="ml-menu">
         <li><button onClick={()=>cfile.current?.click()}>换封面</button></li>
         {covers[cover]&&<li><button onClick={()=>{setCov(cover);setCover('');}}>用回图标</button></li>}
-        <li><button onClick={()=>{setPrefs({hl:pinned.filter(x=>x!==cover)});setCover('');}}>从这一排拿掉</button></li>
+        <li><button onClick={()=>{setHl(pinned.filter(x=>x!==cover));setCover('');}}>从这一排拿掉</button></li>
       </ul>
     </Sheet>}
     {menu&&<Sheet title="" plain close={()=>setMenu(false)}>
-      <ul className="hmenu">
-        {feats.map(f=><li key={f.id}><a href={`#/f/${f.id}/${p.id}`}><f.icon size={22} strokeWidth={1.5}/>{f.name}</a>
-          <button aria-pressed={pinned.includes(f.id)} onClick={()=>setPrefs({hl:pinned.includes(f.id)?pinned.filter(x=>x!==f.id):[...pinned,f.id]})} aria-label={pinned.includes(f.id)?`把 ${f.name} 从主页那一排拿掉`:`把 ${f.name} 放到主页那一排`}><Pin size={18} strokeWidth={1.6} fill={pinned.includes(f.id)?'currentColor':'none'}/></button></li>)}
+      <ul className={`hmenu${drag?' sorting':''}`}>
+        {row.map((f,i)=><li key={f.id} className={drag?.id===f.id?'drag':''} style={shift(i)}><a href={`#/f/${f.id}/${p.id}`}><f.icon size={22} strokeWidth={1.5}/>{f.name}</a>
+          <button className="grip" {...grip(f.id,i)} aria-label={`按住上下拖，挪 ${f.name} 的位置（现在第 ${i+1} 个）`}><GripHorizontal size={20} strokeWidth={1.6}/></button>
+          <button aria-pressed onClick={()=>setHl(pinned.filter(x=>x!==f.id))} aria-label={`把 ${f.name} 从主页那一排拿掉`}><Pin size={18} strokeWidth={1.6} fill="currentColor"/></button></li>)}
+        {feats.filter(f=>!pinned.includes(f.id)).map(f=><li key={f.id}><a href={`#/f/${f.id}/${p.id}`}><f.icon size={22} strokeWidth={1.5}/>{f.name}</a>
+          <button aria-pressed={false} onClick={()=>setHl([...pinned,f.id])} aria-label={`把 ${f.name} 放到主页那一排`}><Pin size={18} strokeWidth={1.6}/></button></li>)}
       </ul>
-      <p className="hint center">点亮图钉的会排在主页；长按主页上的圆圈可以换封面。</p>
+      <p className="hint center">图钉亮着的排在主页，按住 <GripHorizontal size={13} strokeWidth={1.8} style={{verticalAlign:'-2px'}}/> 拖动换顺序；长按主页上的圆圈换封面。</p>
     </Sheet>}
     {edit&&<PersonaSheet p={p} close={()=>setEdit(false)}/>}
     {note&&<NoteCard p={p} close={()=>setNote(false)}/>}

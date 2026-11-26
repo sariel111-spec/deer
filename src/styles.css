@@ -57,7 +57,7 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .line>span:first-child{display:grid;font-size:15px}
 .line small{font-size:12px;color:var(--mute);line-height:1.5}
 .num{display:inline-flex;align-items:center;gap:6px;color:var(--mute);font-size:14px;flex:none}
-.num input,.num select{width:66px;height:34px;border:0;border-radius:9px;background:var(--soft);text-align:center;font-size:16px;color:var(--fg);outline:0}
+.num input,.num select{width:56px;height:34px;border:0;border-radius:9px;background:var(--soft);text-align:center;font-size:16px;color:var(--fg);outline:0}
 .num select{width:auto;padding:0 8px}
 .switch{appearance:none;flex:none;width:46px;height:28px;border-radius:99px;background:var(--line);position:relative;transition:background-color .2s;cursor:pointer}
 .switch::after{content:'';position:absolute;left:2px;top:2px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s var(--ease)}
@@ -159,7 +159,7 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 
 /* 我们 */
 .me-row{display:grid;justify-items:center;padding:6px 0 2px}
-.pick{display:grid;justify-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--accent)}
+.pick{display:grid;justify-items:center;gap:8px;font-size:14px;font-weight:600;color:#3A82F7}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-top:2px}
 .grid img{width:100%;object-fit:cover;display:block}
 
@@ -211,13 +211,14 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .namebtn b{font-size:22px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .namebtn svg{flex:none;margin-top:3px}
 .namebtn i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--red);margin-left:4px}
-.profile{display:flex;align-items:center;gap:22px;padding-top:30px}
+.profile{display:flex;align-items:center;gap:22px;padding-top:14px}
+.profile.noted{padding-top:48px}
 .face{position:relative;flex:none;width:86px;height:86px}
 .face>button:first-of-type{display:block;border-radius:50%}
 .mebadge{position:absolute;right:-6px;bottom:-4px;border-radius:50%;box-shadow:0 0 0 3px var(--bg)}
 /* 头像上面那条 note：今天他的一句话 */
 /* 照 ins 的便签：白色圆角气泡压在头像上沿，字居中，左下角两颗小圆点当尾巴 */
-.note{position:absolute;left:-6px;bottom:calc(100% - 14px);z-index:2;width:max-content;min-width:52px;max-width:176px;padding:9px 13px;border-radius:18px;background:var(--bg);color:var(--fg);font-size:12.5px;line-height:1.35;text-align:center;
+.note{position:absolute;left:-6px;bottom:100%;z-index:2;width:max-content;min-width:52px;max-width:min(230px,62vw);text-wrap:balance;padding:9px 13px;border-radius:18px;background:var(--bg);color:var(--fg);font-size:12.5px;line-height:1.35;text-align:center;
   box-shadow:0 1px 10px rgba(0,0,0,.14);overflow:visible}
 .note span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .note::before,.note::after{content:'';position:absolute;border-radius:50%;background:inherit}
@@ -692,7 +693,7 @@ textarea.ml-body{display:block;width:100%;min-height:260px;padding:0;border:0;bo
 .ml-orig.open span{display:block;-webkit-line-clamp:unset}
 /* 头像上的那一句 */
 button.note{cursor:pointer}
-.note-dot{position:absolute;left:-9px;bottom:calc(100% + 13px);z-index:3;width:9px;height:9px;border-radius:50%;background:#3A82F7;box-shadow:0 0 0 2px var(--bg);pointer-events:none}
+.note-dot{position:absolute;left:-9px;bottom:calc(100% + 27px);z-index:3;width:9px;height:9px;border-radius:50%;background:#3A82F7;box-shadow:0 0 0 2px var(--bg);pointer-events:none}
 .nt{padding-bottom:calc(18px + env(safe-area-inset-bottom))}
 .nt-face{display:grid;justify-items:center;gap:0;padding-top:18px}
 .nt-bubble{position:relative;z-index:1;min-width:76px;max-width:min(300px,86%);margin:0 0 -10px;padding:13px 18px;border-radius:24px;background:var(--bg);box-shadow:0 1px 12px rgba(0,0,0,.16);font-size:17px;line-height:1.5;text-align:center;overflow-wrap:anywhere}
@@ -858,9 +859,13 @@ button.ml-photo{cursor:zoom-in}
 
 /* ── 资料与节奏：照 ins「编辑主页」——左边是名字、右边直接改，一行一条细线 ── */
 .sheet>header{position:sticky;top:0;z-index:3;background:var(--bg);box-shadow:0 -9px 0 var(--bg)}
+/* 浮层的标题：居中，右边一个叉，下面一条通到两边的细线（ins 的浮层都是这样） */
+.sheet>header:has(>h2+.ico){justify-content:center;margin-bottom:6px}
+.sheet>header>h2+.ico{position:absolute;right:-8px;top:50%;margin-top:-18px}
+.sheet>header:has(>h2+.ico)::after{content:'';position:absolute;left:-18px;right:-18px;bottom:0;height:1px;background:var(--line)}
 .sheet>.grab{position:relative;z-index:4}
 .prow{display:flex;align-items:center;gap:12px;min-height:50px;border-bottom:1px solid var(--line)}
-.prow>span{flex:none;width:100px;font-size:15px}
+.prow>span{flex:none;width:84px;font-size:15px}
 .prow input{flex:1;min-width:0;height:44px;padding:0;border:0;outline:0;background:none;font-size:16px;color:var(--fg);-webkit-appearance:none;appearance:none;text-align:left}
 .prow input::placeholder{color:var(--mute);opacity:.7}
 .prow input[type=date]{min-width:0;font-variant-numeric:tabular-nums}
@@ -871,12 +876,6 @@ button.ml-photo{cursor:zoom-in}
 .pmore{width:100%;text-align:left;color:var(--fg)}
 .pmore small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pmore svg{flex:none;color:var(--mute)}
-/* 数字两边的 − ＋ */
-.num .nb{width:34px;height:34px;border-radius:50%;background:var(--soft);font-size:19px;line-height:1;color:var(--fg);display:grid;place-items:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-.num .nb:active{background:var(--line)}
-.num .nb:disabled{opacity:.3}
-.num input{width:54px}
-.num em{font-style:normal;min-width:2em;text-align:left}
 
 /* 删东西的小图标点第一下：变成红色的「再点一次」 */
 .ico.danger{min-width:0;padding:0 6px;border-radius:99px}
@@ -891,3 +890,21 @@ button.ml-photo{cursor:zoom-in}
 .q1{margin-top:10px;display:grid;gap:14px}
 .q1 .btn{justify-self:end;min-width:108px}
 .lede.center{text-align:center;margin-top:22px}
+
+.over{display:contents}
+
+/* 一行蓝字 = 一个动作；红字 = 删东西（ins 设置里的写法） */
+.trow{display:block;width:100%;min-height:50px;text-align:left;font-size:16px;color:#3A82F7;border-bottom:1px solid var(--line)}
+.trow.danger{color:var(--red)}
+.trow:active{opacity:.55}
+.trows{margin-top:26px}.trows .trow:last-child{border:0}
+/* ☰ 里拖着换顺序 */
+.hmenu li{position:relative;background:var(--bg)}
+.hmenu li>button.grip{color:var(--mute);touch-action:none;cursor:grab;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.hmenu li.drag{z-index:2;border-color:transparent;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
+.hmenu.sorting li>button.grip{cursor:grabbing}
+/* 深色：浮层比页面亮一档（ins 也是这样），不然黑底上的黑浮层分不出边 */
+:root[data-theme=dark] .sheet{--bg:#1c1c1e;--soft:#2c2c2e;--line:#303032}
+@media (prefers-color-scheme:dark){:root[data-theme=auto] .sheet{--bg:#1c1c1e;--soft:#2c2c2e;--line:#303032}}
+:root[data-theme=dark] .hmenu li.drag{background:#2a2a2c}
+@media (prefers-color-scheme:dark){:root[data-theme=auto] .hmenu li.drag{background:#2a2a2c}}

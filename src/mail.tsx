@@ -8,6 +8,7 @@ import {MAIL_PROMPT,dsAuto,type Msg as AiMsg} from './ai';
 import {AiBlock} from './aiui';
 import {Pic,nav} from './App';
 import {Sheet,say} from './pages';
+import {Over} from './over';
 import {letterImage} from './mailimg';
 
 // 信箱里的三个页面都写在地址里（…/mail/<pid>、…/w、…/w/<回的那封>、…/e/<接着改的那封>、…/r/<信>），
@@ -219,7 +220,7 @@ function Read({p,l,all,patch,drop,go,back}:{p:Persona;l:Letter;all:Letter[];patc
         {newer?<button className="linkish" onClick={()=>turn(newer)}>下一封 ›</button>:<span/>}
       </nav>}
     </>}
-    {zoom&&l.img&&<button className="viewer" onClick={()=>setZoom(false)} aria-label="关掉大图"><Pic id={l.img} alt="夹在信里的照片"/></button>}
+    {zoom&&l.img&&<Over><button className="viewer" onClick={()=>setZoom(false)} aria-label="关掉大图"><Pic id={l.img} alt="夹在信里的照片"/></button></Over>}
     {more&&!pic&&<Sheet title="" plain close={()=>setMore(false)}>
       <ul className="ml-menu">
         <li><button onClick={()=>{setMore(false);void draw();}}>存成图片</button></li>
