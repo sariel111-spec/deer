@@ -163,7 +163,15 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
       // 自动写的几样不抢「谁晚」（见 db.ts 的 setBox quiet），所以各自有规则：看过今天这一句取晚的那天；下一封主动来信取排得晚的；响铃 / 通话只认本机
       const seen=[b.lineSeen,o.lineSeen].filter(Boolean).sort().at(-1);
       const mn=b.mailNext&&o.mailNext?(o.mailNext.at>b.mailNext.at?o.mailNext:b.mailNext):(b.at??0)===(o.at??0)?b.mailNext??o.mailNext:b.mailNext;
-      boxes[p.id]={...b,lineSeen:seen,mailNext:mn,ring:lb?.ring,call:lb?.call,letters,lines,checks,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
+      // 其余的设置（信的节奏、他的照片库、他的报备组、纪念日…）：每一项各听各的后改。没记时刻的改动（旧版本改的）算在整格头上
+      const MERGED=new Set(['at','fu','letters','lines','checks','tarot','tarotGone','tarotMine','mailGone','lineSeen','mailNext','ring','call']);
+      const looseB=(x:Box)=>(x.at??0)>Math.max(0,...Object.values(x.fu??{}))?(x.at??0):0,lB=looseB(b),lO=looseB(o);
+      const one:Record<string,unknown>={},fu:Record<string,number>={...b.fu};
+      for(const k of Object.keys(o.fu??{})){
+        if(MERGED.has(k))continue;
+        if(Math.max(o.fu![k],lO)>Math.max(b.fu?.[k]??0,lB)){one[k]=(o as unknown as Record<string,unknown>)[k];fu[k]=o.fu![k];}
+      }
+      boxes[p.id]={...b,...(one as Partial<Box>),...(Object.keys(fu).length?{fu}:{}),lineSeen:seen,mailNext:mn,ring:lb?.ring,call:lb?.call,letters,lines,checks,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
     }else if(b)boxes[p.id]=b===rb?{...b,ring:undefined,call:undefined}:b;
   }
   return {state,msgs,boxes,graves};

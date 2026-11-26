@@ -42,7 +42,8 @@ export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time'|'link'|
 export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string;like?:boolean;u?:number;at?:number}[];lineSeen?:string;answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string;id?:string;plan?:string}[];ckDecks?:string[];listen:number;   // checks.id：聊天里那条消息；checks.plan：这条报的是哪天的哪条日程；ckDecks：他哪几组字卡算报备
   focus:{n:number;min:number};
-  cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number;
+  cycle:{starts:string[];len:number;gap:number};posts:Post[];at?:number;fu?:Record<string,number>;   // fu：每一项设置是什么时候改的（同步时各项各听各的后改）
+  
   call?:{at:number};ring?:{at:number};
   mailGone?:string[];mailPace?:number;mailLen?:number;mailPro?:number;mailNext?:{at:number;text:string;img?:string};mailPics?:string[];mailCall?:string;mailSign?:string;   // mailCall：他在信里怎么称呼你；mailSign：他的落款
     // 信箱：删掉的信（同步时别的设备也跟着删）、回信多快、多长、他会不会主动写信、下一封主动的信
@@ -216,7 +217,7 @@ async function wakeStore(){
 const saveMsgs=(pid:string)=>{touch();emit();void persist('m:'+pid);};
 /** quiet：自动发生的事（每天记一句、信到了、他打来）不算「这台设备改过」，不动 at——
  *  同步时小功能整份听 at 晚的那边，自动写的东西要是也抢这个「晚」，会把另一台设备上真正改过的东西盖掉 */
-export const setBox=(pid:string,patch:Partial<Box>,quiet=false)=>{const old=boxes.get(pid),b={...blankBox(),...old,...patch,at:quiet?(old?.at||1):Date.now()};boxes.set(pid,b);touch();emit();void persist('x:'+pid);};
+export const setBox=(pid:string,patch:Partial<Box>,quiet=false)=>{const old=boxes.get(pid),now=Date.now(),b={...blankBox(),...old,...patch,at:quiet?(old?.at||1):now,...(quiet?{}:{fu:{...old?.fu,...Object.fromEntries(Object.keys(patch).map(k=>[k,now]))}})};boxes.set(pid,b);touch();emit();void persist('x:'+pid);};
 const bury=(pid:string,g:Grave)=>{graves.set(pid,g);void persist('d:'+pid,false);};
 
 const tidyUp=(st:State):State=>st.stickers?.length?{...st,stickers:[],packs:[...(st.packs??[]),{id:uid(),name:'默认',ids:st.stickers,created:Date.now(),updated:Date.now()}]}:st;
