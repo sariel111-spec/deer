@@ -13,6 +13,7 @@ import {feats} from './more';
 
 let toast='',toastT=0;const tsubs=new Set<()=>void>();
 export function say(t:string){toast=t;tsubs.forEach(f=>f());clearTimeout(toastT);toastT=window.setTimeout(()=>{toast='';tsubs.forEach(f=>f());},2400);}
+if(typeof window!=='undefined')addEventListener('cx-say',e=>say(String((e as CustomEvent).detail??'')));
 export function Toast(){
   const t=useSyncExternalStore(f=>{tsubs.add(f);return()=>{tsubs.delete(f);};},()=>toast);
   return t?<div className="toast" role="status">{t}</div>:null;

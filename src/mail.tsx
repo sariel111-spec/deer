@@ -6,11 +6,22 @@ import {S,box,setBox,uid,type Letter,type Persona} from './db';
 import {mailLens,mailPaces,mailPros,planProMail,sendLetter} from './engine';
 import {MAIL_PROMPT,dsAuto,type Msg as AiMsg} from './ai';
 import {AiBlock} from './aiui';
-import {Sub} from './more';
+import {nav} from './App';
 import {Sheet,say} from './pages';
 import {letterImage} from './mailimg';
 
-type View={k:'list'}|{k:'write';re?:string}|{k:'read';id:string};
+// 信箱里的三个页面都写在地址里（…/mail/<pid>、…/w、…/w/<回的那封>、…/e/<接着改的那封>、…/r/<信>），
+// 这样系统的返回、手机上的侧滑返回，回到的是信箱列表，而不是一下退出信箱
+type View={k:'list'}|{k:'write';re?:string;edit?:string}|{k:'read';id:string};
+const baseOf=(pid:string)=>'#/f/mail/'+pid;
+const viewOf=():View=>{const [, , , ,d,e]=location.hash.replace(/^#\/?/,'/').split('/');return d==='w'?{k:'write',re:e||undefined}:d==='e'&&e?{k:'write',edit:e}:d==='r'&&e?{k:'read',id:e}:{k:'list'};};
+const hashOf=(pid:string,v:View)=>baseOf(pid)+(v.k==='write'?(v.edit?'/e/'+v.edit:'/w'+(v.re?'/'+v.re:'')):v.k==='read'?'/r/'+v.id:'');
+/** 去某一页。swap：顶替当前这一页（翻上一封 / 下一封时用，返回仍然回到列表） */
+const goTo=(pid:string,v:View,swap=false)=>{const h=hashOf(pid,v);if(swap)location.replace(h);else location.hash=h;};
+/** 从写信 / 读信退回去：是从信箱里点进来的就原路返回，不是（比如刷新后直接停在这页）就换成列表 */
+const backFrom=(pid:string)=>{if(nav.from.startsWith(baseOf(pid))&&nav.from!==location.hash)history.back();else location.replace(baseOf(pid));};
+// 是从哪儿进的信箱（聊天里点进来的，退出时回聊天）
+const cameFrom:Record<string,string>={};
 const WK='日一二三四五六';
 const two=(n:number)=>String(n).padStart(2,'0');
 const md=(t:number)=>{const d=new Date(t);return `${two(d.getMonth()+1)}/${two(d.getDate())}`;};
@@ -31,18 +42,22 @@ const Post=({top,t}:{top:string;t:number})=><span className="ml-post" aria-hidde
 
 export function MailBox({p}:{p:Persona}){
   const b=box(p.id),all=b.letters;
-  const [view,setView]=useState<View>({k:'list'}),[tab,setTab]=useState<'all'|'in'|'out'|'star'>('all'),[pace,setPace]=useState(false);
+  const view=viewOf(),setView=(v:View,swap=false)=>goTo(p.id,v,swap);
+  const [tab,setTab]=useState<'all'|'in'|'out'|'star'>('all'),[pace,setPace]=useState(false);
+  if(nav.from&&!nav.from.startsWith(baseOf(p.id)))cameFrom[p.id]=nav.from;
   const patch=(id:string,x:Partial<Letter>)=>setBox(p.id,{letters:box(p.id).letters.map(l=>l.id===id?{...l,...x,u:Date.now()}:l)});
-  const drop=(id:string)=>{const now=box(p.id);setBox(p.id,{letters:now.letters.filter(l=>l.id!==id),mailGone:[...(now.mailGone??[]),id].slice(-400)});setView({k:'list'});say('删掉了');};
+  const drop=(id:string)=>{const now=box(p.id);setBox(p.id,{letters:now.letters.filter(l=>l.id!==id),mailGone:[...(now.mailGone??[]),id].slice(-400)});backFrom(p.id);say('删掉了');};
   const open=all.find(l=>view.k==='read'&&l.id===view.id);
-  if(view.k==='write')return <Write p={p} re={all.find(l=>l.id===view.re)} close={()=>setView({k:'list'})}/>;
-  if(view.k==='read'&&open)return <Read key={open.id} p={p} l={open} all={all} patch={patch} drop={drop} go={setView}/>;
+  if(view.k==='write')return <Write key={view.edit??view.re??''} p={p} re={all.find(l=>l.id===view.re)} edit={all.find(l=>l.id===view.edit&&l.kept)} close={()=>backFrom(p.id)}/>;
+  if(view.k==='read'&&open)return <Read key={open.id} p={p} l={open} all={all} patch={patch} drop={drop} go={setView} back={()=>backFrom(p.id)}/>;
+  const out=cameFrom[p.id]?.startsWith('#/c/')?cameFrom[p.id]:'#/us/'+p.id;
   const shown=[...all].reverse().filter(l=>tab==='all'||(tab==='in'?l.from==='ta':tab==='out'?l.from==='me':!!l.star));
   const draft=loadDraft(p.id).t.trim();
-  return <Sub p={p} title="信箱" cls="ml" act={<>
-    <button className="ico" onClick={()=>setPace(true)} aria-label="信的设置"><SlidersHorizontal size={22} strokeWidth={1.7}/></button>
-    <button className="ico" onClick={()=>setView({k:'write'})} aria-label="写一封信"><SquarePen size={23} strokeWidth={1.7}/></button></>}>
-    {all.length>0&&<div className="chips ml-tabs" role="radiogroup" aria-label="看哪些信">
+  return <main className="page sub ml" style={{'--accent':p.accent} as React.CSSProperties}>
+    <header className="bar"><a className="ico" href={out} aria-label="返回"><ChevronLeft size={28} strokeWidth={1.8}/></a><h1>信箱</h1>
+      <button className="ico" onClick={()=>setPace(true)} aria-label="信的设置"><SlidersHorizontal size={22} strokeWidth={1.7}/></button>
+      <button className="ico" onClick={()=>setView({k:'write'})} aria-label="写一封信"><SquarePen size={23} strokeWidth={1.7}/></button></header>
+    {all.length>=5&&<div className="chips ml-tabs" role="radiogroup" aria-label="看哪些信">
       {([['all','全部'],['in','来信'],['out','寄出'],['star','收藏']] as const).map(([id,n])=><button key={id} role="radio" aria-checked={tab===id} aria-pressed={tab===id} className="chip" onClick={()=>setTab(id)}>{n}</button>)}
     </div>}
     {draft&&<button className="ml-draft" onClick={()=>setView({k:'write'})}><small>写到一半的信</small><span>{draft.split('\n')[0]}</span></button>}
@@ -57,7 +72,7 @@ export function MailBox({p}:{p:Persona}){
       :all.length?<p className="empty">这里还没有信。</p>
       :<div className="ml-none"><p>还没有信。<br/>写一封寄给 {p.name}，过一阵他会回你一封。</p><button className="btn" onClick={()=>setView({k:'write'})}>写第一封信</button></div>}
     {pace&&<Pace p={p} close={()=>setPace(false)}/>}
-  </Sub>;
+  </main>;
 }
 
 /* 回信的节奏 */
@@ -80,19 +95,27 @@ function Pace({p,close}:{p:Persona;close:()=>void}){
 }
 
 /* 写信 */
-function Write({p,re,close}:{p:Persona;re?:Letter;close:()=>void}){
+function Write({p,re,edit,close}:{p:Persona;re?:Letter;edit?:Letter;close:()=>void}){
   const me=S().prefs,d=useMemo(()=>loadDraft(p.id),[p.id]);
-  // 点「回信」进来、而留着的草稿是给别的信写的：从空白开始（原来的草稿等真的动笔了才会被换掉）
-  const ref=re??(d.re?box(p.id).letters.find(l=>l.id===d.re):undefined);
-  const [t,setT]=useState(re&&d.re!==re.id?'':d.t),ta=useRef<HTMLTextAreaElement>(null),typed=useRef(false);
-  useEffect(()=>{if(typed.current)saveDraft(p.id,t,ref?.id);},[t]);
+  // edit：接着改一封写了没寄的信（不走草稿）。点「回信」进来、而留着的草稿是给别的信写的：从空白开始（原来的草稿等真的动笔了才会被换掉）
+  const ref=edit?box(p.id).letters.find(l=>l.id===edit.re):re??(d.re?box(p.id).letters.find(l=>l.id===d.re):undefined);
+  const [t,setT]=useState(edit?edit.text:re&&d.re!==re.id?'':d.t),ta=useRef<HTMLTextAreaElement>(null),typed=useRef(false);
+  useEffect(()=>{if(typed.current&&!edit)saveDraft(p.id,t,ref?.id);},[t]);
+  useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!document.querySelector('.veil'))close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[]);
+  // 写完之后回信箱列表：从列表进来的原路返回；从某封信点「回信」进来的，把这一页换成列表
+  const done=()=>{if(nav.from===baseOf(p.id))history.back();else location.replace(baseOf(p.id));};
+  const gone=(id:string)=>{const now=box(p.id);return {letters:now.letters.filter(x=>x.id!==id),mailGone:[...(now.mailGone??[]),id].slice(-400)};};
   useEffect(()=>{const el=ta.current;if(!el)return;el.style.height='auto';el.style.height=Math.max(el.scrollHeight,260)+'px';},[t]);
   const reId=ref?.id;
-  const send=()=>{const x=t.trim();if(!x)return;const l=sendLetter(p,x,reId);saveDraft(p.id,'');close();say(l.plan?'寄出去了':`寄出去了。${p.name} 还没有能用的字卡，回不了信`);};
-  const keep=()=>{const x=t.trim();if(!x)return;setBox(p.id,{letters:[...box(p.id).letters,{id:uid(),from:'me',text:x,at:Date.now(),read:true,kept:true,...(reId?{re:reId}:{})}]});saveDraft(p.id,'');close();say('留在信箱里了，没有寄出');};
+  const send=()=>{const x=t.trim();if(!x)return;const l=sendLetter(p,x,reId);
+    if(edit){setBox(p.id,gone(edit.id));goTo(p.id,{k:'read',id:l.id},true);}else{saveDraft(p.id,'');done();}
+    say(l.plan?'寄出去了':`寄出去了。${p.name} 还没有能用的字卡，回不了信`);};
+  const keep=()=>{const x=t.trim();if(!x)return;
+    if(edit){setBox(p.id,{letters:box(p.id).letters.map(l=>l.id===edit.id?{...l,text:x,u:Date.now()}:l)});close();say('改好了');return;}
+    setBox(p.id,{letters:[...box(p.id).letters,{id:uid(),from:'me',text:x,at:Date.now(),read:true,kept:true,...(reId?{re:reId}:{})}]});saveDraft(p.id,'');done();say('留在信箱里了，没有寄出');};
   const pace=mailPaces[box(p.id).mailPace??0]??mailPaces[0];
   return <main className="page sub ml" style={{'--accent':p.accent} as React.CSSProperties}>
-    <header className="bar"><button className="ico" onClick={close} aria-label="回到信箱"><ChevronLeft size={28} strokeWidth={1.8}/></button><h1>写信</h1>
+    <header className="bar"><button className="ico" onClick={close} aria-label="回到信箱"><ChevronLeft size={28} strokeWidth={1.8}/></button><h1>{edit?'接着改':'写信'}</h1>
       <button className="btn sm" onClick={send} disabled={!t.trim()}>寄出</button></header>
     {ref&&<div className="ml-orig"><small>{ref.from==='ta'?`回 ${p.name} 的这封信`:'接着这封信写'}</small><span>{ref.text}</span></div>}
     <article className="ml-paper write">
@@ -102,16 +125,27 @@ function Write({p,re,close}:{p:Persona;re?:Letter;close:()=>void}){
       <p className="ml-sign">{me.myName}</p>
     </article>
     <p className="hint ml-foot">{p.name} 大概 {pace.note}后回信</p>
-    <div className="rowbtn center"><button className="linkish" onClick={keep} disabled={!t.trim()}>只是写下来，不寄</button></div>
+    <div className="rowbtn center"><button className="linkish" onClick={keep} disabled={!t.trim()}>{edit?'改好了，先不寄':'只是写下来，不寄'}</button></div>
   </main>;
 }
 
 /* 读信 */
-function Read({p,l,all,patch,drop,go}:{p:Persona;l:Letter;all:Letter[];patch:(id:string,x:Partial<Letter>)=>void;drop:(id:string)=>void;go:(v:View)=>void}){
+function Read({p,l,all,patch,drop,go,back}:{p:Persona;l:Letter;all:Letter[];patch:(id:string,x:Partial<Letter>)=>void;drop:(id:string)=>void;go:(v:View,swap?:boolean)=>void;back:()=>void}){
   const me=S().prefs,his=l.from==='ta';
-  const [sealed,setSealed]=useState(his&&!l.read),[fresh,setFresh]=useState(false),[sure,setSure]=useState(false),[pic,setPic]=useState<{url:string;file:File}|null>(null),[drawing,setDrawing]=useState(false),[more,setMore]=useState(false);
+  const [sealed,setSealed]=useState(his&&!l.read),[fresh,setFresh]=useState(false),[sure,setSure]=useState(false),[pic,setPic]=useState<{url:string;file:File}|null>(null),[drawing,setDrawing]=useState(false),[more,setMore]=useState(false),[whole,setWhole]=useState(false);
   useEffect(()=>()=>{if(pic)URL.revokeObjectURL(pic.url);},[pic]);
   const i=all.findIndex(x=>x.id===l.id),older=all[i-1],newer=all[i+1];
+  const turn=(to?:Letter)=>{if(to)go({k:'read',id:to.id},true);};
+  // 电脑上：← → 翻信，Esc 回信箱（开着弹层、正在打字时不管）
+  useEffect(()=>{const on=(e:KeyboardEvent)=>{
+    if(document.querySelector('.veil')||/^(INPUT|TEXTAREA)$/.test((e.target as HTMLElement)?.tagName??''))return;
+    if(e.key==='ArrowLeft')turn(older);else if(e.key==='ArrowRight')turn(newer);else if(e.key==='Escape')back();
+  };addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[older?.id,newer?.id]);
+  // 手机上：左右滑翻信。从屏幕最左边起的滑动留给系统的返回手势
+  const sw=useRef<{x:number;y:number}|null>(null);
+  const touchStart=(e:React.TouchEvent)=>{const t=e.touches[0];sw.current=e.touches.length===1&&t.clientX>28?{x:t.clientX,y:t.clientY}:null;};
+  const touchEnd=(e:React.TouchEvent)=>{const a=sw.current,t=e.changedTouches[0];sw.current=null;if(!a||sealed||document.querySelector('.veil')||window.getSelection()?.toString())return;
+    const dx=t.clientX-a.x,dy=t.clientY-a.y;if(Math.abs(dx)>64&&Math.abs(dx)>Math.abs(dy)*2)turn(dx<0?newer:older);};
   const dear=`致 ${his?callOf(p):p.name}：`,sign=his?signOf(p):me.myName;
   const stamp=his?'已送达':l.kept?'没寄出':'已寄出';
   const draw=async()=>{
@@ -136,8 +170,8 @@ function Read({p,l,all,patch,drop,go}:{p:Persona;l:Letter;all:Letter[];patch:(id
       '【他的信】（一行是一张字卡）\n'+l.text].filter(Boolean).join('\n');
     return [{role:'system',content:MAIL_PROMPT},{role:'user',content:u}];
   };
-  return <main className="page sub ml" style={{'--accent':p.accent} as React.CSSProperties}>
-    <header className="bar"><button className="ico" onClick={()=>go({k:'list'})} aria-label="回到信箱"><ChevronLeft size={28} strokeWidth={1.8}/></button><h1>{his?`${p.name} 的来信`:l.kept?'没寄出的信':`寄给 ${p.name}`}</h1>
+  return <main className="page sub ml" style={{'--accent':p.accent} as React.CSSProperties} onTouchStart={touchStart} onTouchEnd={touchEnd}>
+    <header className="bar"><button className="ico" onClick={back} aria-label="回到信箱"><ChevronLeft size={28} strokeWidth={1.8}/></button><h1>{his?`${p.name} 的来信`:l.kept?'没寄出的信':`寄给 ${p.name}`}</h1>
       {!sealed&&<><button className="ico" onClick={()=>patch(l.id,{star:!l.star})} aria-label={l.star?'取消收藏':'收藏这封信'} aria-pressed={!!l.star}><Bookmark size={22} strokeWidth={1.7} fill={l.star?'currentColor':'none'}/></button>
         <button className="ico" onClick={()=>{setSure(false);setMore(true);}} aria-label="更多"><Ellipsis size={23} strokeWidth={1.7}/></button></>}</header>
     {sealed?<div className="ml-sealed">
@@ -145,7 +179,7 @@ function Read({p,l,all,patch,drop,go}:{p:Persona;l:Letter;all:Letter[];patch:(id
       <p>{near(l.at)}送到的{l.pro?'，是他主动写来的':''}</p>
       <button className="btn" onClick={unseal}>拆开这封信</button>
     </div>:<>
-      {orig&&<button className="ml-orig" onClick={()=>go({k:'read',id:orig.id})}><small>{his?'你的原信':orig.from==='ta'?`回的是 ${p.name} 的这封信`:'接着这封信写的'}</small><span>{orig.text}</span></button>}
+      {orig&&<button className={`ml-orig${whole?' open':''}`} onClick={()=>setWhole(v=>!v)} aria-expanded={whole}><small>{his?'你的原信':orig.from==='ta'?`回的是 ${p.name} 的这封信`:'接着这封信写的'}</small><span>{orig.text}</span></button>}
       <article className={`ml-paper${fresh?' fresh':''}`}>
         <Post top={stamp} t={l.at}/>
         <time>{full(l.at)}</time>
@@ -153,16 +187,17 @@ function Read({p,l,all,patch,drop,go}:{p:Persona;l:Letter;all:Letter[];patch:(id
         <div className="ml-body">{l.text}</div>
         <p className="ml-sign">{sign}</p>
       </article>
-      {!his&&(reply?<button className="ml-next" onClick={()=>go({k:'read',id:reply.id})}>{p.name} 回信了，去看</button>:waiting(l)?<p className="ml-way" role="status">{p.name} 的回信在路上</p>:null)}
+      {!his&&(reply?<button className="ml-next" onClick={()=>go({k:'read',id:reply.id},true)}>{p.name} 回信了，去看</button>:waiting(l)?<p className="ml-way" role="status">{p.name} 的回信在路上</p>:null)}
       {his?<AiBlock name={p.name} noBio={!p.bio&&!box(p.id).tarotAbout} build={build} saved={l.ai??''} save={t=>patch(l.id,{ai:t})} label="解读这封信" setup={'#/f/draw/'+p.id} auto={fresh&&dsAuto()}>
         <button className="chip" onClick={()=>go({k:'write',re:l.id})}>回信</button>
       </AiBlock>:<div className="rowbtn ml-acts">
-        {l.kept&&<button className="chip on" onClick={()=>{const n=sendLetter(p,l.text,l.re);const now=box(p.id);setBox(p.id,{letters:now.letters.filter(x=>x.id!==l.id),mailGone:[...(now.mailGone??[]),l.id].slice(-400)});go({k:'read',id:n.id});say('寄出去了');}}>现在寄出</button>}
-        <button className="chip" onClick={()=>go({k:'write',re:l.id})}>接着写一封</button>
+        {l.kept&&<button className="chip on" onClick={()=>{const n=sendLetter(p,l.text,l.re);const now=box(p.id);setBox(p.id,{letters:now.letters.filter(x=>x.id!==l.id),mailGone:[...(now.mailGone??[]),l.id].slice(-400)});go({k:'read',id:n.id},true);say('寄出去了');}}>现在寄出</button>}
+        {l.kept&&<button className="chip" onClick={()=>go({k:'write',edit:l.id})}>接着改</button>}
+        {!l.kept&&<button className="chip" onClick={()=>go({k:'write',re:l.id})}>接着写一封</button>}
       </div>}
       {(older||newer)&&<nav className="ml-turn" aria-label="翻信">
-        {older?<button className="linkish" onClick={()=>go({k:'read',id:older.id})}>‹ 上一封</button>:<span/>}
-        {newer?<button className="linkish" onClick={()=>go({k:'read',id:newer.id})}>下一封 ›</button>:<span/>}
+        {older?<button className="linkish" onClick={()=>turn(older)}>‹ 上一封</button>:<span/>}
+        {newer?<button className="linkish" onClick={()=>turn(newer)}>下一封 ›</button>:<span/>}
       </nav>}
     </>}
     {more&&!pic&&<Sheet title="" plain close={()=>setMore(false)}>

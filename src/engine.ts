@@ -100,6 +100,8 @@ function mail(p:Persona,now:number){
   // 聊天里也留一行（点了进信箱）：从推送点进来落在聊天页，也看得到信到了。id 跟着信走，别的设备同步过来不会重复
   for(const l of add){const id='ml'+l.id;if(!list(p.id).some(m=>m.id===id))pushMsg({pid:p.id,from:'ta',kind:'tip',text:l.pro?'给你写了一封信':'给你回了一封信',at:Math.max(Math.min(l.at,now),(list(p.id).at(-1)?.at??0)+1),id});}
   if(add.length&&!(pushWas()&&first<backAt))notify(p,pro?'给你写了一封信':'给你回了一封信','mail');
+  // 正开着小鹿（又不在信箱里）：屏幕下方说一声
+  if(add.length&&!document.hidden&&first>=backAt&&!location.hash.startsWith('#/f/mail/'+p.id))dispatchEvent(new CustomEvent('cx-say',{detail:`${p.name} ${pro?'给你写了一封信':'给你回了一封信'}`}));
 }
 
 /* 提前排好的话（只在这台设备上）：离开前台时交给云端推送，回来时聊天里补上的就是同样几句 */
