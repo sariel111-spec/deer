@@ -8,6 +8,7 @@ import {Sheet,Switch,say} from './pages';
 import {Sub} from './more';
 import {DEFAULT_PROMPT,dsAuto,dsChat,dsKey,dsModel,dsModels,dsPrompt,promptEdited,setDsAuto,setDsKey,setDsModel,setDsPrompt,type Msg as AiMsg} from './ai';
 import {TOTAL,askKinds,asks,cards,groups,markOf,shuffleWithout,spreads,suitOf,toneOf,voiceAt,type AskKind,type Drawn,type SpreadId} from './tarot';
+import {aspectAt,facets,flowOf,guide,mj,readAt,type Aspect} from './tarotmj';
 
 const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
@@ -141,11 +142,15 @@ function MineSheet({p,c,close}:{p:Persona;c:number;close:()=>void}){
   const [t,setT]=useState(mine[c]??'');
   return <Sheet title={`${cards[c].name} · 我们的牌意`} close={close}>
     <p className="hint first">和 {p.name} 聊多了，这张牌在你们之间会有自己的意思：指的是谁、他在做什么、什么心情、想说什么。写在这里，以后抽到这张会先显示你写的。</p>
-    <textarea className="bulk tall" rows={5} value={t} onChange={e=>setT(e.target.value.slice(0,400))} placeholder={`比如：${cards[c].up[0]}。在我们这儿，是他…`} aria-label="我们的牌意" autoFocus/>
+    <textarea className="bulk tall" rows={5} value={t} onChange={e=>setT(e.target.value.slice(0,400))} placeholder={`比如：在我们这儿，这张是他在…\n行为 / 状态 / 地点 / 吃的，想到什么记什么`} aria-label="我们的牌意" autoFocus/>
     <button className="btn" onClick={()=>{setBox(p.id,{tarotMine:{...mine,[c]:t.trim()}});say(t.trim()?'记下了':'清掉了');close();}}>记下</button>
   </Sheet>;
 }
 // 不靠 AI 也能看的「合起来看」：逆位多不多、大牌多不多、哪种花色占上风
+/** 读牌小抄：自己当传讯师时照着看 */
+function GuideSheet({close}:{close:()=>void}){
+  return <Sheet title="读牌小抄" close={close}><ol className="tr-guide">{guide.map(([t,x])=><li key={t}><b>{t}</b><p>{x}</p></li>)}</ol></Sheet>;
+}
 function sumOf(ds:Drawn[]):string[]{
   if(ds.length<2)return [];
   const out:string[]=[],revN=ds.filter(d=>d.r).length,big=ds.filter(d=>d.c<22).length;
@@ -154,13 +159,15 @@ function sumOf(ds:Drawn[]):string[]{
   const n=[0,0,0,0];for(const d of ds){const k=suitOf(d.c);if(k>=0)n[k]++;}
   const top=Math.max(...n);
   if(top>=2&&n.filter(x=>x===top).length===1)out.push(['权杖多：重点在行动和热度。','圣杯多：重点在感情和心意。','宝剑多：重点在想法和怎么说。','星币多：重点在现实和过日子。'][n.indexOf(top)]);
+  const flow=flowOf(ds);if(flow)out.push(flow);
   return out;
 }
 const fullText=(r:Reading)=>textOf(r)+(r.ai?'\n\n'+r.ai:'')+(r.note?'\n\n我的感想：'+r.note:'');
 // 发给 AI 的内容：这一位是谁、问了什么、抽到什么、你们的专属牌意、暗号牌、这一场前面问过的、他的几句字卡（学语气用）
 function askOf(p:Persona,r:Reading,recent:Reading[]):AiMsg[]{
   const b=box(p.id),mine=b.tarotMine??{},sign=new Set(b.tarotSign??[]),sp=spreads[r.kind];
-  const card=(d:Drawn,label:string)=>`【${label}】${cards[d.c].name}（${d.r?'逆位':'正位'}）｜常见含义：${(d.r?cards[d.c].rev:cards[d.c].up).join('、')}`+(mine[d.c]?`｜我们的牌意：${mine[d.c]}`:'')+(sign.has(d.c)?'｜暗号牌':'');
+  const card=(d:Drawn,label:string,i=-1)=>{const a=i>=0?readAt(d,aspectAt[r.kind][i]??'say'):null;
+    return `【${label}】${cards[d.c].name}（${d.r?'逆位':'正位'}）｜画面：${mj[d.c].pic}｜常见含义：${(d.r?cards[d.c].rev:cards[d.c].up).join('、')}`+(a?`｜传讯读法（${a.label}）：${a.text}`:'')+(mine[d.c]?`｜我们的牌意：${mine[d.c]}`:'')+(sign.has(d.c)?'｜暗号牌':'');};
   const voice=lines(p,6);
   const u=[
     `梦角：${p.name}${p.bio?'。'+p.bio:''}`,
@@ -168,20 +175,20 @@ function askOf(p:Persona,r:Reading,recent:Reading[]):AiMsg[]{
     `她的名字：${S().prefs.myName}`,
     `牌阵：${sp.name}（${sp.pos.join('、')}）`,
     `她的问题：${r.q||(r.kind==='day'?'今天的一张牌：他今天想让她知道什么':'没有写问题，就是想听他说说话')}`,
-    '牌：',...(r.jump?[card(r.jump,'跳牌')]:[]),...r.cards.map((d,i)=>card(d,posOf(r,i))),
+    '牌：',...(r.jump?[card(r.jump,'跳牌')]:[]),...r.cards.map((d,i)=>card(d,posOf(r,i),i)),
     recent.length?'这一场前面问过的：\n'+recent.map(x=>`- ${x.q||spreads[x.kind].name}：${x.cards.map((d,i)=>`${posOf(x,i)} ${cards[d.c].name}${d.r?'逆':''}`).join('，')}`).join('\n'):'',
     voice.length?`他平时说话的样子（学语气用，不要照抄）：${voice.join(' / ')}`:'',
   ].filter(Boolean).join('\n');
   return [{role:'system',content:dsPrompt()},{role:'user',content:u}];
 }
 // closedFrom：从第几张起还扣着（刚抽出来的是 0，补牌是原来的张数；不给就是全都翻开）
-function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onSetup}:{p:Persona;r:Reading;closedFrom?:number;recent?:Reading[];onFlipped?:()=>void;onMore?:()=>void;onAgain?:()=>void;onSetup?:()=>void}){
+function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onNext,onSetup}:{p:Persona;r:Reading;closedFrom?:number;recent?:Reading[];onFlipped?:()=>void;onMore?:()=>void;onAgain?:()=>void;onNext?:()=>void;onSetup?:()=>void}){
   const sp=spreads[r.kind],bx=box(p.id),mine=bx.tarotMine??{},sign=new Set(bx.tarotSign??[]);
   // 跳牌排在最前面，后面是牌阵里的各个位置和补牌
-  const items=[...(r.jump?[{d:r.jump,label:'跳牌'}]:[]),...r.cards.map((d,i)=>({d,label:posOf(r,i)}))],off=r.jump?1:0;
+  const items:{d:Drawn;label:string;a:Aspect}[]=[...(r.jump?[{d:r.jump,label:'跳牌',a:'say' as Aspect}]:[]),...r.cards.map((d,i)=>({d,label:posOf(r,i),a:aspectAt[r.kind][i]??'say'}))],off=r.jump?1:0;
   const [open,setOpen]=useState<boolean[]>(()=>items.map((_,i)=>closedFrom===undefined||(closedFrom>0&&i<closedFrom+off)));
   const [note,setNote]=useState(r.note??''),[writing,setWriting]=useState(false),[edit,setEdit]=useState<number|null>(null);
-  const [ai,setAi]=useState(r.ai??''),[busy,setBusy]=useState(false),[err,setErr]=useState('');
+  const [ai,setAi]=useState(r.ai??''),[busy,setBusy]=useState(false),[err,setErr]=useState(''),[tips,setTips]=useState(false);
   const ctl=useRef<AbortController|null>(null);
   useEffect(()=>()=>ctl.current?.abort(),[]);
   const isOpen=(i:number)=>open[i]??false,all=items.every((_,i)=>isOpen(i));
@@ -217,16 +224,19 @@ function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onSetup}:{p:P
     </div>
     {!all&&<p className="tr-tip" role="status">轻触翻开</p>}
     <ol className="tr-read">
-      {items.map(({d,label},i)=>isOpen(i)&&<li key={i}>
+      {items.map(({d,label,a},i)=>{if(!isOpen(i))return null;const at=readAt(d,a);return <li key={i}>
         <header><small>{label}</small><b>{cards[d.c].name}</b><i className={d.r?'rev':''}>{d.r?'逆位':'正位'}</i>{sign.has(d.c)&&<i className="sign">暗号牌</i>}
           <button className="linkish" onClick={()=>setEdit(d.c)}>{mine[d.c]?'改我们的牌意':'写我们的牌意'}</button></header>
         {mine[d.c]&&<p className="tr-mine"><small>我们的牌意</small>{mine[d.c]}</p>}
+        <p className="tr-pic">{mj[d.c].pic}</p>
+        {at&&<p className="tr-at"><small>{at.label}</small>{at.text}</p>}
         <p className="tr-keys">{(d.r?cards[d.c].rev:cards[d.c].up).join(' · ')}</p>
-        <p className="tr-line">{d.r?cards[d.c].revLine:cards[d.c].upLine}</p>
+        {!at&&<p className="tr-line">{d.r?cards[d.c].revLine:cards[d.c].upLine}</p>}
         {label==='跳牌'&&<p className="tr-link">洗牌时自己跳出来的：他急着想让你知道的。</p>}
-        {r.kind==='link'&&label===sp.pos[0]&&<p className="tr-link">{d.r?'线上有点杂音。慢一点，一句一句来。':'线是通的，可以说话。'}</p>}
-      </li>)}
+        <details className="tr-more"><summary>这张牌的其他读法</summary><dl>{[...(at?[['一句话',d.r?cards[d.c].revLine:cards[d.c].upLine] as [string,string]]:[]),...facets(d.c)].map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl></details>
+      </li>;})}
     </ol>
+    {items.some((x,i)=>isOpen(i))&&<p className="tr-revtip">{items.some((x,i)=>isOpen(i)&&x.d.r)&&'有逆位：多半是这股劲没顺，不是坏事。拿不准就补一张。'}<button className="linkish" onClick={()=>setTips(true)}>读牌小抄</button></p>}
     {all&&<>
       {items.some(x=>sign.has(x.d.c))&&<p className="tr-signed">他的暗号牌出现了：是他。</p>}
       {sum.length>0&&<p className="tr-sum"><small>合起来看</small>{sum.join('')}</p>}
@@ -236,9 +246,10 @@ function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onSetup}:{p:P
         {ai?<p>{ai}</p>:busy&&<p className="tr-wait">正在读牌…</p>}
         {err&&<p className="tr-err" role="alert">{err}</p>}
       </section>}
-      {r.kind==='match'&&(r.ok===undefined?<div className="tr-ok"><p>这几张说的，像他吗？</p>
-        <div className="rowbtn"><button className="chip on" onClick={()=>patch({ok:true})}>对上了，是他</button><button className="chip" onClick={()=>{patch({ok:false});onAgain?.();}}>没对上{onAgain?'，再连一次':''}</button></div></div>
-        :<p className="tr-okd">{r.ok?'对上了，是他。':'这次没对上。'}</p>)}
+      {r.kind==='match'&&(r.ok===undefined?<div className="tr-ok"><p>这几张说的，像他吗？<small>三张里有两张像，就算对上了。</small></p>
+        <div className="rowbtn"><button className="chip on" onClick={()=>patch({ok:true})}>对上了，是他</button><button className="chip" onClick={()=>patch({ok:false})}>没对上</button></div></div>
+        :r.ok?<div className="tr-okd"><p>对上了，是他。</p>{onNext&&<button className="btn" onClick={onNext}>开始问他</button>}</div>
+        :<div className="tr-okd"><p>{onAgain?'这次没对上。静一静，再连一次。':'这次没对上。先到这儿吧，心静下来换个时间再连，不用为了连上反复抽。'}</p>{onAgain&&<button className="chip" onClick={onAgain}>再连一次</button>}</div>)}
       {r.note&&!writing&&<p className="tr-note"><small>我的感想</small>{r.note}</p>}
       {writing&&<div className="tr-write">
         <textarea className="bulk" rows={3} value={note} onChange={e=>setNote(e.target.value)} placeholder="看到这几张牌，想到了什么" aria-label="我的感想" autoFocus/>
@@ -253,13 +264,14 @@ function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onSetup}:{p:P
       </div>}
     </>}
     {edit!==null&&<MineSheet p={p} c={edit} close={()=>setEdit(null)}/>}
+    {tips&&<GuideSheet close={()=>setTips(false)}/>}
   </div>;
 }
 
 /* ── 牌库：78 张的牌意，换牌面 ── */
 function Library({p,close}:{p:Persona;close:()=>void}){
   const b=box(p.id);
-  const [see,setSee]=useState<number|null>(null),[busy,setBusy]=useState(''),[edit,setEdit]=useState<number|null>(null);
+  const [see,setSee]=useState<number|null>(null),[busy,setBusy]=useState(''),[edit,setEdit]=useState<number|null>(null),[tips,setTips]=useState(false);
   const mine=b.tarotMine??{},sign=b.tarotSign??[];
   const toggleSign=(cs:number[])=>{const on=cs.every(c=>sign.includes(c));setBox(p.id,{tarotSign:on?sign.filter(c=>!cs.includes(c)):[...new Set([...sign,...cs])]});};
   // AI 解牌的设置。密钥只在这台设备上
@@ -285,7 +297,8 @@ function Library({p,close}:{p:Persona;close:()=>void}){
     setBusy('');
   };
   return <>
-    <header className="bar"><button className="ico" onClick={close} aria-label="回到塔罗"><ChevronLeft size={28} strokeWidth={1.8}/></button><h1>牌库</h1></header>
+    <header className="bar"><button className="ico" onClick={close} aria-label="回到塔罗"><ChevronLeft size={28} strokeWidth={1.8}/></button><h1>牌库</h1><button className="linkish tr-guidebtn" onClick={()=>setTips(true)}>读牌小抄</button></header>
+    {tips&&<GuideSheet close={()=>setTips(false)}/>}
     <Switch on={b.tarotRev!==false} set={v=>setBox(p.id,{tarotRev:v})} label="也抽逆位" note="关掉的话，抽到的牌都按正位来读"/>
     <h3>AI 解牌</h3>
     <p className="hint">接上 DeepSeek 之后，每次把牌翻开就自动解读：先逐张读牌，再合起来说，最后用 {p.name} 的口吻对你说几句。密钥只存在这台设备上，不同步、不进代码；每台设备各填一次。</p>
@@ -323,6 +336,8 @@ function Library({p,close}:{p:Persona;close:()=>void}){
           <dt>逆位</dt><dd><span className="tr-keys">{cards[see].rev.join(' · ')}</span>{cards[see].revLine}</dd>
         </dl>
       </div>
+      <p className="tr-pic">{mj[see].pic}</p>
+      <dl className="tr-facets">{facets(see).map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {mine[see]&&<p className="tr-mine"><small>我们的牌意</small>{mine[see]}</p>}
       <div className="rowbtn">
         <button className="chip" onClick={()=>setEdit(see)}>{mine[see]?'改我们的牌意':'写我们的牌意'}</button>
@@ -338,12 +353,16 @@ function Library({p,close}:{p:Persona;close:()=>void}){
 
 /* ── 塔罗 ── */
 type Tab='day'|'ask'|'log';
-const lastKind=():AskKind=>{try{const k=localStorage.getItem('cx-tarot-kind') as AskKind|null;if(k&&askKinds.includes(k))return k;}catch{/* */}return 'one';};
+/** 上次问问题用的牌阵（开场的对一对不算） */
+const lastKind=():AskKind=>{try{const k=localStorage.getItem('cx-tarot-kind') as AskKind|null;if(k&&k!=='match'&&askKinds.includes(k))return k;}catch{/* */}return 'one';};
+const SIT=2*3600e3;   // 两小时内算同一场
 export function TarotPage({p}:{p:Persona}){
   useVer();
   const b=box(p.id),all=b.tarot??[],rev=b.tarotRev!==false,today=ymd();
   const [tab,setTab]=useState<Tab>('day'),[lib,setLib]=useState(false);
-  const [q,setQ]=useState(''),[kind,setKind]=useState<AskKind>(lastKind);
+  // 这一场开过场了吗（两小时内对上过）。没开过就先停在「对一对」上；对了两次都没对上，就不再催着连
+  const now=Date.now(),opened=all.some(r=>r.kind==='match'&&r.ok&&now-r.at<SIT),missN=all.filter(r=>r.kind==='match'&&r.ok===false&&now-r.at<SIT).length;
+  const [q,setQ]=useState(''),[kind,setKind]=useState<AskKind>(()=>opened||missN>=2?lastKind():'match');
   const [going,setGoing]=useState<SpreadId|null>(null);     // 正在抽的是哪种牌阵
   const [more,setMore]=useState('');                        // 正在给哪一次补牌
   const [fresh,setFresh0]=useState<{id:string;from:number}|null>(null);   // 哪一次还有牌扣着、从第几张起
@@ -355,15 +374,15 @@ export function TarotPage({p}:{p:Persona}){
   const tips=useMemo(()=>[...asks].sort(()=>Math.random()-.5).slice(0,3),[shown]);
   const save=(k:SpreadId,got:Drawn[],jump?:Drawn)=>{
     const ask=q.trim();
-    const r:Reading={id:uid(),at:Date.now(),kind:k,cards:got,said:lines(p,1)[0],...(jump?{jump}:{}),...(k==='day'?{date:today}:ask?{q:ask}:{})};
+    const r:Reading={id:uid(),at:Date.now(),kind:k,cards:got,said:lines(p,1)[0],...(jump?{jump}:{}),...(k==='day'?{date:today}:ask&&k!=='match'?{q:ask}:{})};
     setBox(p.id,{tarot:[...(box(p.id).tarot??[]),r].slice(-300)});
     setFresh(r.id);setGoing(null);if(k!=='day'){setShown(r.id);setQ('');}
   };
   const add=(id:string,got:Drawn[])=>{const had=(box(p.id).tarot??[]).find(x=>x.id===id)?.cards.length??0;setBox(p.id,{tarot:(box(p.id).tarot??[]).map(x=>x.id===id?{...x,cards:[...x.cards,...got]}:x)});setFresh(id,had);setMore('');};
   const drop=(r:Reading)=>{const now=box(p.id);setBox(p.id,{tarot:(now.tarot??[]).filter(x=>x.id!==r.id),tarotGone:[...(now.tarotGone??[]),r.id].slice(-400)});setSee(null);setSure(false);if(shown===r.id)setShown('');};
   // 这一场前面问过的（两小时内、最近三次）：AI 解牌时带上，这次就是接着往下说
-  const recentOf=(r:Reading)=>all.filter(x=>x.id!==r.id&&x.kind!=='day'&&x.at<r.at&&r.at-x.at<2*3600e3).slice(-3);
-  const choose=(k:AskKind)=>{setKind(k);try{localStorage.setItem('cx-tarot-kind',k);}catch{/* */}};
+  const recentOf=(r:Reading)=>all.filter(x=>x.id!==r.id&&x.kind!=='day'&&x.at<r.at&&r.at-x.at<SIT).slice(-3);
+  const choose=(k:AskKind)=>{setKind(k);if(k!=='match')try{localStorage.setItem('cx-tarot-kind',k);}catch{/* */}};
   if(lib)return <main className="page sub tr" style={{'--accent':p.accent} as React.CSSProperties}><Library p={p} close={()=>setLib(false)}/></main>;
   const busy=!!going||!!more;
   return <Sub p={p} title="塔罗" cls="tr" act={<button className="ico" onClick={()=>setLib(true)} aria-label="牌库和牌面"><BookOpen size={23} strokeWidth={1.7}/></button>}>
@@ -384,20 +403,23 @@ export function TarotPage({p}:{p:Persona}){
       <Ritual n={1} rev={rev} what="刚才没说清的地方" skip={askRec.cards.map(d=>d.c)} done={got=>add(askRec.id,got)}/>
       <div className="rowbtn center"><button className="linkish" onClick={()=>setMore('')}>先不补了</button></div>
     </>:going&&going!=='day'?<>
-      {q.trim()&&<p className="tr-q">{q.trim()}</p>}
-      <Ritual n={spreads[going].pos.length} pos={spreads[going].pos} rev={rev} what={q.trim()?'这个问题':'他'} done={(got,jump)=>save(going,got,jump)}/>
+      {q.trim()&&going!=='match'&&<p className="tr-q">{q.trim()}</p>}
+      <Ritual n={spreads[going].pos.length} pos={spreads[going].pos} rev={rev} what={q.trim()&&going!=='match'?'这个问题':'他'} done={(got,jump)=>save(going,got,jump)}/>
       <div className="rowbtn center"><button className="linkish" onClick={()=>setGoing(null)}>先不抽了</button></div>
     </>:askRec?<>
       <Result key={askRec.id+askRec.cards.length} p={p} r={askRec} closedFrom={closed(askRec.id)} recent={recentOf(askRec)} onFlipped={()=>setFresh('')} onMore={()=>setMore(askRec.id)} onSetup={()=>setLib(true)}
-        onAgain={()=>{setQ(askRec.q??'');setShown('');setFresh('');setGoing('match');}}/>
-      <div className="rowbtn center"><button className="linkish" onClick={()=>{setShown('');setFresh('');}}>接着问</button></div>
+        onAgain={askRec.kind==='match'&&missN<2?()=>{setShown('');setFresh('');setGoing('match');}:undefined}
+        onNext={()=>{setShown('');setFresh('');setKind(lastKind());}}/>
+      {!(askRec.kind==='match'&&askRec.ok)&&<div className="rowbtn center"><button className="linkish" onClick={()=>{setShown('');setFresh('');}}>接着问</button></div>}
     </>:<>
-      <p className="lede">心里想着 {p.name}，问一个问题。不写也可以。</p>
-      <textarea className="bulk tall" rows={2} value={q} onChange={e=>setQ(e.target.value.slice(0,80))} placeholder={`想问 ${p.name} 什么`} aria-label="想问的问题"/>
-      <div className="chips tr-tips" aria-label="不知道问什么">{tips.map(t=><button key={t} className="chip" onClick={()=>setQ(t)}>{t}</button>)}</div>
       <div className="tr-kinds" role="radiogroup" aria-label="牌阵">
-        {askKinds.map(k=><button key={k} role="radio" aria-checked={kind===k} className={kind===k?'on':''} onClick={()=>choose(k)}><b>{spreads[k].name}</b><small>{spreads[k].hint}</small></button>)}
+        {askKinds.map(k=><button key={k} role="radio" aria-checked={kind===k} className={kind===k?'on':''} onClick={()=>choose(k)}><b>{spreads[k].name}{spreads[k].tag&&<i>{spreads[k].tag}</i>}{k==='match'&&opened&&<i className="done">这一场对过了</i>}</b><small>{spreads[k].when}</small></button>)}
       </div>
+      {kind==='match'?<p className="lede tr-lede2">心里想着 {p.name}，请他用三张牌说说自己。{missN>=2&&'今天已经对过两次了，不用勉强。'}</p>:<>
+        <p className="lede tr-lede2">心里想着 {p.name}，问一个问题。不写也可以。</p>
+        <textarea className="bulk tall" rows={2} value={q} onChange={e=>setQ(e.target.value.slice(0,80))} placeholder={`想问 ${p.name} 什么`} aria-label="想问的问题"/>
+        <div className="chips tr-tips" aria-label="不知道问什么">{tips.map(t=><button key={t} className="chip" onClick={()=>setQ(t)}>{t}</button>)}</div>
+      </>}
       <button className="btn wide" onClick={()=>setGoing(kind)}>洗牌</button>
     </>)}
 
