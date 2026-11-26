@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Aperture,Bookmark,CalendarHeart,ChevronLeft,ClipboardList,Dices,Droplet,Heart,Image as ImageIcon,Images,Mail,MapPin,MessageCircle,Plus,Puzzle,Quote,
+import {Aperture,Bookmark,CalendarHeart,ChevronLeft,ClipboardList,Dices,Droplet,Heart,Image as ImageIcon,Images,Mail,MapPin,MessageCircle,Plus,Puzzle,
   SlidersHorizontal,Sparkles,SquarePen,Timer,Trash2,type LucideIcon} from 'lucide-react';
 import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Persona} from './db';
 import {lines,sent} from './engine';
@@ -10,7 +10,7 @@ import {MailBox} from './mail';
 
 // 主页上摆出来的全部功能。顺序就是宫格里的顺序
 export const feats:{id:string;name:string;icon:LucideIcon}[]=[
-  {id:'mail',name:'信箱',icon:Mail},{id:'days',name:'纪念日',icon:CalendarHeart},{id:'today',name:'今日一句',icon:Quote},
+  {id:'mail',name:'信箱',icon:Mail},{id:'days',name:'纪念日',icon:CalendarHeart},
   {id:'pick',name:'帮我选',icon:Dices},{id:'ask',name:'问卷',icon:ClipboardList},{id:'draw',name:'塔罗',icon:Sparkles},{id:'match',name:'默契',icon:Puzzle},
   {id:'check',name:'报备',icon:MapPin},{id:'focus',name:'专注',icon:Timer},{id:'cycle',name:'经期',icon:Droplet},
   {id:'feed',name:'动态',icon:Aperture},{id:'fav',name:'收藏',icon:Bookmark},{id:'album',name:'相册',icon:Images},{id:'pace',name:'节奏',icon:SlidersHorizontal},
