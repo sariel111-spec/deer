@@ -217,7 +217,7 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .mebadge{position:absolute;right:-6px;bottom:-4px;border-radius:50%;box-shadow:0 0 0 3px var(--bg)}
 /* 头像上面那条 note：今天他的一句话 */
 /* 照 ins 的便签：白色圆角气泡压在头像上沿，字居中，左下角两颗小圆点当尾巴 */
-.note{position:absolute;left:-6px;bottom:calc(100% - 14px);z-index:2;min-width:52px;max-width:176px;padding:9px 13px;border-radius:18px;background:var(--bg);color:var(--fg);font-size:12.5px;line-height:1.35;text-align:center;
+.note{position:absolute;left:-6px;bottom:calc(100% - 14px);z-index:2;width:max-content;min-width:52px;max-width:176px;padding:9px 13px;border-radius:18px;background:var(--bg);color:var(--fg);font-size:12.5px;line-height:1.35;text-align:center;
   box-shadow:0 1px 10px rgba(0,0,0,.14);overflow:visible}
 .note span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .note::before,.note::after{content:'';position:absolute;border-radius:50%;background:inherit}
@@ -226,9 +226,9 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 :root[data-theme=dark] .note{background:#262626}
 @media (prefers-color-scheme:dark){:root[data-theme=auto] .note{background:#262626}}
 .pinfo{flex:1;min-width:0;display:grid;gap:10px}
-.pinfo>b{font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pinfo>b{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.stats dd{font-size:17px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums}.stats dt{font-size:13px;color:var(--fg)}
+.stats dd{font-size:16px;font-weight:600;line-height:1.25;font-variant-numeric:tabular-nums}.stats dt{font-size:13px;color:var(--fg)}
 .bio{font-size:14px;margin-top:3px;overflow-wrap:anywhere}
 .profile+.bio{margin-top:14px}
 .bio+.bio{color:var(--mute);font-size:13px}
@@ -727,7 +727,7 @@ button.note{cursor:pointer}
 .ck-now b{flex:none;height:30px;padding:0 13px;border-radius:99px;background:var(--fg);color:var(--bg);font-size:13px;font-weight:600;line-height:30px}
 .sheet .ck-now{margin-top:4px}
 /* 周历：点哪天看哪天。今天是实心圆，有报备的日子下面一个小点 */
-.ck-week{display:grid;grid-template-columns:28px repeat(7,1fr) 28px;align-items:center;margin-top:22px}
+.ck-week{display:grid;grid-template-columns:32px repeat(7,1fr) 32px;align-items:center;margin-top:22px}
 .ck-week button{display:grid;justify-items:center;gap:4px;padding:4px 0 9px;position:relative;min-width:0}
 .ck-week small{font-size:11px;color:var(--mute)}
 .ck-week b{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
@@ -794,7 +794,7 @@ button.ml-photo{cursor:zoom-in}
 .ml-seg .chip[aria-pressed=true]{background:var(--bg);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 
 /* ── 主页：一排常用的（ins 的精选），下面是内容 ── */
-.hl{display:flex;gap:0;margin:18px 0 0!important;padding:0 6px 2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.hl{display:flex;gap:0;margin:16px 0 0!important;padding:0 9px 2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .hl::-webkit-scrollbar{display:none}
 .hl li{flex:0 0 72px}
 .hl a{display:grid;justify-items:center;gap:5px;font-size:11.5px;color:var(--fg);-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
@@ -807,10 +807,10 @@ button.ml-photo{cursor:zoom-in}
 .hl a.new span{background:linear-gradient(45deg,#f9ce34,#ee2a7b 55%,#6228d7)}
 .hl a.new span::before{inset:2px}
 .hl a:active span{transform:scale(.94)}
-.page>.htabs{margin:18px 0 0!important}
-.htabs button{display:grid;place-items:center;height:46px}
+.page>.htabs{margin:10px 0 0!important}
+.htabs button{display:grid;place-items:center;height:44px}
 .page>.hgrid{margin:2px 0 0!important}
-.hgrid button{display:block;aspect-ratio:1/1;overflow:hidden;background:var(--soft)}
+.hgrid button{display:block;aspect-ratio:3/4;overflow:hidden;background:var(--soft)}
 .hgrid img{width:100%;height:100%;aspect-ratio:auto;object-fit:cover}
 .home>.empty{margin-top:44px;text-align:center}
 .hfav{margin:0!important}
@@ -852,3 +852,33 @@ button.ml-photo{cursor:zoom-in}
 
 /* iPhone：输入框的字小于 16px，一点进去整页会被放大。能打字的地方一律 16px */
 @supports(-webkit-touch-callout:none){input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]),textarea,select{font-size:16px!important}}
+
+/* ── 资料与节奏：照 ins「编辑主页」——左边是名字、右边直接改，一行一条细线 ── */
+.sheet>header{position:sticky;top:0;z-index:3;background:var(--bg);box-shadow:0 -9px 0 var(--bg)}
+.sheet>.grab{position:relative;z-index:4}
+.prow{display:flex;align-items:center;gap:12px;min-height:50px;border-bottom:1px solid var(--line)}
+.prow>span{flex:none;width:100px;font-size:15px}
+.prow input{flex:1;min-width:0;height:44px;padding:0;border:0;outline:0;background:none;font-size:16px;color:var(--fg);-webkit-appearance:none;appearance:none;text-align:left}
+.prow input::placeholder{color:var(--mute);opacity:.7}
+.prow input[type=date]{min-width:0;font-variant-numeric:tabular-nums}
+.prow input::-webkit-date-and-time-value{text-align:left}
+.pact{display:inline-flex;align-items:center;gap:12px;flex:none}
+.pthumb{width:38px;height:38px;border-radius:9px;overflow:hidden;background:var(--soft)}
+.pthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pmore{width:100%;text-align:left;color:var(--fg)}
+.pmore small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pmore svg{flex:none;color:var(--mute)}
+/* 数字两边的 − ＋ */
+.num .nb{width:34px;height:34px;border-radius:50%;background:var(--soft);font-size:19px;line-height:1;color:var(--fg);display:grid;place-items:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.num .nb:active{background:var(--line)}
+.num .nb:disabled{opacity:.3}
+.num input{width:54px}
+.num em{font-style:normal;min-width:2em;text-align:left}
+
+/* 删东西的小图标点第一下：变成红色的「再点一次」 */
+.ico.danger{min-width:0;padding:0 6px;border-radius:99px}
+.ico.danger small{font-size:12px;color:var(--red);white-space:nowrap}
+
+/* 蓝色的文字按钮：字小，但手指能点到的范围往外多留一圈 */
+.linkish{position:relative}
+.linkish::after{content:'';position:absolute;inset:-10px -8px}

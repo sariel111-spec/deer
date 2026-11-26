@@ -8,7 +8,7 @@ import {lines,nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
 import {feats,homeDefault} from './more';
-import {useDismiss} from './ui';
+import {useDismiss,useTwice} from './ui';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
 
 /* ───────── 小零件 ───────── */
@@ -34,14 +34,24 @@ export function Sheet({title,close,plain,children}:{title:string;close:()=>void;
 export function Switch({on,set,label,note}:{on:boolean;set:(v:boolean)=>void;label:string;note?:string}){
   return <label className="line"><span>{label}{note&&<small>{note}</small>}</span><input type="checkbox" className="switch" checked={on} onChange={e=>set(e.target.checked)}/></label>;
 }
-export function Num({label,value,set,min=0,max=9999,unit}:{label:string;value:number;set:(n:number)=>void;min?:number;max?:number;unit:string}){
+export function Num({label,value,set,min=0,max=9999,unit,step=1}:{label:string;value:number;set:(n:number)=>void;min?:number;max?:number;unit:string;step?:number}){
   // 打字的时候不去改她打的字：先留着她打的，数字在范围里就直接算数；离开这一格时再收进范围（空着就还是原来的数）
   const [t,setT]=useState<string|null>(null);
-  const done=()=>{if(t!==null&&t!==''){const n=Math.max(min,Math.min(max,Number(t)));if(n!==value)set(n);}setT(null);};
-  return <label className="line"><span>{label}</span><span className="num"><input type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" value={t??String(value)} aria-label={label}
-    onFocus={e=>{setT(String(value));const el=e.target;setTimeout(()=>{try{el.select();}catch{/* */}},0);}}
+  const clamp=(n:number)=>Math.max(min,Math.min(max,n));
+  const done=()=>{if(t!==null&&t!==''){const n=clamp(Number(t));if(n!==value)set(n);}setT(null);};
+  // 两边的 − ＋：点一下走一步，按住不放会连着走（越走越快）。用 ref 是因为按住的那段时间里外面的数一直在变
+  const live=useRef({value,set});live.current={value,set};
+  const hold=useRef(0),fresh=useRef(false);   // fresh：刚点进来那一下把数字全选上，这样直接打就是换掉它
+  const bump=(d:number)=>{const n=clamp(live.current.value+d);if(n!==live.current.value){live.current.value=n;live.current.set(n);}};
+  const lift=()=>clearInterval(hold.current);
+  useEffect(()=>lift,[]);
+  const press=(d:number)=>(e:React.PointerEvent)=>{if(e.button!==0)return;setT(null);bump(d);lift();let n=0;hold.current=window.setInterval(()=>{n++;if(n>4)bump(d*(n>28?5:1));},90);};
+  const btn=(d:number,name:string,off:boolean)=><button type="button" className="nb" disabled={off} aria-label={`${label}${name}`} onPointerDown={press(d)} onPointerUp={lift} onPointerLeave={lift} onPointerCancel={lift}
+    onClick={e=>{if(e.detail===0)bump(d);}} onContextMenu={e=>e.preventDefault()}>{d<0?'−':'+'}</button>;
+  return <div className="line"><span>{label}</span><span className="num">{btn(-step,'减少',value<=min)}<input type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" value={t??String(value)} aria-label={label}
+    onFocus={e=>{setT(String(value));fresh.current=true;try{e.target.select();}catch{/* */}}} onMouseUp={e=>{if(fresh.current){fresh.current=false;e.preventDefault();}}}
     onChange={e=>{const v=e.target.value.replace(/\D/g,'').slice(0,String(max).length);setT(v);const n=Number(v);if(v!==''&&n>=min&&n<=max&&n!==value)set(n);}}
-    onBlur={done} onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}}/>{unit}</span></label>;
+    onBlur={()=>{fresh.current=false;done();}} onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}}/>{btn(step,'增加',value>=max)}<em>{unit}</em></span></div>;
 }
 const shareable=(f:File)=>{try{return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!!navigator.canShare?.({files:[f]});}catch{return false;}};
 const download=(name:string,text:string,type='application/json')=>{
@@ -54,58 +64,58 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
   useVer();
   const st=S();
   const pick=useRef<HTMLInputElement>(null),wall=useRef<HTMLInputElement>(null),face=useRef<HTMLInputElement>(null);
-  const [sure,setSure]=useState(false);
+  const [sure,setSure]=useState(''),[allDecks,setAllDecks]=useState(st.decks.length<=8);
   const set=(patch:Partial<Persona>)=>setPersona(p.id,patch);
   const hours=Array.from({length:24},(_,h)=>h);
+  const photo=(key:'avatar'|'wall'|'callPic',size:number)=>async(e:React.ChangeEvent<HTMLInputElement>)=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{set({[key]:await putImage(f,size)});}catch{say('这张图片读不了，换一张试试');}};
+  // 一行一张图：有图时右边是小缩略图（点它换一张）和「不要」，没图时只有一个「放一张」
+  const picRow=(label:string,id:string|undefined,ref:React.RefObject<HTMLInputElement|null>,key:'wall'|'callPic')=><div className="line"><span>{label}</span><span className="pact">
+    {id&&<button className="linkish" onClick={()=>set({[key]:undefined})}>不要</button>}
+    {id?<button className="pthumb" onClick={()=>ref.current?.click()} aria-label={`换一张${label}`}><Pic id={id} alt=""/></button>:<button className="chip" onClick={()=>ref.current?.click()}>放一张</button>}
+    <input ref={ref} type="file" accept="image/*" hidden onChange={photo(key,1600)}/></span></div>;
+  const mine=st.decks.filter(d=>p.decks.includes(d.id));
+  const twice=(k:string,run:()=>void)=>()=>{if(sure!==k){setSure(k);return;}setSure('');run();};
   return <Sheet title="资料与节奏" close={close}>
     <div className="me-row">
       <button className="pick" onClick={()=>pick.current?.click()} aria-label="换他的头像"><Avatar id={p.avatar} name={p.name} size={76}/><span>换头像</span></button>
-      <input ref={pick} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)set({avatar:await putImage(f,512)});}}/>
+      <input ref={pick} type="file" accept="image/*" hidden onChange={photo('avatar',512)}/>
     </div>
-    <label className="field"><span>名字</span><input value={p.name} onChange={e=>set({name:e.target.value})}/></label>
-    <label className="field"><span>签名</span><input value={p.bio} onChange={e=>set({bio:e.target.value})} placeholder="显示在名字下面的一句话"/></label>
-    <label className="field"><span>在一起的日子</span><input type="date" value={p.since} onChange={e=>set({since:e.target.value})}/></label>
-    <div className="field"><span>聊天背景</span><div className="rowbtn">
-      <button className="chip" onClick={()=>wall.current?.click()}>{p.wall?'换一张':'放一张照片'}</button>
-      {p.wall&&<button className="chip" onClick={()=>set({wall:undefined})}>不要背景</button>}
-      <input ref={wall} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)set({wall:await putImage(f,1600)});}}/>
-    </div></div>
-
-    <div className="field"><span>通话画面</span><div className="rowbtn">
-      <button className="chip" onClick={()=>face.current?.click()}>{p.callPic?'换一张':'放一张照片'}</button>
-      {p.callPic&&<button className="chip" onClick={()=>set({callPic:undefined})}>不要画面</button>}
-      <input ref={face} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)set({callPic:await putImage(f,1600)});}}/>
-    </div></div>
+    <label className="prow"><span>名字</span><input value={p.name} onChange={e=>set({name:e.target.value})}/></label>
+    <label className="prow"><span>签名</span><input value={p.bio} onChange={e=>set({bio:e.target.value})} placeholder="名字下面的一句话"/></label>
+    <label className="prow"><span>在一起的日子</span><input type="date" value={p.since} onChange={e=>set({since:e.target.value})}/></label>
+    {picRow('聊天背景',p.wall,wall,'wall')}
+    {picRow('通话画面',p.callPic,face,'callPic')}
 
     <h3>他回复的节奏</h3>
     <Num label="最快" value={p.min} set={n=>set({min:n,max:Math.max(n,p.max)})} min={1} max={600} unit="秒"/>
-    <Num label="最慢" value={p.max} set={n=>set({max:Math.max(n,p.min)})} min={1} max={3600} unit="秒"/>
+    <Num label="最慢" value={p.max} set={n=>set({max:Math.max(n,p.min)})} min={p.min} max={3600} unit="秒"/>
     <Num label="一次最多回" value={p.burst} set={n=>set({burst:n})} min={1} max={6} unit="条"/>
     <Num label="已读不回" value={Math.round(p.ghost*100)} set={n=>set({ghost:n/100})} min={0} max={90} unit="%"/>
     <Switch on={p.join} set={v=>set({join:v})} label="把几张字卡拼成一句" note="随机抽几张，用逗号、空格或省略号连起来"/>
-    <Switch on={p.stick!==false} set={v=>set({stick:v})} label="他也会发表情包" note="从聊天里的表情包库随手挑一张"/>
     {p.join&&<Num label="最多拼" value={p.joinMax} set={n=>set({joinMax:n})} min={2} max={5} unit="张"/>}
+    <Switch on={p.stick!==false} set={v=>set({stick:v})} label="他也会发表情包" note="从聊天里的表情包库随手挑一张"/>
 
     <h3>他主动找你</h3>
     <Switch on={p.pro} set={v=>set({pro:v,nextAt:0})} label="会主动发消息"/>
     {p.pro&&<>
-      <Num label="最短隔" value={p.proMin} set={n=>set({proMin:n,proMax:Math.max(n,p.proMax),nextAt:0})} min={1} max={1440} unit="分钟"/>
-      <Num label="最长隔" value={p.proMax} set={n=>set({proMax:Math.max(n,p.proMin),nextAt:0})} min={1} max={2880} unit="分钟"/>
+      <Num label="最短隔" value={p.proMin} set={n=>set({proMin:n,proMax:Math.max(n,p.proMax),nextAt:0})} min={1} max={1440} step={5} unit="分钟"/>
+      <Num label="最长隔" value={p.proMax} set={n=>set({proMax:Math.max(n,p.proMin),nextAt:0})} min={p.proMin} max={2880} step={5} unit="分钟"/>
       <div className="line"><span>他睡觉的时间<small>这段时间不会主动找你</small></span><span className="num">
         <select value={p.quietFrom} onChange={e=>set({quietFrom:+e.target.value,nextAt:0})} aria-label="几点睡">{hours.map(h=><option key={h} value={h}>{h}:00</option>)}</select>到
         <select value={p.quietTo} onChange={e=>set({quietTo:+e.target.value,nextAt:0})} aria-label="几点醒">{hours.map(h=><option key={h} value={h}>{h}:00</option>)}</select></span></div>
       <Switch on={p.calls!==false} set={v=>set({calls:v})} label="他也会打视频过来" note="偶尔不发消息，直接打过来；没接到会在聊天里留一条未接"/>
-      <button className="chip" onClick={()=>{if(!nudge(p.id))say('他还没有能用的字卡');}}>现在让他说一句试试</button>
+      <div className="rowbtn"><button className="chip" onClick={()=>{if(!nudge(p.id))say('他还没有能用的字卡');}}>现在让他说一句试试</button></div>
     </>}
 
     <h3>他用哪些字卡</h3>
-    {st.decks.length?<div className="chips">{st.decks.map(d=><button key={d.id} className="chip" aria-pressed={p.decks.includes(d.id)} onClick={()=>shareDeck(d.id,p.id,!p.decks.includes(d.id))}>{d.name}<small>{d.cards.length}</small></button>)}</div>
-      :<p className="hint">还没有字卡分组。<a href="#/cards" onClick={close}>去加一个</a></p>}
+    {!st.decks.length?<p className="hint">还没有字卡分组。<a className="linkish" href="#/cards" onClick={close}>去加一个</a></p>
+      :allDecks?<div className="chips">{st.decks.map(d=><button key={d.id} className="chip" aria-pressed={p.decks.includes(d.id)} onClick={()=>shareDeck(d.id,p.id,!p.decks.includes(d.id))}>{d.name}<small>{d.cards.length}</small></button>)}</div>
+      :<button className="line pmore" onClick={()=>setAllDecks(true)} aria-expanded={false}><span>{mine.length?`${mine.length} 个分组，${mine.reduce((n,d)=>n+d.cards.length,0)} 张`:'还没选'}<small>{mine.slice(0,4).map(d=>d.name).join('、')}{mine.length>4?' …':''}</small></span><ChevronDown size={18} strokeWidth={1.6}/></button>}
 
     <h3>别的</h3>
     <div className="rowbtn">
-      <button className="chip" onClick={()=>{clearMsgs(p.id);say('聊天记录清空了');}}>清空聊天记录</button>
-      <button className="chip danger" onClick={()=>{if(!sure){setSure(true);return;}dropPersona(p.id);close();go('#/inbox');}}>{sure?'再点一次，连记录一起删掉':'删掉这一位'}</button>
+      <button className="chip danger" onClick={twice('clear',()=>{clearMsgs(p.id);say('聊天记录清空了');})}>{sure==='clear'?'再点一次，清空聊天记录':'清空聊天记录'}</button>
+      <button className="chip danger" onClick={twice('drop',()=>{dropPersona(p.id);close();go('#/inbox');})}>{sure==='drop'?'再点一次，连记录一起删掉':'删掉这一位'}</button>
     </div>
   </Sheet>;
 }
@@ -281,6 +291,7 @@ function DeckPage({d}:{d:Deck}){
   // 从「搜字卡」点过来的：带着要找的那几个字
   const [q,setQ]=useState(()=>{try{const v=sessionStorage.getItem('cx-find')??'';sessionStorage.removeItem('cx-find');return v;}catch{return '';}});
   const [sure,setSure]=useState(false);
+  const [armed,twice]=useTwice();
   const add=()=>{const r=addCards(d.id,text);setText('');say(r.added?`加了 ${r.added} 张${r.dup?`，${r.dup} 张重复的没加`:''}`:r.dup?'这些都已经有了':'先写点什么');};
   const shown=q.trim()?d.cards.filter(c=>c.t.includes(q.trim())):d.cards;
   return <main className="page deck">
@@ -303,7 +314,7 @@ function DeckPage({d}:{d:Deck}){
     <ul className="cards">{shown.map(c=><li key={c.id} className={c.off?'off':''}>
       <span>{c.t}</span>
       <button className="ico sm" onClick={()=>setCard(d.id,c.id,{off:!c.off})} aria-label={c.off?'恢复这张':'先不用这张'} aria-pressed={!!c.off}><EyeOff size={17} strokeWidth={1.7}/></button>
-      <button className="ico sm" onClick={()=>setCard(d.id,c.id,null)} aria-label="删掉这张"><Trash2 size={17} strokeWidth={1.7}/></button>
+      <button className={`ico sm${armed===c.id?' danger':''}`} onClick={twice(c.id,()=>setCard(d.id,c.id,null))} aria-label={armed===c.id?'再点一次，删掉这张':'删掉这张'}>{armed===c.id?<small>再点一次</small>:<Trash2 size={17} strokeWidth={1.7}/>}</button>
     </li>)}</ul>
     {!shown.length&&<p className="empty">{d.cards.length?'没有搜到。':'这个分组还是空的。'}</p>}
     <button className="chip danger" onClick={()=>{if(!sure){setSure(true);return;}dropDeck(d.id);go('#/cards');}}>{sure?'再点一次就删掉整个分组':'删掉这个分组'}</button>

@@ -4,6 +4,7 @@ import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Persona} fro
 import {lines,sent} from './engine';
 import {Avatar,Pic,backTo,dayLabel} from './App';
 import {Num,Sheet,say} from './pages';
+import {useTwice} from './ui';
 import {TarotPage} from './tarotpage';
 import {MailBox} from './mail';
 import {CheckPage} from './check';
@@ -39,7 +40,7 @@ function count(d:{date:string;yearly:boolean}){
 }
 function DaysPage({p}:{p:Persona}){
   const b=box(p.id);
-  const [ed,setEd]=useState<Day|null>(null);
+  const [ed,setEd]=useState<Day|null>(null),[armed,twice]=useTwice();
   const all:(Day&{fixed?:boolean})[]=[...(p.since?[{id:'since',name:'在一起',date:p.since,yearly:false,fixed:true}]:[]),...b.days];
   const save=()=>{if(!ed||!ed.name.trim()||!ed.date)return;setBox(p.id,{days:b.days.some(x=>x.id===ed.id)?b.days.map(x=>x.id===ed.id?ed:x):[...b.days,ed]});setEd(null);};
   return <Sub p={p} title="纪念日" act={<AddBtn on={()=>setEd({id:uid(),name:'',date:ymd(),yearly:true})} label="添加一个日子"/>}>
@@ -48,11 +49,11 @@ function DaysPage({p}:{p:Persona}){
       <span className="big">{c.n>0&&<b>{c.n}</b>}<small>{c.label}</small></span>
     </button></li>;})}</ul>:<p className="empty">生日、第一次见面、想一起倒数的日子，都可以放在这里。</p>}
     {ed&&<Sheet title="日子" close={()=>setEd(null)}>
-      <label className="field"><span>名字</span><input value={ed.name} onChange={e=>setEd({...ed,name:e.target.value})} placeholder="比如 他的生日" autoFocus/></label>
+      <label className="field"><span>名字</span><input value={ed.name} onChange={e=>setEd({...ed,name:e.target.value})} onKeyDown={e=>{if(e.key==='Enter'&&!e.nativeEvent.isComposing)save();}} placeholder="比如 他的生日" autoFocus={!ed.name}/></label>
       <label className="field"><span>哪一天</span><input type="date" value={ed.date} onChange={e=>setEd({...ed,date:e.target.value})}/></label>
       <label className="line"><span>每年都过</span><input type="checkbox" className="switch" checked={ed.yearly} onChange={e=>setEd({...ed,yearly:e.target.checked})}/></label>
       <button className="btn" onClick={save} disabled={!ed.name.trim()||!ed.date}>存下</button>
-      {b.days.some(x=>x.id===ed.id)&&<div className="rowbtn"><button className="chip danger" onClick={()=>{setBox(p.id,{days:b.days.filter(x=>x.id!==ed.id)});setEd(null);}}>删掉</button></div>}
+      {b.days.some(x=>x.id===ed.id)&&<div className="rowbtn"><button className="chip danger" onClick={twice('day',()=>{setBox(p.id,{days:b.days.filter(x=>x.id!==ed.id)});setEd(null);})}>{armed==='day'?'再点一次，删掉这个日子':'删掉这个日子'}</button></div>}
     </Sheet>}
   </Sub>;
 }
@@ -104,14 +105,15 @@ function MatchPage({p}:{p:Persona}){
 /* 专注 */
 function FocusPage({p}:{p:Persona}){
   const b=box(p.id);
-  const [mins,setMins]=useState(25),[end,setEnd]=useState(0),[left,setLeft]=useState(0),[said,setSaid]=useState('');
+  const [mins,setMins]=useState(25),[end,setEnd]=useState(0),[left,setLeft]=useState(0),[said,setSaid]=useState(''),[armed,twice]=useTwice();
   useEffect(()=>{if(!end)return;const id=setInterval(()=>{const l=Math.max(0,Math.round((end-Date.now())/1000));setLeft(l);
     if(!l){clearInterval(id);setEnd(0);const f=box(p.id).focus;setBox(p.id,{focus:{n:f.n+1,min:f.min+mins}});setSaid(lines(p,1)[0]??'辛苦了');}},500);return()=>clearInterval(id);},[end]);
   const total=mins*60,show=end?left:total,done=end?1-left/total:0;
   return <Sub p={p} title="专注">
     <div className="timer" style={{'--k':done} as React.CSSProperties} role="timer" aria-live="off"><div><b>{mmss(show)}</b><small>{end?`${p.name} 陪着你`:'选个时长'}</small></div></div>
     {!end&&<div className="chips center">{[15,25,45,60].map(m=><button key={m} className="chip" aria-pressed={mins===m} onClick={()=>{setMins(m);setSaid('');}}>{m} 分钟</button>)}</div>}
-    <button className="btn wide" onClick={()=>{if(end){setEnd(0);say('这次没有记上');}else{setSaid('');setLeft(total);setEnd(Date.now()+total*1000);}}}>{end?'放弃这次':'开始'}</button>
+    {end?<button className="btn wide ghost" onClick={twice('quit',()=>{setEnd(0);say('这次没有记上');})}>{armed==='quit'?'再点一次，放弃这次':'放弃这次'}</button>
+      :<button className="btn wide" onClick={()=>{setSaid('');setLeft(total);setEnd(Date.now()+total*1000);}}>开始</button>}
     {said&&<div className="said" role="status"><Avatar id={p.avatar} name={p.name} size={28}/><span>{said}</span></div>}
     <p className="hint center">一共专注了 {b.focus.n} 次 · {b.focus.min} 分钟</p>
   </Sub>;
@@ -125,6 +127,7 @@ function CyclePage({p}:{p:Persona}){
   const wait=next?gap(today,next):0;
   const care=useMemo(()=>inside?lines(p,1)[0]:'',[inside,p.id]);
   const set=(patch:Partial<typeof c>)=>setBox(p.id,{cycle:{...c,...patch}});
+  const [armed,twice]=useTwice();
   return <Sub p={p} title="经期">
     <div className="cyc"><b>{!last?'—':inside?`第 ${day} 天`:wait>0?`${wait}`:wait===0?'今天':`晚了 ${-wait} 天`}</b>
       <span>{!last?'还没有记录':inside?'经期中':wait>0?'天后可能会来':wait===0?'可能今天来':`预计 ${next.replace(/-/g,'.')}`}</span></div>
@@ -134,7 +137,7 @@ function CyclePage({p}:{p:Persona}){
     <Num label="一次大概" value={c.len} set={n=>set({len:n})} min={1} max={15} unit="天"/>
     <Num label="两次相隔" value={c.gap} set={n=>set({gap:n})} min={15} max={60} unit="天"/>
     {c.starts.length>0&&<><h3>记录</h3><ul className="timeline">{[...c.starts].sort().reverse().map(s=><li key={s}><span>{s.replace(/-/g,'.')}</span>
-      <button className="ico sm" onClick={()=>set({starts:c.starts.filter(x=>x!==s)})} aria-label={`删掉 ${s} 这次`}><Trash2 size={16} strokeWidth={1.6}/></button></li>)}</ul></>}
+      <button className={`ico sm${armed===s?' danger':''}`} onClick={twice(s,()=>set({starts:c.starts.filter(x=>x!==s)}))} aria-label={armed===s?`再点一次，删掉 ${s} 这次`:`删掉 ${s} 这次`}>{armed===s?<small>再点一次</small>:<Trash2 size={16} strokeWidth={1.6}/>}</button></li>)}</ul></>}
     <p className="foot">只存在这台设备上。预测只是按你填的天数往后数，不是医学判断。</p>
   </Sub>;
 }
