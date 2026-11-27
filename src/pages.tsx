@@ -12,6 +12,7 @@ import {BackClose,auto,enter,useBackClose,useDismiss,useDragClose,useTwice} from
 import {Over} from './over';
 import {useInstall} from './help';
 import {isShell,shellSave,shellOpen,setShellKeep,shellSync} from './native';
+import {slogClear,slogRead} from './slog';
 import {cyPhase} from './cyc';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
 
@@ -515,6 +516,11 @@ export function Settings({sec=''}:{sec?:string}){
     {s.shellKeep&&s.notify==='granted'&&pf.notify&&<Switch on={s.shellKeep==='on'} set={async v=>{await setShellKeep(v);setS(status());}} label="后台常驻" note="通知栏里一直挂一条不响的「待机中」。开着的话系统不容易把小鹿停掉，他的消息来得更准"/>}
     {s.shellSet&&<div className="rowbtn"><button className="chip" onClick={()=>shellOpen('notify')}>系统的通知设置</button><button className="chip" onClick={()=>shellOpen('app')}>系统的应用设置</button></div>}
     <p className="hint">到了但不从屏幕顶上弹出来：在系统的通知设置里点进「他的消息」，把「横幅」打开（华为、小米默认是关的）。<br/>人不在小鹿里就收不到：在系统的应用设置里把电池改成「不限制」，允许自启动和后台活动。华为在 设置 → 应用和服务 → 应用启动管理 → 小鹿 → 改成手动管理，三项都打开。</p>
+    <details className="slog"><summary>通知记录</summary>
+      <p className="hint">通知没弹的时候，把这里截图发给做小鹿的人看。只存在这台手机上。</p>
+      <ol>{slogRead().slice(-40).reverse().map((x,i)=><li key={i}>{x}</li>)}</ol>
+      <div className="rowbtn"><button className="chip" onClick={()=>{slogClear();setS(status());say('清掉了');}}>清空记录</button></div>
+    </details>
     </>}
     {sec==='bg'&&!s.shell&&<>
     <h3>云端推送</h3>

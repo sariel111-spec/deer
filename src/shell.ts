@@ -4,13 +4,14 @@ import {App} from '@capacitor/app';
 import {Directory,Encoding,Filesystem} from '@capacitor/filesystem';
 import {Share} from '@capacitor/share';
 import {Capacitor,registerPlugin} from '@capacitor/core';
+import {err,slog} from './slog';
 
 // 安装包自己带的一个小插件（1.1 起）：打开系统里这个 app 的通知设置 / 应用设置。老的安装包没有，按钮就不出现
 const Deer=registerPlugin<{openNotify():Promise<void>;openApp():Promise<void>;info():Promise<{keep?:boolean}>;keepOn(o:{title:string;text:string}):Promise<void>;keepOff():Promise<void>}>('Deer');
 /** 这个安装包会不会「后台常驻」（1.2 起） */
 export const canKeep=async()=>{try{return canOpen()&&!!(await Deer.info()).keep;}catch{return false;}};
 /** 后台常驻：通知栏挂一条不响的「待机中」，系统就不会把小鹿停掉，他的话到点由还醒着的页面当场弹 */
-export const keep=async(on:boolean)=>{try{if(on)await Deer.keepOn({title:'待机中',text:'他找你的时候会弹出来'});else await Deer.keepOff();}catch{/* 老的安装包没有 */}};
+export const keep=async(on:boolean)=>{try{if(on)await Deer.keepOn({title:'待机中',text:'他找你的时候会弹出来'});else await Deer.keepOff();slog(on?'常驻：开':'常驻：关');}catch(e){slog('常驻出错 '+err(e));}};
 export const canOpen=()=>{try{return Capacitor.isPluginAvailable('Deer');}catch{return false;}};
 export const openNotify=()=>Deer.openNotify().catch(()=>{});
 export const openApp=()=>Deer.openApp().catch(()=>{});
@@ -34,10 +35,10 @@ export async function show(title:string,body:string,extra:object,key:string,quie
   const id=idOf(key);
   try{
     await channels();
-    // 系统对「同一个号再发一次」只换字、不再弹也不再响。不是紧跟着的那种，先把旧的那条收掉，这一条才会重新弹出来
     if(!quiet)await LocalNotifications.removeDeliveredNotifications({notifications:[{id,title:'',body:''}]}).catch(()=>{});
     await LocalNotifications.schedule({notifications:[{id,title,body,extra,smallIcon:ICON,channelId:quiet?SOFT:MSG}]});
-  }catch{/* 弹不出来也不影响聊天 */}
+    slog(`当场弹「${body.slice(0,4)}」${quiet?'（安静）':''}${document.hidden?' 人不在':''}`);
+  }catch(e){slog('当场弹出错 '+err(e));}
 }
 /** 人离开的时候：把接下来该到的话按时刻交给手机的闹钟，到点由系统弹出来（小鹿被划掉也照样弹）。
  *  小鹿在后台还醒着的话，到点由页面自己当场弹（fire），闹钟晚三秒、只当兜底 */
@@ -55,7 +56,11 @@ export async function plan(items:{at:number;title:string;body:string;pid:string}
     planned.push({id:PLAN+i,pid:x.pid,body:x.body,soft:near});
     return {id:PLAN+i,title:x.title,body:x.body,extra:{pid:x.pid,to:/信$/.test(x.body)?'mail':undefined},smallIcon:ICON,channelId:near?SOFT:MSG,
       schedule:{at:new Date(Math.max(x.at+LAG,now+1500)),allowWhileIdle:true}};});
-  try{await channels();await LocalNotifications.schedule({notifications:ns});}catch{/* */}
+  try{
+    await channels();await LocalNotifications.schedule({notifications:ns});
+    let exact='';try{exact=(await LocalNotifications.checkExactNotificationSetting()).exact_alarm;}catch{/* */}
+    slog(`交给闹钟 ${ns.length} 条：${list.slice(0,4).map(x=>Math.round((x.at-now)/1000)+'秒后').join('、')}${exact?' 准点='+exact:''}`);
+  }catch(e){slog('交给闹钟出错 '+err(e));}
 }
 /** 人不在、但页面还醒着，这句话到点了：当场弹。交给过闹钟的那一句用同一个号（顺手把那个闹钟撤掉）；闹钟已经替它弹过了就不再弹 */
 export async function fire(pid:string,title:string,body:string,extra:object,key:string,quiet=false){
@@ -64,10 +69,11 @@ export async function fire(pid:string,title:string,body:string,extra:object,key:
   x.done=true;
   try{
     const pend=await LocalNotifications.getPending();
-    if(!pend.notifications.some(n=>n.id===x.id))return;
+    if(!pend.notifications.some(n=>n.id===x.id)){slog(`到点「${body.slice(0,4)}」：闹钟已经弹过`);return;}
     await channels();
     await LocalNotifications.schedule({notifications:[{id:x.id,title,body,extra,smallIcon:ICON,channelId:quiet||x.soft?SOFT:MSG}]});
-  }catch{/* */}
+    slog(`到点「${body.slice(0,4)}」：页面醒着，自己弹了`);
+  }catch(e){slog('到点自己弹出错 '+err(e));}
 }
 /** 人回来了：还没到点的收回来 */
 export async function cancelPlan(){
@@ -85,6 +91,8 @@ export async function clearShown(pid?:string){
   }catch{/* */}
 }
 /** 点通知：回到那一位的聊天 / 信箱 */
+/** 闹钟到点弹出来时（页面还醒着才收得到）记一笔 */
+export function onAlarm(){void LocalNotifications.addListener('localNotificationReceived',n=>slog(`闹钟弹了「${String(n.body??'').slice(0,4)}」`));}
 export function onTap(f:(extra:{pid?:string;to?:string})=>void){void LocalNotifications.addListener('localNotificationActionPerformed',e=>f((e.notification.extra??{}) as {pid?:string;to?:string}));}
 /** 返回键：能往回就往回（开着的小页会先关），到头了就回桌面，不把小鹿关掉 */
 export function backButton(){void App.addListener('backButton',({canGoBack})=>{if(canGoBack)history.back();else void App.minimizeApp();});}
