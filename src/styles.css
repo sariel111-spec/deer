@@ -1130,12 +1130,9 @@ button.ml-photo{cursor:zoom-in}
 /* 键盘出来时，小页顶到键盘上面（--kb 由 ui.ts 记） */
 .veil{padding-bottom:var(--kb,0px)}
 .sheet{max-height:min(88dvh,calc(100dvh - var(--kb,0px) - 16px))}
-/* 进到里面一层的页面（功能页、聊天、分组、设置的子页）：从右边轻轻进来。底栏四个页面之间还是直接换 */
-@keyframes page-in{from{opacity:0;transform:translateX(14px)}}
-@keyframes page-back{from{opacity:0;transform:translateX(-14px)}}
-[data-nav=fwd] .page.sub,[data-nav=fwd] .page.deck,[data-nav=fwd] main.chat{animation:page-in .2s var(--ease)}
-[data-nav=back] main.page,[data-nav=back] main.chat{animation:page-back .2s var(--ease)}
-@media (prefers-reduced-motion:reduce){main.page,main.chat,.over.out .veil,.over.out .sheet,.over.out .viewer{animation:none!important}}
+/* 换页：新旧两页原地淡入淡出（App.tsx 的 swap），不挪位置 */
+::view-transition-old(root),::view-transition-new(root){animation-duration:.16s;animation-timing-function:ease}
+@media (prefers-reduced-motion:reduce){.over.out .veil,.over.out .sheet,.over.out .viewer{animation:none!important}}
 
 /* 字卡 · 去重：列表上面一行很轻的提示，点进去是一张小页 */
 .cdup{display:flex;align-items:center;justify-content:space-between;min-height:40px;margin-top:4px;font-size:13.5px;color:var(--mute)}

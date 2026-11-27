@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
+import {flushSync} from 'react-dom';
 import {House,Layers,MessageCircle,Settings2,SquarePen} from 'lucide-react';
 import {S,addPersona,getImage,importAll,list,storageDown,unread,useVer,who} from './db';
 import {isTyping} from './engine';
@@ -18,16 +19,17 @@ export const dayLabel=(t:number)=>{
 };
 const brief=(t:number)=>{const s=(Date.now()-t)/1000;return s<60?'刚刚':s<3600?Math.floor(s/60)+' 分钟前':s<86400?Math.floor(s/3600)+' 小时前':Math.floor(s/86400)+' 天前';};
 
-// 这一次换页是怎么来的：点了返回（那些「返回 / 回到…」的箭头）就是往回，点了别的就是往前；
-// 不是点出来的（iPhone 从屏幕边上划回去、浏览器的前进后退）系统自己有动画，页面就不再动一遍
-const tap={at:0,back:false,tabs:false},turnT={t:0};
-if(typeof window!=='undefined')addEventListener('click',e=>{const x=e.target as HTMLElement|null;tap.at=performance.now();tap.back=!!x?.closest?.('[aria-label^="返回"],[aria-label^="回到"]');tap.tabs=!!x?.closest?.('.tabs');},true);
-// to 正好是来这一页之前的那一页（写完信回信箱、看完回上一层），也算往回；底栏四个页面之间换来换去不算
-const turn=(to:string,cameFrom:string)=>{
-  const root=document.documentElement,byHand=performance.now()-tap.at<800;
-  root.dataset.nav=!byHand?'':tap.back||(to===cameFrom&&!tap.tabs)?'back':'fwd';
-  clearTimeout(turnT.t);turnT.t=window.setTimeout(()=>{root.dataset.nav='';},480);   // 只管这一次换页；之后页面里自己换内容不跟着动
-};
+// 换页：点出来的（不算底栏那四个之间）新旧两页原地淡入淡出，不挪位置——之前试过让页面横着挪一小段进来，看着像屏幕在晃。
+// 不是点出来的（iPhone 从屏幕边上划回去、浏览器的前进后退）系统自己有动画，这里直接换。浏览器不支持就直接换
+const tap={at:0,tabs:false};
+if(typeof window!=='undefined')addEventListener('click',e=>{tap.at=performance.now();tap.tabs=!!(e.target as HTMLElement|null)?.closest?.('.tabs');},true);
+type VT=Document&{startViewTransition?:(f:()=>void)=>unknown};
+function swap(update:()=>void){
+  const d=document as VT,w=window as unknown as {__ghost?:number};
+  const still=performance.now()-tap.at>800||tap.tabs||typeof d.startViewTransition!=='function'||matchMedia('(prefers-reduced-motion:reduce)').matches||(navigator.webdriver&&!w.__ghost);
+  if(still){update();return;}
+  try{d.startViewTransition!(()=>flushSync(update));}catch{update();}
+}
 // 上一页是哪儿。从聊天点进功能页、主页，返回时回到聊天而不是一律回主页
 export const nav={from:''};
 export const backTo=(fallback:string)=>(e:React.MouseEvent)=>{if(nav.from&&nav.from!==location.hash){e.preventDefault();history.back();}else if(!fallback)e.preventDefault();};
@@ -45,7 +47,7 @@ export function Avatar({id,name,size=40}:{id?:string;name:string;size?:number}){
 export function App(){
   useVer();
   const [hash,setHash]=useState(location.hash);
-  useEffect(()=>{const on=(e:HashChangeEvent)=>{const was=nav.from;try{nav.from=new URL(e.oldURL).hash;}catch{nav.from='';}turn(location.hash,was);setHash(location.hash);};addEventListener('hashchange',on);return()=>removeEventListener('hashchange',on);},[]);
+  useEffect(()=>{const on=(e:HashChangeEvent)=>{try{nav.from=new URL(e.oldURL).hash;}catch{nav.from='';}swap(()=>setHash(location.hash));};addEventListener('hashchange',on);return()=>removeEventListener('hashchange',on);},[]);
   const st=S(),theme=st.prefs.theme;
   useEffect(()=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.bubble=st.prefs.bubble;},[theme,st.prefs.bubble]);
 
