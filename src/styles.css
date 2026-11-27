@@ -1174,3 +1174,35 @@ html.kb .tk-bar{padding-bottom:8px}
 /* 安装包里的通知记录：小字、一行一条 */
 .slog{margin-top:18px}.slog summary{font-size:13px;color:var(--mute);cursor:pointer;padding:6px 0}
 .slog ol{list-style:none;margin:8px 0;padding:0;font-size:12px;line-height:1.7;color:var(--mute);font-variant-numeric:tabular-nums;word-break:break-all}
+
+/* ── 纪念日 ── 顶上一块「在一起」，下面两段日子；点开一个日子是大数字 */
+.page.sub.dy>.dy-hero{margin-left:0;margin-right:0}
+.dy-hero{width:100%;display:grid;justify-items:center;gap:2px;padding:22px 16px 30px;text-align:center}
+button.dy-hero:active{background:var(--soft)}
+.dy-two{display:flex;margin-bottom:16px}
+.dy-two .avatar+.avatar{margin-left:-12px;box-shadow:0 0 0 3px var(--bg)}
+.dy-hero small{font-size:13px;color:var(--mute);letter-spacing:.06em}
+.dy-hero>b{font-size:76px;line-height:1;font-weight:200;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin:6px 0 8px}
+.dy-hero>span:not(.dy-two){font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}
+.dy-hero em{font-style:normal;margin-top:16px;font-size:12.5px;padding:6px 13px;border-radius:99px;background:var(--soft)}
+.dy-hero.none{gap:10px;padding-bottom:26px}.dy-hero.none .dy-two{margin-bottom:6px}
+.dy-hero.none p{margin:0;font-size:14px;color:var(--mute)}
+.dy-sec{margin:0;padding:18px 0 2px;font-size:12.5px;font-weight:500;color:var(--mute)}
+.dy .days li:last-child button{border-bottom:0}
+.dy-thumb{flex:none;width:44px;height:44px;border-radius:50%;overflow:hidden;background:var(--soft)}
+.dy-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.dy .days li.on .big small{font-size:14px;font-weight:600;color:var(--fg)}
+.dy-empty{display:grid;justify-items:center;gap:16px;padding:30px 28px 40px;text-align:center;color:var(--mute);font-size:14px;line-height:1.8;border-top:1px solid var(--line)}
+.dy-empty p{margin:0}
+.dy-cover{display:block;width:100%;aspect-ratio:4/3;max-height:40vh;object-fit:cover;border-radius:14px;margin-top:4px}
+.dy-num{display:flex;align-items:baseline;justify-content:center;gap:6px;padding:24px 0 4px}
+.dy-num b{font-size:76px;font-weight:200;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.dy-num small{font-size:14px;color:var(--mute)}
+.dy-num.on small{font-size:30px;font-weight:300;color:var(--fg)}
+.dy-lines{list-style:none;margin:10px 0 4px;padding:0;text-align:center;font-size:13.5px;line-height:1.95;color:var(--mute);font-variant-numeric:tabular-nums}
+.dy-card{display:block;width:min(100%,280px);margin:8px auto 0;border-radius:12px;box-shadow:0 0 0 1px var(--line)}
+.sheet .rowbtn.two .btn{margin-top:0}
+.line.dy-pic{padding:8px 0}
+.dy-pick{display:flex;align-items:center;gap:8px;flex:none}
+.dy-mini{width:34px;height:34px;border-radius:8px;object-fit:cover;display:block}
+.dy-more{display:block;width:100%;min-height:46px;margin-top:4px;text-align:left;font-size:13.5px;color:var(--mute)}

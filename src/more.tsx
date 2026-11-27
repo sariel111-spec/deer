@@ -9,6 +9,7 @@ import {CyclePage} from './cycle';
 import {TarotPage} from './tarotpage';
 import {MailBox} from './mail';
 import {CheckPage} from './check';
+import {DaysPage} from './days';
 
 // 主页上摆出来的全部功能。顺序就是宫格里的顺序
 export const feats:{id:string;name:string;icon:LucideIcon}[]=[
@@ -31,33 +32,6 @@ export function Sub({p,title,act,children,cls=''}:{p:Persona;title:string;act?:R
   </main>;
 }
 const AddBtn=({on,label,pen}:{on:()=>void;label:string;pen?:boolean})=><button className="ico" onClick={on} aria-label={label}>{pen?<SquarePen size={23} strokeWidth={1.7}/>:<Plus size={26} strokeWidth={1.7}/>}</button>;
-
-/* 纪念日 */
-function count(d:{date:string;yearly:boolean}){
-  const today=ymd();
-  if(d.yearly){const n=new Date(),o=new Date(d.date+'T00:00:00');let next=new Date(n.getFullYear(),o.getMonth(),o.getDate());
-    if(ymd(next)<today)next=new Date(n.getFullYear()+1,o.getMonth(),o.getDate());const k=gap(today,ymd(next));return {n:k,label:k?'天后':'就是今天'};}
-  const k=gap(d.date,today);return k>=0?{n:k+1,label:'天了'}:{n:-k,label:'天后'};
-}
-function DaysPage({p}:{p:Persona}){
-  const b=box(p.id);
-  const [ed,setEd]=useState<Day|null>(null),[armed,twice]=useTwice();
-  const all:(Day&{fixed?:boolean})[]=[...(p.since?[{id:'since',name:'在一起',date:p.since,yearly:false,fixed:true}]:[]),...b.days];
-  const save=()=>{if(!ed||!ed.name.trim()||!ed.date)return;setBox(p.id,{days:b.days.some(x=>x.id===ed.id)?b.days.map(x=>x.id===ed.id?ed:x):[...b.days,ed]});setEd(null);};
-  return <Sub p={p} title="纪念日" act={<AddBtn on={()=>setEd({id:uid(),name:'',date:ymd(),yearly:true})} label="添加一个日子"/>}>
-    {all.length?<ul className="days">{all.map(d=>{const c=count(d);return <li key={d.id}><button onClick={()=>{if(d.fixed)say('这个日子在「编辑主页」里改');else setEd(d);}}>
-      <span className="who"><b>{d.name}</b><span>{d.date.replace(/-/g,'.')}{d.yearly?' · 每年':''}</span></span>
-      <span className="big">{c.n>0&&<b>{c.n}</b>}<small>{c.label}</small></span>
-    </button></li>;})}</ul>:<div className="ml-none"><p>生日、第一次见面、想一起倒数的日子。</p><button className="btn" onClick={()=>setEd({id:uid(),name:'',date:ymd(),yearly:true})}>加第一个日子</button></div>}
-    {ed&&<Sheet title="日子" close={()=>setEd(null)}>
-      <label className="field"><span>名字</span><input value={ed.name} onChange={e=>setEd({...ed,name:e.target.value})} onKeyDown={e=>{if(enter(e))save();}} placeholder="比如 他的生日" autoFocus={!ed.name&&auto}/></label>
-      <label className="field"><span>哪一天</span><input type="date" value={ed.date} onChange={e=>setEd({...ed,date:e.target.value})}/></label>
-      <label className="line"><span>每年都过</span><input type="checkbox" className="switch" checked={ed.yearly} onChange={e=>setEd({...ed,yearly:e.target.checked})}/></label>
-      <button className="btn" onClick={save} disabled={!ed.name.trim()||!ed.date}>存下</button>
-      {b.days.some(x=>x.id===ed.id)&&<div className="rowbtn"><button className="chip danger" onClick={twice('day',()=>{setBox(p.id,{days:b.days.filter(x=>x.id!==ed.id)});setEd(null);})}>{armed==='day'?'再点一次，删掉这个日子':'删掉这个日子'}</button></div>}
-    </Sheet>}
-  </Sub>;
-}
 
 /* 帮我选 */
 function PickPage({p}:{p:Persona}){

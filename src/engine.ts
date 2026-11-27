@@ -2,6 +2,7 @@ import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,wh
 import {notify,remind,blip,badge,clearNotes} from './alive';
 import {pushWas,type Ahead} from './push';
 import {isShell} from './native';
+import {tips as dayTips,ymd as dayYmd} from './daycalc';
 import {at0,cyDecks,cyPhase,cyTips,ymd} from './cyc';
 
 const rand=(a:number,b:number)=>a+Math.random()*Math.max(0,b-a);
@@ -294,6 +295,20 @@ const proLine=(p:Persona,at:number,noCall:boolean,q:{at:number;src?:string}[]=[]
   if(ck.length&&seeded(p.id+'|k|'+Math.round(at))()<1/3){const r=seeded(p.id+'|kd|'+Math.round(at)),c=ck[Math.floor(r()*ck.length)];return {text:c.t,src:c.id};}
   return draw(p,'pro',at,seeded(p.id+'|d|'+Math.round(at)));
 };
+/** 纪念日到了，提醒她一下：前一天晚上八点「明天是…」，当天「今天是…」（「在一起」的整数天、周年也算）。
+ *  页面开着：一条小提示（当天的那条一打开就说）；页面在后台：到点弹一条通知。一分钟看一次就够 */
+const dayMin=new Map<string,number>();
+function dayRemind(p:Persona,now:number){
+  const m=Math.floor(now/60000);if(dayMin.get(p.id)===m)return;dayMin.set(p.id,m);
+  const b=box(p.id);if(!b.days.length&&!p.since)return;
+  const today=dayYmd(new Date(now)),k='cx-day-tip:'+p.id;
+  let done:string[];try{done=JSON.parse(localStorage.getItem(k)??'[]') as string[];}catch{return;}
+  const due=dayTips({since:p.since,sinceTip:b.sinceTip,days:b.days},today).filter(t=>!done.includes(t.key)&&dayYmd(new Date(t.at))===today&&(t.at<=now||(!document.hidden&&!t.key.endsWith('|e'))));
+  if(!due.length)return;
+  const text=due.map(t=>t.text).join(' · ');
+  if(!document.hidden)dispatchEvent(new CustomEvent('cx-say',{detail:text}));else remind('纪念日',text,p.id);
+  try{localStorage.setItem(k,JSON.stringify([...done,...due.map(t=>t.key)].slice(-40)));}catch{/* 记不下就算了，最多再提醒一次 */}
+}
 /** 经期快到了，提醒她一下（前一天、当天各一次，一天最多一次）。页面开着：一条小提示；页面在后台：到点弹一条通知（云端已接手就由云端弹） */
 function cyRemind(p:Persona,now:number){
   const day=ymd(now),due=cyTips(box(p.id).cycle,now).find(t=>t.day===day);if(!due)return;
@@ -418,6 +433,8 @@ export function ahead():Ahead[]{
     if(bx.mailPro&&bx.mailNext)out.push({at:Math.max(bx.mailNext.at,now),title:p.name,body:'给你写了一封信',pid:p.id});
     // 经期快到了的提醒（不是他说的话，不进聊天）
     for(const t of cyTips(bx.cycle,now))if(t.at>now&&t.at<now+72*3600e3)out.push({at:t.at,title:'经期',body:t.text,pid:p.id});
+    // 纪念日的提醒（同上）
+    if(bx.days.length||p.since)for(const t of dayTips({since:p.since,sinceTip:bx.sinceTip,days:bx.days},dayYmd(new Date(now))))if(t.at>now)out.push({at:t.at,title:'纪念日',body:t.text,pid:p.id});
   }
   for(const id of Object.keys(plans.pq))if(!who(id))delete plans.pq[id];
   for(const id of Object.keys(plans.rq))if(!who(id))delete plans.rq[id];
@@ -445,6 +462,7 @@ function tickBody(now:number){
     if(!busy.has(p.id)&&!p.replyAt)proactive(p,now);
     mail(p,now);
     cyRemind(p,now);
+    dayRemind(p,now);
     // 响了很久没人接
     const r=box(p.id).ring;
     if(r&&now-r.at>=RING){setBox(p.id,{ring:undefined},true);missed(p,r.at+RING,callId(p,r.at));}

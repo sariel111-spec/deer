@@ -37,7 +37,8 @@ export type Grave={dead:string[];cleared:number};   // 一位的聊天里删掉�
 // star 收藏；kept 写了没寄；pro 他主动写来的；ai 解读
 export type Letter={id:string;from:'me'|'ta';text:string;at:number;read?:boolean;re?:string;due?:number;plan?:string;got?:boolean;star?:boolean;kept?:boolean;pro?:boolean;ai?:string;u?:number;img?:string;planImg?:string};   // u：这封信上次被改动的时刻（收藏、解读），同步时同一封听后改的那边；img：夹在信里的照片；planImg：他回信时会夹的那张（寄出时就定好）
 export type Diary={id:string;at:number;text:string;mood:string;note?:string};
-export type Day={id:string;name:string;date:string;yearly:boolean};
+/** 一个日子。lunar：每年按农历过；img：她放的一张照片；remind：到那天提醒（没写＝提醒，false＝不提醒） */
+export type Day={id:string;name:string;date:string;yearly:boolean;lunar?:boolean;img?:string;remind?:boolean};
 export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt?:string};
 // 一次塔罗：kind 是牌阵，cards 是抽到的牌（c 第几张、r 逆位），said 是他当时说的那句，note 是你写的感想
 // ok：「对一对」牌阵里你觉得对不对得上
@@ -47,7 +48,7 @@ export type TCard={c:number;r?:boolean};
 export type More={c:number;r?:boolean;deck:'t'|'l';why:'ok'|'go'|'kw'|'jump';on?:number};   // 补的牌：核对 / 接着说 / 给第 on 张塔罗补的雷诺曼关键词
 export type Turn={id:string;at:number;u?:number;deck:'t'|'l';kind:'say'|'here'|'bye'|'doing'|'yn'|'ab'|'day3';th?:number;q?:string;a?:string;b?:string;cards:TCard[];more?:More[];read?:string;ok?:boolean};
 export type Talk={id:string;at:number;u?:number;end?:number;turns:Turn[];ai?:string};
-export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string;like?:boolean;u?:number;at?:number}[];lineSeen?:string;answers:Record<string,string>;
+export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];/** 「在一起」到整数天、周年时提醒（没写＝提醒） */sinceTip?:boolean;lines:{date:string;text:string;like?:boolean;u?:number;at?:number}[];lineSeen?:string;answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string;id?:string;plan?:string}[];ckDecks?:string[];listen:number;   // checks.id：聊天里那条消息；checks.plan：这条报的是哪天的哪条日程；ckDecks：他哪几组字卡算报备
   focus:{n:number;min:number};
   cycle:{starts:string[];len:number;gap:number;ends?:Record<string,string>;decks?:string[];soon?:string[];remind?:boolean};posts:Post[];at?:number;fu?:Record<string,number>;   // fu：每一项设置是什么时候改的（同步时各项各听各的后改）

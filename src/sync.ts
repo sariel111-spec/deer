@@ -71,6 +71,7 @@ function imageIds(d:Dump){
     for(const x of d.boxes[p.id]?.posts??[])add(x.img);
     const bx=d.boxes[p.id];for(const l of bx?.letters??[]){add(l.img);add(l.planImg);}
     for(const x of bx?.mailPics??[])add(x);add(bx?.mailNext?.img);
+    for(const x of bx?.days??[])add(x.img);
   }
   return ids;
 }
