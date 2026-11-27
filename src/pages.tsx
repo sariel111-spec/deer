@@ -10,6 +10,7 @@ import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
 import {feats,homeDefault} from './more';
 import {useDismiss,useTwice} from './ui';
 import {Over} from './over';
+import {cyPhase} from './cyc';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
 
 /* ───────── 小零件 ───────── */
@@ -183,7 +184,7 @@ export function Home({p}:{p:Persona}){
   const [note,setNote]=useState(false);
   useEffect(()=>{keepToday(p);},[p.id,line]);
   const others=st.personas.filter(x=>x.id!==p.id).reduce((n,x)=>n+unread(x),0);
-  const dot:Record<string,boolean>={mail:b.letters.some(l=>l.from==='ta'&&!l.read)};
+  const dot:Record<string,boolean>={mail:b.letters.some(l=>l.from==='ta'&&!l.read),cycle:!!cyPhase(b.cycle)};   // 经期：快来了、或者正在经期里，那个圆圈亮着
   return <main className="page home" style={{'--accent':p.accent} as React.CSSProperties}>
     <header className="bar">
       {nav.from.startsWith('#/c/')&&<a className="ico back" href={nav.from} onClick={backTo(nav.from)} aria-label="回到聊天"><ChevronLeft size={28} strokeWidth={1.8}/></a>}

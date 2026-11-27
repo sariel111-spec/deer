@@ -1,14 +1,17 @@
 import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Letter,type Msg,type Persona,type When} from './db';
 import {notify,blip,badge,clearNotes} from './alive';
 import {pushWas,type Ahead} from './push';
+import {at0,cyDecks,cyPhase,ymd} from './cyc';
 
 const rand=(a:number,b:number)=>a+Math.random()*Math.max(0,b-a);
 const inWin=(w:When,t:number)=>{const x=whens.find(y=>y.id===w)!;const h=new Date(t).getHours();return x.from<x.to?h>=x.from&&h<x.to:h>=x.from||h<x.to;};
 const asleep=(p:Persona,t:number)=>{const h=new Date(t).getHours();return p.quietFrom===p.quietTo?false:p.quietFrom<p.quietTo?h>=p.quietFrom&&h<p.quietTo:h>=p.quietFrom||h<p.quietTo;};
 
+// 他平时能用的分组：他启用的那些，去掉她指定给经期的（那些话只在那几天由他主动说，不随口说，也不进信和每日一句）
+export const plain=(p:Persona)=>{const cy=new Set(cyDecks(box(p.id).cycle));return S().decks.filter(d=>p.decks.includes(d.id)&&!cy.has(d.id));};
 // 这一刻他能用的字卡：他启用的分组里，时段对得上、没被屏蔽的
 export function pool(p:Persona,mode:'reply'|'pro',t=Date.now()){
-  return S().decks.filter(d=>p.decks.includes(d.id)&&(d.use==='both'||d.use===mode)&&inWin(d.when,t))
+  return plain(p).filter(d=>(d.use==='both'||d.use===mode)&&inWin(d.when,t))
     .flatMap(d=>d.cards.filter(c=>!c.off).map(c=>({id:d.id+'/'+c.id,t:c.t})));
 }
 const recent=new Map<string,string[]>();
@@ -46,7 +49,7 @@ function draw(p:Persona,mode:'reply'|'pro',t:number,rnd?:()=>number,avoid?:Set<s
 
 // 小功能里用：从他所有能用的字卡里随手抽 n 句（不分时段、不记重复）
 export function lines(p:Persona,n=1):string[]{
-  const all=S().decks.filter(d=>p.decks.includes(d.id)).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t));
+  const all=plain(p).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t));
   const out:string[]=[];
   while(out.length<n&&all.length)out.push(all.splice(Math.floor(Math.random()*all.length),1)[0]);
   return out;
@@ -61,7 +64,7 @@ const awakeAt=(p:Persona,t:number)=>{let x=t;for(let i=0;i<96&&asleep(p,x);i++)x
 // 一封信里的字卡不重复；他最近三封信（和已经定好还没送到的）用过的也尽量避开，免得连着几封都差不多
 const letterText=(p:Persona,len:number|undefined)=>{
   const [a,z]=pickOf(mailLens,len,1).r,n=a+Math.floor(Math.random()*(z-a+1)),b=box(p.id);
-  const all=[...new Set(S().decks.filter(d=>p.decks.includes(d.id)).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t)))];
+  const all=[...new Set(plain(p).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t)))];
   const used=new Set([...b.letters.filter(l=>l.from==='ta').slice(-3).map(l=>l.text),...b.letters.filter(l=>l.plan&&!l.got).map(l=>l.plan!),b.mailNext?.text??''].flatMap(t=>t.split('\n')));
   const fresh=all.filter(t=>!used.has(t)),pool=fresh.length>=n?fresh:all,out:string[]=[];
   while(out.length<n&&pool.length)out.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
@@ -267,7 +270,9 @@ function ring(p:Persona,at:number){
   if(!(at<backAt&&pushWas()))notify(p,'邀请你视频通话');
 }
 // 他在某个时刻主动做的那件事：多数时候是一句话，偶尔是一通视频。只由「谁、几点」决定
-const proLine=(p:Persona,at:number,noCall:boolean)=>{
+const proLine=(p:Persona,at:number,noCall:boolean,q:{at:number;src?:string}[]=[])=>{
+  // 经期：到了那天该说的那一刻，先说那一句（一天只这一句），比视频、报备、随口的都靠前
+  const cy=cyLine(p,at,q);if(cy)return cy;
   const call=!noCall&&p.calls!==false&&!onCall()&&!box(p.id).ring&&seeded(p.id+'|c|'+Math.round(at))()<.08;
   if(call)return {text:'',src:'',call:true as const};
   // 指定了「他的报备」是哪几组字卡：他主动找你时，大约三次里有一次是报备（从那几组里抽）。没指定就和以前完全一样
@@ -275,6 +280,31 @@ const proLine=(p:Persona,at:number,noCall:boolean)=>{
   if(ck.length&&seeded(p.id+'|k|'+Math.round(at))()<1/3){const r=seeded(p.id+'|kd|'+Math.round(at)),c=ck[Math.floor(r()*ck.length)];return {text:c.t,src:c.id};}
   return draw(p,'pro',at,seeded(p.id+'|d|'+Math.round(at)));
 };
+/** 经期：她指定了分组的话，快来的那几天和经期里，他每天主动说一句。
+ *  那天几点以后说，只由「谁、哪天」定（上午九点半到晚上七点半之间）；这天说没说过，看聊天记录、交给云端的、和这一轮已经排好的。没指定分组就什么都不做 */
+function cyLine(p:Persona,at:number,q:{at:number;src?:string}[]){
+  const c=box(p.id).cycle;if(!c.decks?.length&&!c.soon?.length)return null;
+  const day=ymd(at),ph=cyPhase(c,day);if(!ph)return null;
+  const ids=(ph==='in'?c.decks:c.soon)??[];if(!ids.length)return null;
+  const d0=at0(day),d1=d0+864e5;
+  if(at<d0+(9.5+seeded(p.id+'|cy|'+day)()*10)*3600e3)return null;
+  const all=new Set(cyDecks(c)),mine=(src?:string)=>!!src&&all.has(src.split(',')[0].split('/')[0]),on=(t:number)=>t>=d0&&t<d1;
+  if(q.some(x=>on(x.at)&&mine(x.src))||held.some(h=>h.pid===p.id&&on(h.at)&&mine(h.src))||list(p.id).some(m=>m.from==='ta'&&on(m.at)&&mine(m.src)))return null;
+  const cards=S().decks.filter(d=>ids.includes(d.id)&&p.decks.includes(d.id)&&inWin(d.when,at)).flatMap(d=>d.cards.filter(x=>!x.off).map(x=>({id:d.id+'/'+x.id,t:x.t})));
+  if(!cards.length)return null;
+  const one=cards[Math.floor(seeded(p.id+'|cyd|'+Math.round(at))()*cards.length)];
+  return {text:one.t,src:one.id};
+}
+/** 经期页上他说的那一句：那几天从她指定的分组里挑（一天里不变）；没指定分组、又正在经期，就还是从他平时的话里随手抽一句 */
+export function cySay(p:Persona,day=ymd()){
+  const c=box(p.id).cycle,ph=cyPhase(c,day);if(!ph)return '';
+  const ids=(ph==='in'?c.decks:c.soon)??[];
+  const cards=S().decks.filter(d=>ids.includes(d.id)&&p.decks.includes(d.id)).flatMap(d=>d.cards.filter(x=>!x.off).map(x=>x.t));
+  if(cards.length)return cards[Math.floor(seeded(p.id+'|cys|'+day)()*cards.length)];
+  if(ph!=='in')return '';
+  const all=plain(p).flatMap(d=>d.cards.filter(x=>!x.off).map(x=>x.t));
+  return all.length?all[Math.floor(seeded(p.id+'|cys|'+day)()*all.length)]:'';
+}
 /** 他的报备能用的字卡：你在报备页指定的那几组里、这个时段能说的 */
 function ckPool(p:Persona,t:number){
   const ids=box(p.id).ckDecks??[];if(!ids.length)return [];
@@ -304,7 +334,7 @@ function proactive(p:Persona,now:number){
   // 离开很久回来：最多补三条，时间按他本来要发的时刻记
   let at=p.nextAt,sentN=0;
   while(at<=now&&sentN<3){
-    const got=q.length&&q[0].at===at?q.shift()!:proLine(p,at,false);
+    const got=q.length&&q[0].at===at?q.shift()!:proLine(p,at,false,q);
     if(got&&'call' in got&&got.call)ring(p,at);
     else if(got)arrive(p,got.text,got.src,Math.min(at,now),undefined,false,at<backAt,proId(p,at));
     sentN++;at=q.length?q[0].at:nextTime(p,at);
@@ -338,7 +368,7 @@ export function ahead():Ahead[]{
       while(q.length<3){
         const at=q.length?nextTime(p,q[q.length-1].at):p.nextAt;
         if(at>now+48*3600e3)break;
-        const got=proLine(p,at,q.some(x=>x.call));if(!got)break;
+        const got=proLine(p,at,q.some(x=>x.call),q);if(!got)break;
         q.push({at,...got});
       }
       if(q.length)plans.pq[p.id]=q;else delete plans.pq[p.id];

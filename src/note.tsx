@@ -3,7 +3,7 @@
 import {useEffect,useState} from 'react';
 import {ChevronLeft,Heart,Send} from 'lucide-react';
 import {S,box,list,pushMsg,setBox,type Persona} from './db';
-import {sent} from './engine';
+import {plain,sent} from './engine';
 import {Avatar} from './App';
 import {useDismiss} from './ui';
 import {Over} from './over';
@@ -13,7 +13,7 @@ export const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).pa
 export function todayLine(p:Persona){
   const kept=box(p.id).lines.find(x=>x.date===ymd());if(kept)return kept.text;
   // 指定成「他的报备」的那几组是说「此刻在做什么」的，不拿来当一整天的那一句（只剩这几组时才用）
-  const ck=new Set(box(p.id).ckDecks??[]),of=(skip:boolean)=>S().decks.filter(d=>p.decks.includes(d.id)&&!(skip&&ck.has(d.id))).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t));
+  const ck=new Set(box(p.id).ckDecks??[]),of=(skip:boolean)=>plain(p).filter(d=>!(skip&&ck.has(d.id))).flatMap(d=>d.cards.filter(c=>!c.off).map(c=>c.t));
   let all=of(true);if(!all.length)all=of(false);
   if(!all.length)return '';
   const key=new Date().toDateString()+p.id;let h=0;for(const ch of key)h=(h*31+ch.charCodeAt(0))>>>0;

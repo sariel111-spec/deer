@@ -5,6 +5,7 @@ import {lines,sent} from './engine';
 import {Avatar,Pic,backTo,dayLabel} from './App';
 import {Num,Sheet,say} from './pages';
 import {useTwice} from './ui';
+import {CyclePage} from './cycle';
 import {TarotPage} from './tarotpage';
 import {MailBox} from './mail';
 import {CheckPage} from './check';
@@ -129,27 +130,6 @@ function FocusPage({p}:{p:Persona}){
 }
 
 /* 经期 */
-function CyclePage({p}:{p:Persona}){
-  const b=box(p.id),c=b.cycle,today=ymd(),last=[...c.starts].sort().at(-1);
-  const day=last?gap(last,today)+1:0,inside=!!last&&day>=1&&day<=c.len;
-  const next=last?(()=>{const d=new Date(at0(last));d.setDate(d.getDate()+c.gap);return ymd(d);})():'';
-  const wait=next?gap(today,next):0;
-  const care=useMemo(()=>inside?lines(p,1)[0]:'',[inside,p.id]);
-  const set=(patch:Partial<typeof c>)=>setBox(p.id,{cycle:{...c,...patch}});
-  const [armed,twice]=useTwice();
-  return <Sub p={p} title="经期">
-    <div className="cyc"><b>{!last?'—':inside?`第 ${day} 天`:wait>0?`${wait}`:wait===0?'今天':`晚了 ${-wait} 天`}</b>
-      <span>{!last?'还没有记录':inside?'经期中':wait>0?'天后可能会来':wait===0?'可能今天来':`预计 ${next.replace(/-/g,'.')}`}</span></div>
-    <button className="btn wide" onClick={()=>{if(c.starts.includes(today))say('今天已经记过了');else{set({starts:[...c.starts,today]});say('记下了');}}}>今天来了</button>
-    {care&&<div className="said"><Avatar id={p.avatar} name={p.name} size={28}/><span>{care}</span></div>}
-    <h3>我的周期</h3>
-    <Num label="一次大概" value={c.len} set={n=>set({len:n})} min={1} max={15} unit="天"/>
-    <Num label="两次相隔" value={c.gap} set={n=>set({gap:n})} min={15} max={60} unit="天"/>
-    {c.starts.length>0&&<><h3>记录</h3><ul className="timeline">{[...c.starts].sort().reverse().map(s=><li key={s}><span>{s.replace(/-/g,'.')}</span>
-      <button className={`ico sm${armed===s?' danger':''}`} onClick={twice(s,()=>set({starts:c.starts.filter(x=>x!==s)}))} aria-label={armed===s?`再点一次，删掉 ${s} 这次`:`删掉 ${s} 这次`}>{armed===s?<small>再点一次</small>:<Trash2 size={16} strokeWidth={1.6}/>}</button></li>)}</ul></>}
-    <p className="foot">只存在这台设备上。预测只是按你填的天数往后数，不是医学判断。</p>
-  </Sub>;
-}
 
 /* 收藏、相册：都是聊天里攒下来的 */
 /* 问问他：帮我选 / 默契 / 问卷 三个小的合在一页 */
