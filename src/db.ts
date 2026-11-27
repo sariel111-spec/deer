@@ -27,7 +27,7 @@ export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'lin
 // plan：我每周固定的日程；quick：报备的常用短语（没改过就是默认那几句）；dayAt：这两样最后一次改的时刻（同步用）
 /** 一条固定的日程：周几（0 是周日）、几点到几点 */
 export type Plan={id:string;name:string;days:number[];from:string;to:string};
-export type Pack={id:string;name:string;ids:string[];his?:boolean;who?:string[];use?:'tarot';created:number;updated:number};   // 一组表情包；ids 里是本机图片或图片链接；his=false 表示他不发这一组；who：只给这几位用（不写就是所有人）
+export type Pack={id:string;name:string;ids:string[];his?:boolean;who?:string[];use?:'tarot'|'leno';created:number;updated:number};   // 一组表情包；ids 里是本机图片或图片链接；his=false 表示他不发这一组；who：只给这几位用（不写就是所有人）
 export type State={personas:Persona[];decks:Deck[];prefs:Prefs;dead?:Record<string,number>;stickers?:string[];packs?:Pack[]};   // dead：删掉的人和分组，同步时别的设备也跟着删
 export type Grave={dead:string[];cleared:number};   // 一位的聊天里删掉的消息、清空的时刻
 // 每一位各自的小功能数据，单独存一份（x:<pid>），不和聊天记录混在一起
@@ -40,6 +40,11 @@ export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt
 // 一次塔罗：kind 是牌阵，cards 是抽到的牌（c 第几张、r 逆位），said 是他当时说的那句，note 是你写的感想
 // ok：「对一对」牌阵里你觉得对不对得上
 export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time'|'link'|'match';date?:string;q?:string;cards:{c:number;r?:boolean}[];said?:string;note?:string;sent?:boolean;ok?:boolean;jump?:{c:number;r?:boolean};ai?:string};   // jump：洗牌时跳出来的那张；ai：AI 解出来的话
+/** 占牌 · 和他的一场对话。一句话（或一个牌阵）是一个 Turn */
+export type TCard={c:number;r?:boolean};
+export type More={c:number;r?:boolean;deck:'t'|'l';why:'ok'|'go'|'kw';on?:number};   // 补的牌：核对 / 接着说 / 给第 on 张塔罗补的雷诺曼关键词
+export type Turn={id:string;at:number;u?:number;deck:'t'|'l';kind:'say'|'here'|'bye'|'doing'|'yn'|'ab'|'day3';q?:string;a?:string;b?:string;cards:TCard[];more?:More[];read?:string;ok?:boolean};
+export type Talk={id:string;at:number;u?:number;end?:number;turns:Turn[];ai?:string};
 export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string;like?:boolean;u?:number;at?:number}[];lineSeen?:string;answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string;id?:string;plan?:string}[];ckDecks?:string[];listen:number;   // checks.id：聊天里那条消息；checks.plan：这条报的是哪天的哪条日程；ckDecks：他哪几组字卡算报备
   focus:{n:number;min:number};
@@ -48,7 +53,7 @@ export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:
   call?:{at:number};ring?:{at:number};
   mailGone?:string[];mailPace?:number;mailLen?:number;mailPro?:number;mailNext?:{at:number;text:string;img?:string};mailPics?:string[];mailCall?:string;mailSign?:string;   // mailCall：他在信里怎么称呼你；mailSign：他的落款
     // 信箱：删掉的信（同步时别的设备也跟着删）、回信多快、多长、他会不会主动写信、下一封主动的信
-  tarot?:Reading[];tarotRev?:boolean;tarotGone?:string[];tarotMine?:Record<string,string>;tarotAbout?:string;tarotSign?:number[]};   // tarotGone：删掉的那几次（同步时别的设备也跟着删）；tarotMine：你们自己磨合出来的牌意（第几张牌 → 你写的话）   // tarot：塔罗的记录；tarotRev=false 表示只抽正位   // call：视频通话从什么时候开始（一直到你挂断）；ring：他正打过来
+  tarot?:Reading[];tarotRev?:boolean;tarotGone?:string[];tarotMine?:Record<string,string>;tarotAbout?:string;tarotSign?:number[];talks?:Talk[];talksGone?:string[];lenoMine?:Record<string,string>;lenoWho?:{he?:number;me?:number}};   // talks：占牌里的对话；lenoMine：雷诺曼的「我们的牌意」；lenoWho：雷诺曼里谁代表他、谁代表你   // tarotGone：删掉的那几次（同步时别的设备也跟着删）；tarotMine：你们自己磨合出来的牌意（第几张牌 → 你写的话）   // tarot：塔罗的记录；tarotRev=false 表示只抽正位   // call：视频通话从什么时候开始（一直到你挂断）；ring：他正打过来
 export const blankBox=():Box=>({letters:[],mailDue:0,diary:[],days:[],lines:[],answers:{},checks:[],listen:0,focus:{n:0,min:0},cycle:{starts:[],len:5,gap:28},posts:[]});
 
 export const accents=['#8A6A52','#000000','#3D6BE0','#D4526E','#5B8C6A','#8B6FD1','#E08A3C'];
@@ -310,7 +315,7 @@ export function dropDeck(id:string){
 }
 export const addPack=(name:string,who?:string[]):Pack=>{const now=Date.now(),k:Pack={id:uid(),name:name.trim()||'表情包',ids:[],...(who?{who}:{}),created:now,updated:now};state={...state,packs:[...(state.packs??[]),k]};save();return k;};
 export const setPack=(id:string,patch:Partial<Pack>)=>{state={...state,packs:(state.packs??[]).map(k=>k.id===id?{...k,...patch,updated:Date.now()}:k)};save();};
-export const packsFor=(pid:string)=>(state.packs??[]).filter(k=>!k.who||k.who.includes(pid));
+export const packsFor=(pid:string)=>(state.packs??[]).filter(k=>!k.use&&(!k.who||k.who.includes(pid)));   // 牌面图那两组（use）不是表情包
 export const dropPack=(id:string)=>{state={...state,packs:(state.packs??[]).filter(k=>k.id!==id),dead:{...state.dead,[id]:Date.now()}};save();};
 export const shareDeck=(deckId:string,pid:string,on:boolean)=>{
   const p=who(pid);if(!p)return;

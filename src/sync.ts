@@ -1,5 +1,5 @@
 import {useSyncExternalStore} from 'react';
-import {adopt,delKey,dropImageCache,dump,getKey,onChange,readKey,setKey,storageDown,type Reading,type Letter,type Box,type Deck,type Dump,type Grave,type Msg,type Pack,type Persona,type State} from './db';
+import {adopt,delKey,dropImageCache,dump,getKey,onChange,readKey,setKey,storageDown,type Reading,type Talk,type Turn,type Letter,type Box,type Deck,type Dump,type Grave,type Msg,type Pack,type Persona,type State} from './db';
 
 /* 同步：把数据放进你自己的一个私有 GitHub 仓库。
    不是整包覆盖——每台设备先把云端的拿下来和本机的合并，再把合并后的结果传上去；
@@ -141,6 +141,16 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
       const gone=[...new Set([...(o.tarotGone??[]),...(b.tarotGone??[])])].slice(-400),dead=new Set(gone),m=new Map<string,Reading>();
       for(const x of [...(o.tarot??[]),...(b.tarot??[])])if(!dead.has(x.id))m.set(x.id,x);
       const tarot=[...m.values()].sort((x,y)=>x.at-y.at||(x.id<y.id?-1:1)).slice(-300),mine={...o.tarotMine,...b.tarotMine};
+      // 占牌的对话：按场并；同一场里按句并，同一句听后改的那边
+      const tgone=[...new Set([...(o.talksGone??[]),...(b.talksGone??[])])].slice(-400),tdead=new Set(tgone),tm=new Map<string,Talk>();
+      for(const x of [...(o.talks??[]),...(b.talks??[])]){
+        if(tdead.has(x.id))continue;const had=tm.get(x.id);
+        if(!had){tm.set(x.id,x);continue;}
+        const um=new Map<string,Turn>();for(const t of [...had.turns,...x.turns]){const q=um.get(t.id);if(!q||(t.u??0)>=(q.u??0))um.set(t.id,t);}
+        const nw=(x.u??0)>=(had.u??0)?x:had;
+        tm.set(x.id,{...nw,end:Math.max(had.end??0,x.end??0)||undefined,ai:nw.ai??had.ai??x.ai,turns:[...um.values()].sort((p,q)=>p.at-q.at||(p.id<q.id?-1:1))});
+      }
+      const talks=[...tm.values()].sort((x,y)=>x.at-y.at||(x.id<y.id?-1:1)).slice(-200),lmine={...o.lenoMine,...b.lenoMine};
       // 信：按封合并。同一封两边都有时听后改的那边，但「读过了」「回信到了」只要一边是就算
       const mgone=[...new Set([...(o.mailGone??[]),...(b.mailGone??[])])].slice(-400),mdead=new Set(mgone),lm=new Map<string,Letter>();
       for(const x of o.letters??[])if(!mdead.has(x.id))lm.set(x.id,x);
@@ -164,14 +174,14 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
       const seen=[b.lineSeen,o.lineSeen].filter(Boolean).sort().at(-1);
       const mn=b.mailNext&&o.mailNext?(o.mailNext.at>b.mailNext.at?o.mailNext:b.mailNext):(b.at??0)===(o.at??0)?b.mailNext??o.mailNext:b.mailNext;
       // 其余的设置（信的节奏、他的照片库、他的报备组、纪念日…）：每一项各听各的后改。没记时刻的改动（旧版本改的）算在整格头上
-      const MERGED=new Set(['at','fu','letters','lines','checks','tarot','tarotGone','tarotMine','mailGone','lineSeen','mailNext','ring','call']);
+      const MERGED=new Set(['at','fu','letters','lines','checks','tarot','tarotGone','tarotMine','talks','talksGone','lenoMine','mailGone','lineSeen','mailNext','ring','call']);
       const looseB=(x:Box)=>(x.at??0)>Math.max(0,...Object.values(x.fu??{}))?(x.at??0):0,lB=looseB(b),lO=looseB(o);
       const one:Record<string,unknown>={},fu:Record<string,number>={...b.fu};
       for(const k of Object.keys(o.fu??{})){
         if(MERGED.has(k))continue;
         if(Math.max(o.fu![k],lO)>Math.max(b.fu?.[k]??0,lB)){one[k]=(o as unknown as Record<string,unknown>)[k];fu[k]=o.fu![k];}
       }
-      boxes[p.id]={...b,...(one as Partial<Box>),...(Object.keys(fu).length?{fu}:{}),lineSeen:seen,mailNext:mn,ring:lb?.ring,call:lb?.call,letters,lines,checks,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{})};
+      boxes[p.id]={...b,...(one as Partial<Box>),...(Object.keys(fu).length?{fu}:{}),lineSeen:seen,mailNext:mn,ring:lb?.ring,call:lb?.call,letters,lines,checks,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{}),...(talks.length?{talks}:{}),...(tgone.length?{talksGone:tgone}:{}),...(Object.keys(lmine).length?{lenoMine:lmine}:{})};
     }else if(b)boxes[p.id]=b===rb?{...b,ring:undefined,call:undefined}:b;
   }
   return {state,msgs,boxes,graves};

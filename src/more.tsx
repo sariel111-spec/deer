@@ -12,7 +12,7 @@ import {CheckPage} from './check';
 
 // 主页上摆出来的全部功能。顺序就是宫格里的顺序
 export const feats:{id:string;name:string;icon:LucideIcon}[]=[
-  {id:'mail',name:'信箱',icon:Mail},{id:'check',name:'报备',icon:MapPin},{id:'draw',name:'塔罗',icon:Sparkles},{id:'days',name:'纪念日',icon:CalendarHeart},
+  {id:'mail',name:'信箱',icon:Mail},{id:'check',name:'报备',icon:MapPin},{id:'draw',name:'占牌',icon:Sparkles},{id:'days',name:'纪念日',icon:CalendarHeart},
   {id:'ask',name:'问问他',icon:MessageCircleQuestion},{id:'focus',name:'专注',icon:Timer},{id:'cycle',name:'经期',icon:Droplet},
 ];
 /** 主页那一排默认放哪几个（没自己挑过的时候） */
