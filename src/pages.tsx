@@ -118,6 +118,23 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
   </Sheet>;
 }
 
+/** 主页照片的大图：左右划（电脑上按方向键、或点两边的箭头）看上一张下一张，点一下关掉；底下一行小字是哪天的 */
+function PicView({pics,i,go,close}:{pics:{id:string;at:number}[];i:number;go:(i:number)=>void;close:()=>void}){
+  const sw=useRef<{x:number;y:number}|null>(null);
+  const step=(d:number)=>{const n=i+d;if(n>=0&&n<pics.length)go(n);};
+  useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key==='Escape')close();else if(e.key==='ArrowLeft')step(-1);else if(e.key==='ArrowRight')step(1);};
+    addEventListener('keydown',k);return()=>removeEventListener('keydown',k);});
+  return <Over><div className="viewer" role="dialog" aria-modal="true" aria-label={`照片，第 ${i+1} 张，共 ${pics.length} 张`} onClick={close}
+    onTouchStart={e=>{const t=e.touches[0];sw.current=e.touches.length===1?{x:t.clientX,y:t.clientY}:null;}}
+    onTouchEnd={e=>{const a=sw.current,t=e.changedTouches[0];sw.current=null;if(!a)return;const dx=t.clientX-a.x,dy=t.clientY-a.y;
+      if(Math.abs(dx)>48&&Math.abs(dx)>Math.abs(dy)*1.4)step(dx<0?1:-1);}}>
+    <Pic id={pics[i].id} alt="大图"/>
+    {i>0&&<button className="pv-side l" onClick={e=>{e.stopPropagation();step(-1);}} aria-label="上一张"><ChevronLeft size={26} strokeWidth={1.6}/></button>}
+    {i<pics.length-1&&<button className="pv-side r" onClick={e=>{e.stopPropagation();step(1);}} aria-label="下一张"><ChevronRight size={26} strokeWidth={1.6}/></button>}
+    <small className="pv-cap">{dayLabel(pics[i].at)}{pics.length>1?` · ${i+1} / ${pics.length}`:''}</small>
+  </div></Over>;
+}
+
 /* ───────── 主页 ───────── */
 
 // 今日一句：每天从他的字卡里固定抽一张，当天不变
@@ -167,7 +184,13 @@ export function Home({p}:{p:Persona}){
     const d=drag.from<dragTo&&i>drag.from&&i<=dragTo?-drag.h:drag.from>dragTo&&i>=dragTo&&i<drag.from?drag.h:0;
     return {transform:`translateY(${d}px)`,transition:'transform .16s var(--ease)'};
   };
-  const [menu,setMenu]=useState(false),[tab,setTab]=useState<'pics'|'fav'>('pics'),[view,setView]=useState('');
+  // 看的是照片还是收藏：离开主页再回来，还停在刚才那一栏
+  const [menu,setMenu]=useState(false),[tab,setTab0]=useState<'pics'|'fav'>(()=>{try{return sessionStorage.getItem('cx-htab')==='fav'?'fav':'pics';}catch{return 'pics';}});
+  const setTab=(t:'pics'|'fav')=>{setTab0(t);try{sessionStorage.setItem('cx-htab',t);}catch{/* */}};
+  // 大图：view 是照片格子里的第几张（-1 没在看）；face 是在看他的头像
+  const [view,setView]=useState(-1),[face,setFace]=useState(false);
+  // 照片多的时候先画前面一些，往下滑到底再接着画（不然一进主页就要把几百张图全读出来）
+  const [shown,setShown]=useState(36),more=useRef<HTMLDivElement>(null);
   // 那一排的封面：默认是一个小图标，长按（电脑上右键）可以换成自己的照片
   const covers=st.prefs.hlPic??{},[cover,setCover]=useState(''),held=useRef({t:0,fired:false}),cfile=useRef<HTMLInputElement>(null);
   const setCov=(id:string,img?:string)=>{const next={...covers};if(img)next[id]=img;else delete next[id];setPrefs({hlPic:next});};
@@ -180,6 +203,8 @@ export function Home({p}:{p:Persona}){
     ...b.letters.filter(l=>l.star).map(l=>({key:l.id,at:l.at,kind:'mail' as const,text:l.text.split('\n').find(x=>x.trim())??'',who:l.from==='me'?`寄给 ${p.name} 的信`:`${p.name} 的信`,to:`#/f/mail/${p.id}/r/${l.id}`})),
     ...b.lines.filter(x=>x.like).map(x=>({key:'l'+x.date,at:new Date(x.date+'T12:00:00').getTime(),kind:'line' as const,text:x.text,who:'一句'})),
   ].sort((x,y)=>y.at-x.at);
+  useEffect(()=>{const el=more.current;if(!el||!('IntersectionObserver' in window))return;
+    const io=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting))setShown(n=>n+36);},{rootMargin:'400px'});io.observe(el);return()=>io.disconnect();},[tab,shown,pics.length]);
   const line=todayLine(p);
   const [note,setNote]=useState(false);
   useEffect(()=>{keepToday(p);},[p.id,line]);
@@ -192,20 +217,24 @@ export function Home({p}:{p:Persona}){
       <button className="ico" onClick={()=>setMenu(true)} aria-label="更多"><Menu size={25} strokeWidth={1.7}/></button>
     </header>
 
-    <section className={`profile${line?' noted':''}`}>
+    <section className="profile">
       <div className="face">
-        {line&&<button className="note" onClick={()=>setNote(true)} aria-label={`${p.name} 今天的一句：${line}${noteNew(p)?'（还没看过）':''}`}><span>{line}</span></button>}
-        {line&&noteNew(p)&&<i className="note-dot" aria-hidden="true"/>}
-        <button onClick={()=>setEdit(true)} aria-label="换他的头像和资料"><Avatar id={p.avatar} name={p.name} size={86}/></button>
-        <button className="mebadge" onClick={()=>mine.current?.click()} aria-label="换我的头像"><Avatar id={st.prefs.myAvatar} name={st.prefs.myName} size={32}/></button>
-        <input ref={mine} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)setPrefs({myAvatar:await putImage(f,512)});}}/>
+        {/* 今天的一句：和 ins 的便签一样，一个和头像差不多宽的小气泡，居中压在头像上沿；字多了只露三行，点开看全 */}
+        {line&&<button className="note" onClick={()=>setNote(true)} aria-label={`${p.name} 今天的一句：${line}${noteNew(p)?'（还没看过）':''}`}><span>{line}</span>{noteNew(p)&&<i className="note-dot" aria-hidden="true"/>}</button>}
+        <div className="face-a">
+          {/* 点头像：有照片就看大图（换头像在「编辑主页」里）；还没有照片就去放一张 */}
+          <button onClick={()=>p.avatar?setFace(true):setEdit(true)} aria-label={p.avatar?`看 ${p.name} 的头像`:'给他放一张头像'}><Avatar id={p.avatar} name={p.name} size={86}/></button>
+          <button className="mebadge" onClick={()=>mine.current?.click()} aria-label="换我的头像"><Avatar id={st.prefs.myAvatar} name={st.prefs.myName} size={32}/></button>
+          <input ref={mine} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];if(f)setPrefs({myAvatar:await putImage(f,512)});}}/>
+        </div>
       </div>
       <div className="pinfo">
         <b>{st.prefs.myName} &amp; {p.name}</b>
+        {/* 三个数都能点：天 → 纪念日，消息 → 聊天，信 → 信箱（ins 上点数字也是进到那一栏） */}
         <dl className="stats">
-          <div><dd>{days||'—'}</dd><dt>天</dt></div>
-          <div><dd>{chatN}</dd><dt>消息</dt></div>
-          <div><dd>{b.letters.length}</dd><dt>信</dt></div>
+          <a href={`#/f/days/${p.id}`} aria-label={`在一起 ${days||0} 天，去看纪念日`}><dd>{days||'—'}</dd><dt>天</dt></a>
+          <a href={`#/c/${p.id}`} aria-label={`${chatN} 条消息，去聊天`}><dd>{chatN}</dd><dt>消息</dt></a>
+          <a href={`#/f/mail/${p.id}`} aria-label={`${b.letters.length} 封信，去信箱`}><dd>{b.letters.length}</dd><dt>信</dt></a>
         </dl>
       </div>
     </section>
@@ -225,13 +254,15 @@ export function Home({p}:{p:Persona}){
       <button role="tab" aria-selected={tab==='pics'} onClick={()=>setTab('pics')} aria-label="照片"><Grid3x3 size={22} strokeWidth={tab==='pics'?2:1.5}/></button>
       <button role="tab" aria-selected={tab==='fav'} onClick={()=>setTab('fav')} aria-label="收藏"><Bookmark size={22} strokeWidth={tab==='fav'?2:1.5}/></button>
     </div>
-    {tab==='pics'?(pics.length?<div className="grid hgrid">{pics.map((x,i)=><button key={x.id+i} onClick={()=>setView(x.id)} aria-label="看大图"><Pic id={x.id} alt=""/></button>)}</div>
+    {tab==='pics'?(pics.length?<><div className="grid hgrid">{pics.slice(0,shown).map((x,i)=><button key={x.id+i} onClick={()=>setView(i)} aria-label={`看大图，${dayLabel(x.at)}`}><Pic id={x.id} alt=""/></button>)}</div>
+        {pics.length>shown&&<div ref={more} className="hmore" aria-hidden="true"/>}</>
       :<p className="empty">你们发过的照片会排在这里。</p>)
     :(favs.length?<ul className="hfav">{favs.map(f=>{
         const body=<>{f.img?<Pic id={f.img} className="favpic" alt="收藏的图片"/>:<p>{f.text}</p>}<small>{f.kind==='mail'&&<Mail size={12} strokeWidth={1.8} aria-hidden="true"/>}{f.kind==='line'&&<Heart size={12} strokeWidth={1.8} aria-hidden="true"/>}{f.who} · {f.kind==='line'?`${new Date(f.at).getMonth()+1}月${new Date(f.at).getDate()}日`:dayLabel(f.at)}</small></>;
         return <li key={f.key}>{f.to?<a href={f.to} onClick={()=>{if(f.jump)try{sessionStorage.setItem('cx-jump',f.jump);}catch{/* */}}}>{body}</a>:<button onClick={()=>setNote(true)}>{body}</button>}</li>;})}</ul>
       :<p className="empty">聊天里长按一句话点「收藏」，它就留在这里。</p>)}
-    {view&&<Over><button className="viewer" onClick={()=>setView('')} aria-label="关掉大图"><Pic id={view} alt="大图"/></button></Over>}
+    {view>=0&&pics[view]&&<PicView pics={pics} i={view} go={setView} close={()=>setView(-1)}/>}
+    {face&&p.avatar&&<Over><button className="viewer" onClick={()=>setFace(false)} aria-label="关掉大图"><Pic id={p.avatar} alt={`${p.name} 的头像`}/></button></Over>}
     <input ref={cfile} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';const id=cover;setCover('');if(f&&id)try{setCov(id,await putImage(f,400));}catch{say('这张图片读不了，换一张试试');}}}/>
     {cover&&<Sheet title="" plain close={()=>setCover('')}>
       <ul className="ml-menu">

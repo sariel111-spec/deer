@@ -211,30 +211,32 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .namebtn b{font-size:22px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .namebtn svg{flex:none;margin-top:3px}
 .namebtn i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--red);margin-left:4px}
-.profile{display:flex;align-items:center;gap:22px;padding-top:14px}
-.profile.noted{padding-top:48px}
-.face{position:relative;flex:none;width:86px;height:86px}
-.face>button:first-of-type{display:block;border-radius:50%}
+.profile{display:flex;align-items:flex-end;gap:22px;padding-top:12px}
+.face{flex:none;width:86px;display:grid;grid-template-columns:86px;justify-items:center}
+.face-a{position:relative;width:86px;height:86px}
+.face-a>button:first-of-type{display:block;border-radius:50%}
 .mebadge{position:absolute;right:-6px;bottom:-4px;border-radius:50%;box-shadow:0 0 0 3px var(--bg)}
 /* 头像上面那条 note：今天他的一句话 */
 /* 照 ins 的便签：白色圆角气泡压在头像上沿，字居中，左下角两颗小圆点当尾巴 */
-.note{position:absolute;left:-6px;bottom:100%;z-index:2;width:max-content;min-width:52px;max-width:min(230px,62vw);text-wrap:balance;padding:9px 13px;border-radius:18px;background:var(--bg);color:var(--fg);font-size:12.5px;line-height:1.35;text-align:center;
+.note{position:relative;z-index:2;justify-self:center;width:max-content;min-width:50px;max-width:102px;margin-bottom:-9px;padding:8px 11px;border-radius:17px;background:var(--bg);color:var(--fg);font-size:12.5px;line-height:1.32;text-align:center;
   box-shadow:0 1px 10px rgba(0,0,0,.14);overflow:visible}
-.note span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.note span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;overflow-wrap:anywhere}
 .note::before,.note::after{content:'';position:absolute;border-radius:50%;background:inherit}
 .note::before{left:15px;bottom:-4px;width:11px;height:11px;box-shadow:0 3px 4px -2px rgba(0,0,0,.12)}
 .note::after{left:11px;bottom:-11px;width:5px;height:5px;box-shadow:0 1px 3px rgba(0,0,0,.14)}
 :root[data-theme=dark] .note{background:#262626}
 @media (prefers-color-scheme:dark){:root[data-theme=auto] .note{background:#262626}}
-.pinfo{flex:1;min-width:0;display:grid;gap:10px}
+.pinfo{flex:1;min-width:0;min-height:86px;display:grid;align-content:center;gap:10px}
 .pinfo>b{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+
+.stats a{display:block;color:inherit}.stats a:active{opacity:.55}
 .stats dd{font-size:16px;font-weight:600;line-height:1.25;font-variant-numeric:tabular-nums}.stats dt{font-size:13px;color:var(--fg)}
 .bio{font-size:14px;margin-top:3px;overflow-wrap:anywhere}
 .profile+.bio{margin-top:14px}
 .bio+.bio{color:var(--mute);font-size:13px}
 .linkish{color:#3A82F7;font-size:13.5px}
-.home .btn.ghost{height:34px;border-radius:9px;font-size:14px}
+.home .btn.ghost{height:34px;border-radius:9px;font-size:14px;font-weight:600}
 .apps{display:grid;grid-template-columns:repeat(4,1fr);row-gap:20px;padding:26px 8px 8px;margin:0!important}
 .apps a,.apps button{width:100%;display:grid;justify-items:center;gap:7px;font-size:12px;color:var(--fg)}
 .apps span{position:relative;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 0 0 1px var(--line);background:var(--bg);transition:transform .15s var(--ease)}
@@ -693,7 +695,7 @@ textarea.ml-body{display:block;width:100%;min-height:260px;padding:0;border:0;bo
 .ml-orig.open span{display:block;-webkit-line-clamp:unset}
 /* 头像上的那一句 */
 button.note{cursor:pointer}
-.note-dot{position:absolute;left:-9px;bottom:calc(100% + 27px);z-index:3;width:9px;height:9px;border-radius:50%;background:#3A82F7;box-shadow:0 0 0 2px var(--bg);pointer-events:none}
+.note-dot{position:absolute;left:-2px;top:-2px;z-index:3;width:9px;height:9px;border-radius:50%;background:#3A82F7;box-shadow:0 0 0 2px var(--bg);pointer-events:none}
 .nt{padding-bottom:calc(18px + env(safe-area-inset-bottom))}
 .nt-face{display:grid;justify-items:center;gap:0;padding-top:18px}
 .nt-bubble{position:relative;z-index:1;min-width:76px;max-width:min(300px,86%);margin:0 0 -10px;padding:13px 18px;border-radius:24px;background:var(--bg);box-shadow:0 1px 12px rgba(0,0,0,.16);font-size:17px;line-height:1.5;text-align:center;overflow-wrap:anywhere}
@@ -948,3 +950,12 @@ button.ml-photo{cursor:zoom-in}
 .cy-mon{min-height:36px;padding:0 10px;font-size:15px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
 .cy-grid{touch-action:pan-y}
 .cy .said{margin-top:16px}
+
+/* 主页照片的大图：两边的箭头只在能用鼠标的设备上出现（手机上是左右划），底下一行小字 */
+.viewer{touch-action:pan-y}
+.pv-side{position:absolute;top:50%;width:44px;height:64px;margin-top:-32px;display:none;place-items:center;color:#fff;opacity:.7}
+.pv-side.l{left:6px}.pv-side.r{right:6px}
+.pv-side:hover{opacity:1}
+@media (hover:hover) and (pointer:fine){.pv-side{display:grid}}
+.pv-cap{position:absolute;left:0;right:0;bottom:calc(18px + env(safe-area-inset-bottom));text-align:center;font-size:12.5px;color:rgba(255,255,255,.72);font-variant-numeric:tabular-nums;pointer-events:none}
+.hmore{height:1px}
