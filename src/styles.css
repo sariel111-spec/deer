@@ -1082,3 +1082,29 @@ button.ml-photo{cursor:zoom-in}
 @media (min-width:700px){.tk-cd{--cw:66px}.tk-read{max-width:64%}.tk-turn.sp .tk-read{max-width:340px}}
 .tk-turn{scroll-margin-bottom:130px}
 .tk>.lede .linkish,.tk-open>.linkish{color:var(--mute);font-size:13px}
+
+/* ── 问他 第三版：顶上不跟着滚走；底下是一整条胶囊（ins 私信的输入栏） ── */
+.page.tr:has(>.tk){overflow:hidden}
+.tk{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.tk.in-sheet{flex:none;overflow:visible}
+.tk-bar{padding:8px 12px calc(10px + env(safe-area-inset-bottom))}
+.tk-in{gap:2px;min-height:44px;padding:5px 6px 5px 5px;border-radius:22px;background:var(--soft)}
+.tk-in input{height:34px;padding:0 8px;border-radius:0;background:none}
+.tk-in input:focus{box-shadow:none}
+.tk-deck{flex:none;width:34px;height:34px;border-radius:50%;background:#3A82F7;color:#fff;font-size:14px;font-weight:600;line-height:1}
+.tk-deck:active,.tk-in .ico:active{opacity:.6}
+.tk-in .ico{flex:none;width:36px;height:34px;display:grid;place-items:center;color:var(--fg)}
+.tk-in .ico[aria-pressed=true]{color:#3A82F7}
+.tk-send{flex:none;width:auto;height:34px;padding:0 10px 0 6px;border-radius:0;background:none;color:#3A82F7;font-size:15.5px;font-weight:600}
+.sheet .tk-decks{display:grid;gap:0;margin:0 -4px}
+.sheet .tk-decks button{display:grid;gap:2px;justify-items:start;padding:12px 4px;text-align:left;font-size:15px;color:var(--fg);border-bottom:1px solid var(--line)}
+.sheet .tk-decks button b{font-weight:500}.sheet .tk-decks button small{font-size:12.5px;color:var(--mute)}
+.sheet .tk-decks button[aria-pressed=true] b{font-weight:700}
+.sheet .tk-decks button[aria-pressed=true] b::after{content:"";display:inline-block;width:6px;height:6px;margin-left:8px;border-radius:50%;background:#3A82F7;vertical-align:middle}
+.sheet .tk-decks button::after{content:none}
+.tk-ns{margin-top:4px}
+.tk-lead{margin-top:14px}.tk-lead button{display:grid;gap:3px;width:100%;padding:12px 14px 13px;border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);text-align:left}
+.tk-lead b{font-weight:600;font-size:15px}.tk-lead small{font-size:12.5px;line-height:1.5;color:var(--mute)}
+.sheet .tk-ns .chip.on,.sheet .tr-hand .chip.on{background:var(--fg);color:var(--bg)}
+.page.tr.sub>.tk{margin-left:0;margin-right:0}
+.tk-bar{grid-template-columns:minmax(0,1fr)}.tk-in{min-width:0}
