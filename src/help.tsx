@@ -4,6 +4,7 @@ import {ChevronLeft} from 'lucide-react';
 import {S} from './db';
 import {backTo} from './App';
 import {say} from './pages';
+import {isShell} from './native';
 
 /* 安卓 / 电脑上的浏览器会在「可以装成 app」时发一个事件：留着它，说明页和设置里就能放一个「现在安装」的按钮 */
 type Ask=Event&{prompt:()=>Promise<void>;userChoice:Promise<{outcome:string}>};
@@ -12,7 +13,7 @@ if(typeof window!=='undefined'){
   addEventListener('beforeinstallprompt',e=>{e.preventDefault();ask=e as Ask;subs.forEach(f=>f());});
   addEventListener('appinstalled',()=>{ask=null;subs.forEach(f=>f());});
 }
-export const installed=()=>matchMedia('(display-mode: standalone)').matches||!!(navigator as Navigator&{standalone?:boolean}).standalone;
+export const installed=()=>isShell()||matchMedia('(display-mode: standalone)').matches||!!(navigator as Navigator&{standalone?:boolean}).standalone;
 export function useInstall(){
   const [,tick]=useState(0);
   useEffect(()=>{const f=()=>tick(n=>n+1);subs.add(f);return()=>{subs.delete(f);};},[]);
@@ -62,12 +63,12 @@ const secs=(he:string):Sec[]=>[
   {t:'通知',items:[
     ['先装到主屏幕','iPhone 要先把小鹿加到主屏幕才收得到通知（见下面「装到手机上」）。'],
     ['打开通知','设置 → 通知与后台 → 消息通知点「开启」。'],
-    ['云端推送','开了以后，小鹿不用留在后台，他到点要说的话由云端推到手机上。在同一页里填一次云端服务的地址，再把开关打开。'],
+    ['云端推送','开了以后，小鹿不用留在后台，他到点要说的话由云端推到手机上。在同一页里填一次云端服务的地址，再把开关打开。（安卓安装包不用这个：手机自己会按时弹。）'],
     ['后台保活','没开云端推送时用的办法：让页面在后台不被系统停掉。比较费电，开了云端推送就不需要它。'],
   ]},
   {t:'装到手机上',items:[
     ['iPhone','用 Safari 打开小鹿 → 点底下的分享按钮 → 「添加到主屏幕」。之后从主屏幕的图标打开。'],
-    ['安卓','用 Chrome 打开小鹿 → 右上角 ⋮ → 「安装应用」（有的手机写的是「添加到主屏幕」）。装好后它和别的 app 一样在桌面和应用列表里，可以收通知。'],
+    ['安卓','两种办法。① 安装包：下载「小鹿.apk」点开安装（手机问「是否允许安装未知来源的应用」时选允许）。装好后通知由手机自己按时弹，不需要云端推送。② 用 Chrome 打开小鹿 → 右上角 ⋮ → 「安装应用」。两种办法的数据不是同一份，选一种用。'],
     ['电脑','Chrome 或 Edge 地址栏右边有一个安装的小图标。不装也可以直接在浏览器里用。'],
     ['装了会不会丢东西','不会。装之前、装之后用的是同一份数据。以后小鹿更新，也只换程序，不动你的记录。'],
   ]},

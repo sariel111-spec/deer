@@ -9,6 +9,8 @@ import {ahead,released,tick} from './engine';
 import {startPush} from './push';
 import './update';
 import {watchKeyboard} from './ui';
+import {startShell} from './native';
+import {setHold} from './alive';
 
 // 从别处带着字卡过来：网址 # 后面跟着一包分组（只在本机解开，不会发到任何服务器），收下后立刻把网址擦干净
 function carried(){
@@ -29,6 +31,6 @@ void boot().then(()=>{
   createRoot(document.getElementById('root')!).render(<App/>);
   watchKeyboard();
   if(down)return;
-  void start(tick).then(()=>startPush(ahead,released));
+  void start(tick).then(()=>startPush(ahead,released)).then(()=>startShell(ahead,released,setHold));
   void startSync();
 });

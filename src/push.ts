@@ -3,6 +3,7 @@
 // 回到前台时把还没发的收回来，聊天里补上的就是通知里的那几句。
 import {S,setPrefs} from './db';
 import {setHold} from './alive';
+import {shellOn} from './native';
 
 // 云端服务的地址（cloud/worker.js 部署出来的那个）。在设置里填一次，跟着同步带到别的设备
 export const pushUrl=()=>((import.meta.env.DEV&&localStorage.getItem('cx-push-url'))||S().prefs.cloud||'').replace(/\/+$/,'');
@@ -23,7 +24,7 @@ export const pushSet=()=>!!pushUrl();
 /** 这台设备上云端推送开着 */
 export const pushLive=()=>!!sub;
 /** 这台设备开过云端推送（刚打开、订阅还没取回来的那一小会儿也算） */
-export const pushWas=()=>!!sub||localStorage.getItem(FLAG)==='1';
+export const pushWas=()=>!!sub||localStorage.getItem(FLAG)==='1'||shellOn();
 
 const b64u=(b:ArrayBuffer|null)=>b?btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''):'';
 const unb64u=(s:string)=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));

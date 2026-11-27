@@ -11,6 +11,7 @@ import {feats,homeDefault} from './more';
 import {BackClose,auto,enter,useBackClose,useDismiss,useDragClose,useTwice} from './ui';
 import {Over} from './over';
 import {useInstall} from './help';
+import {isShell,shellSave} from './native';
 import {cyPhase} from './cyc';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
 
@@ -59,6 +60,7 @@ export function Range({label,a,b,set,min,max,unit}:{label:string;a:number;b:numb
 }
 const shareable=(f:File)=>{try{return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!!navigator.canShare?.({files:[f]});}catch{return false;}};
 const download=(name:string,text:string,type='application/json')=>{
+  if(shellSave(name,text))return;   // 安卓安装包里：交给系统的分享面板（存到「文件」、发给别人）
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 };
 
@@ -481,7 +483,7 @@ export function Settings({sec=''}:{sec?:string}){
   // 设置分成几页：首页是一张短列表，点一行进那一页（地址里带着，返回键能回来）
   const themeName={auto:'跟随系统',light:'浅色',dark:'深色'}[pf.theme],bubbleName={ins:'ins',mono:'黑白',accent:'点缀色',line:'细边'}[pf.bubble];
   const secs:[string,string,string][]=[['me','我',pf.myName],['look','外观',`${themeName} · ${bubbleName}`],
-    ['bg','通知与后台',pl?'云端推送开着':pf.audio?'后台保活开着':s.notify==='granted'&&pf.notify?'通知开着':'没开'],
+    ['bg','通知与后台',s.shell?(s.notify==='granted'&&pf.notify?'通知开着':'没开'):pl?'云端推送开着':pf.audio?'后台保活开着':s.notify==='granted'&&pf.notify?'通知开着':'没开'],
     ['sync','同步',sy.on?(sy.busy?'正在同步…':sy.err?'出了点问题':'开着'):'没连'],['backup','备份','']];
   const title=secs.find(x=>x[0]===sec)?.[1];
   useEffect(()=>{void pushPrep();return onPush(()=>setPl(pushLive()));},[]);
@@ -506,7 +508,13 @@ export function Settings({sec=''}:{sec?:string}){
     <div className="line"><span>我的气泡</span><div className="seg sm">{([['ins','ins'],['mono','黑白'],['accent','点缀色'],['line','细边']] as const).map(([id,n])=><button key={id} aria-pressed={pf.bubble===id} onClick={()=>setPrefs({bubble:id})}>{n}</button>)}</div></div>
     <Switch on={pf.sound} set={v=>setPrefs({sound:v})} label="收到消息时响一声"/>
     </>}
-    {sec==='bg'&&<>
+    {sec==='bg'&&s.shell&&<>
+    <p className="hint first">这是装在手机上的安装包：他要说的话，到点由手机自己弹出来，小鹿被划掉也照样弹。不需要云端推送，也不用后台保活。</p>
+    <Switch on={s.notify==='granted'&&pf.notify} set={async v=>{if(!v){setPrefs({notify:false});setS(status());return;}const ok=await askNotify();setS(status());say(ok?'通知开好了':'系统没有同意。到手机的 设置 → 应用 → 小鹿 → 通知 里打开');}} label="消息通知" note="他找你时弹系统通知"/>
+    {s.notify==='granted'&&pf.notify&&<div className="rowbtn"><button className="chip" onClick={()=>{const p=st.personas.find(x=>x.id===pf.last)??st.personas[0];if(p){notify(p,lines(p,1)[0]??'这是一条测试通知');say('发了，看看有没有弹出来');}}}>发一条测试通知</button></div>}
+    <p className="hint">收不到的话：到手机的 设置 → 应用 → 小鹿，把通知打开，电池改成「不限制」（有的手机叫「允许后台活动」或「自启动」）。</p>
+    </>}
+    {sec==='bg'&&!s.shell&&<>
     <h3>云端推送</h3>
     <p className="hint">他要说的话到点由云端推到手机，小鹿不用留在后台。</p>
     {pushSet()?<>
@@ -563,7 +571,7 @@ export function Settings({sec=''}:{sec?:string}){
       <button className="chip" aria-pressed={!!bak} onClick={async()=>{
         if(bak){try{await navigator.share({files:[bak]});}catch{/* 她取消了 */}setBak(null);return;}
         const name=`备份-${new Date().toISOString().slice(0,10)}.json`,text=await exportAll(),f=new File([text],name,{type:'application/json'});
-        if(shareable(f)){setBak(f);say('备份准备好了，再点一次存到「文件」');}else{download(name,text);say('备份文件下载了');}
+        if(shareable(f)){setBak(f);say('备份准备好了，再点一次存到「文件」');}else{download(name,text);say(isShell()?'备份准备好了，选一个地方存下来':'备份文件下载了');}
       }}>{bak?'存到「文件」':'导出备份'}</button>
       <button className="chip" onClick={()=>file.current?.click()}>导入备份</button>
       <input ref={file} type="file" accept="application/json,.json" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{await importAll(await f.text());say('导入好了');}catch(x){say(x instanceof Error?x.message:'这个文件读不了');}}}/>

@@ -10,6 +10,7 @@ import {Pic,nav} from './App';
 import {Sheet,say} from './pages';
 import {Over} from './over';
 import {BackClose,afterSheets} from './ui';
+import {isShell,shellSave} from './native';
 import {letterImage} from './mailimg';
 
 // 信箱里的三个页面都写在地址里（…/mail/<pid>、…/w、…/w/<回的那封>、…/e/<接着改的那封>、…/r/<信>），
@@ -179,6 +180,10 @@ function Read({p,l,all,patch,drop,go,back}:{p:Persona;l:Letter;all:Letter[];patc
   const savePic=async()=>{
     if(!pic)return;
     try{if(navigator.canShare?.({files:[pic.file]})){await navigator.share({files:[pic.file]});return;}}catch(e){if((e as Error)?.name==='AbortError')return;}
+    if(isShell()){   // 安卓安装包里：转成文件交给系统的分享面板
+      const b64=await new Promise<string>(ok=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]??'');r.readAsDataURL(pic.file);});
+      shellSave(pic.file.name,b64,true);return;
+    }
     const a=document.createElement('a');a.href=pic.url;a.download=pic.file.name;document.body.appendChild(a);a.click();a.remove();say('存下来了');
   };
   const orig=l.re?all.find(x=>x.id===l.re):undefined,reply=all.find(x=>x.re===l.id&&x.from!==l.from);

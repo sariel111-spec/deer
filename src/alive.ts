@@ -6,6 +6,7 @@
 // 4 Service Worker：发系统通知、点通知回到对话；浏览器肯给的话，定期在后台醒来替他把话送到
 // 5 回到页面的那一刻补上离开期间他该说的话（这一层任何设备都有效）
 import {S,getImage,list,onChange,reload,setPrefs,unread,type Persona} from './db';
+import {isShell,shell,shellAsk,shellGranted,shellOn} from './native';
 
 let reg:ServiceWorkerRegistration|null=null;
 let onTick=()=>{};
@@ -283,6 +284,7 @@ export async function start(tick:()=>void){
 }
 
 export async function askNotify():Promise<boolean>{
+  if(isShell()){const ok=await shellAsk();setPrefs({notify:ok});return ok;}
   if(!('Notification' in window))return false;
   const ok=(Notification.permission==='granted')||(await Notification.requestPermission())==='granted';
   setPrefs({notify:ok});return ok;
@@ -293,6 +295,7 @@ export const setHold=(v:boolean)=>{hold=v;};
 // quiet：紧跟着上一句来的（他一次回了几句）：只把通知上的字换成新的这句，不再弹出来、响一遍
 export function notify(p:Persona,text:string,to?:'mail',quiet=false){
   if(hold&&document.hidden)return;
+  if(isShell()){if(shellOn())void shell().then(m=>m.show(p.name,text,{pid:p.id,to},'cx-'+p.id,quiet));return;}
   if(!S().prefs.notify||!('Notification' in window)||Notification.permission!=='granted')return;
   const opt={body:text,tag:'cx-'+p.id,icon:'./icon-192.png',badge:'./badge-96.png',data:{pid:p.id,to},renotify:!quiet,silent:quiet} as NotificationOptions;
   if(reg)void reg.showNotification(p.name,opt).catch(()=>{});
@@ -301,6 +304,7 @@ export function notify(p:Persona,text:string,to?:'mail',quiet=false){
 /** 不是他说的话的提醒（比如经期快到了）：一样听「通知」的开关；云端已经接手的时候这里不再弹一遍 */
 export function remind(title:string,text:string,pid:string){
   if(hold&&document.hidden)return;
+  if(isShell()){if(shellOn())void shell().then(m=>m.show(title,text,{pid},'cx-tip-'+pid));return;}
   if(!S().prefs.notify||!('Notification' in window)||Notification.permission!=='granted')return;
   const opt={body:text,tag:'cx-tip-'+pid,icon:'./icon-192.png',badge:'./badge-96.png',data:{pid}} as NotificationOptions;
   if(reg)void reg.showNotification(title,opt).catch(()=>{});
@@ -308,6 +312,7 @@ export function remind(title:string,text:string,pid:string){
 }
 /** 看过了：把这位已经弹出来的通知收掉（不给 pid 就全收） */
 export function clearNotes(pid?:string){
+  if(isShell()){void shell().then(m=>m.clearShown(pid));return;}
   void reg?.getNotifications().then(ns=>ns.forEach(n=>{const d=n.data as {pid?:string}|null;if(!pid||d?.pid===pid||(n.tag||'').startsWith('cx-'+pid))n.close();})).catch(()=>{});
 }
 export function badge(){
@@ -329,7 +334,8 @@ export function blip(){
 }
 export const status=()=>({
   installed:standalone(),
-  notify:'Notification' in window?Notification.permission:'unsupported',
+  notify:isShell()?(shellGranted()?'granted':'default'):'Notification' in window?Notification.permission:'unsupported',
+  shell:isShell(),
   sw:!!reg,audio:audioLive(),osc:oscLive(),pip:pipLive,pipCan:pipCan(),pipBlocked:pipBlocked(),wake:wakeLive(),lock:locked,persisted,periodic,
   ios:/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/macintosh/i.test(navigator.userAgent)),
 });
