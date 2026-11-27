@@ -111,9 +111,10 @@ function mail(p:Persona,now:number){
   setBox(p.id,{...patch,letters:[...letters,...add].sort((x,y)=>x.at-y.at)},!('mailDue' in patch));
   // 聊天里也留一行（点了进信箱）：从推送点进来落在聊天页，也看得到信到了。id 跟着信走，别的设备同步过来不会重复
   for(const l of add){const id='ml'+l.id;if(!list(p.id).some(m=>m.id===id))pushMsg({pid:p.id,from:'ta',kind:'tip',text:l.pro?'给你写了一封信':'给你回了一封信',at:Math.max(Math.min(l.at,now),(list(p.id).at(-1)?.at??0)+1),id});}
-  if(add.length&&!(pushWas()&&first<backAt))notify(p,pro?'给你写了一封信':'给你回了一封信','mail');
-  // 正开着小鹿（又不在信箱里）：屏幕下方说一声
-  if(add.length&&!document.hidden&&first>=backAt&&!location.hash.startsWith('#/f/mail/'+p.id))dispatchEvent(new CustomEvent('cx-say',{detail:`${p.name} ${pro?'给你写了一封信':'给你回了一封信'}`}));
+  // 正开着小鹿（又不在信箱里）：屏幕下方说一声就够了，不再同时弹一条系统通知
+  const inApp=add.length>0&&!document.hidden&&first>=backAt&&!location.hash.startsWith('#/f/mail/'+p.id);
+  if(add.length&&!inApp&&!(pushWas()&&first<backAt))notify(p,pro?'给你写了一封信':'给你回了一封信','mail');
+  if(inApp)dispatchEvent(new CustomEvent('cx-say',{detail:`${p.name} ${pro?'给你写了一封信':'给你回了一封信'}`}));
 }
 
 /* 提前排好的话（只在这台设备上）：离开前台时交给云端推送，回来时聊天里补上的就是同样几句 */
@@ -165,7 +166,9 @@ export function read(pid:string){
 }
 
 // late：这句是离开期间该到的、现在补上的。云端推送开着的话当时已经推过，不再弹一遍通知
-function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=false,late=false,id?:string){
+function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=false,late=false,id?:string,quiet=false){
+  // 这一句还在云端手里（交出去以后还没确认收回来）：云端到点会自己弹通知，这里就不再弹一遍
+  const cloud=!!id&&pushWas()&&held.some(h=>h.id===id);
   // 这一句别的设备已经替他说过、同步过来了：不再说一遍
   if(id){unhold(id);if(list(p.id).some(m=>m.id===id))return;}
   // 补发的话不能排到已有消息的前面
@@ -174,7 +177,9 @@ function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=fa
   else pushMsg({pid:p.id,from:'ta',kind:'text',text,at,src,re,...(id?{id}:{})});
   const here=!document.hidden&&active===p.id;
   if(here){setPersona(p.id,{readAt:Math.max(Date.now(),at)},true);if(!late)blip();}
-  else if(!(late&&pushWas()))notify(p,text);
+  // 人就在他的报备页上：回的话就显示在那一条下面，响一声就够了，不再弹通知
+  else if(!document.hidden&&location.hash.startsWith('#/f/check/'+p.id)){if(!late)blip();}
+  else if(!cloud&&!(late&&pushWas()))notify(p,text,undefined,quiet);
   badge();
 }
 
@@ -185,7 +190,7 @@ export function sent(pid:string){
   const seenIn=rand(500,Math.min(2600,Math.max(700,d*.5)));
   setTimeout(()=>seen(pid),seenIn);
   // 已读不回：这一次就停在已读
-  if(Math.random()<p.ghost){if(p.replyAt)setPersona(pid,{replyAt:0},true);return;}
+  if(Math.random()<p.ghost){if(p.replyAt)setPersona(pid,{replyAt:0},true);setTyping(pid,false);return;}
   // 正聊着的时候不插进一条主动消息：把下一次主动的时间从现在重新算
   setPersona(pid,{...(!p.replyAt||p.replyAt<now?{replyAt:now+Math.max(1400,d)}:{}),...(p.pro?{nextAt:nextTime(p,now)}:{})},true);
 }
@@ -225,18 +230,26 @@ function reply(p:Persona,at:number,planned?:Reply){
   if(plan.at<backAt){
     // 离开期间他已经回了：按原定的时刻一口气补上
     plan.lines.forEach((l,i)=>arrive(who(p.id)??p,l.text,l.src,plan.at+i*1500,i===0?plan.quote:undefined,!!l.st,true,rid(p,plan.at,i)));
-    busy.delete(p.id);return;
+    setTyping(p.id,false);busy.delete(p.id);return;
   }
-  let i=0;
+  // 这几句里已经在聊天里的（别的设备替他说过、或者同步把「还没回」的标记又带了回来）：直接跳过，不为它们再冒一次三个点
+  const said=()=>new Set(list(p.id).slice(-60).map(m=>m.id));
+  let i=0,told=false;   // told：这一轮已经弹过一次通知了，后面连着的几句只换通知上的字，不再响一遍
   const step=()=>{
-    const now=who(p.id)??p,got=plan.lines[i];
-    if(got)arrive(now,got.text,got.src,Date.now(),i===0?plan.quote:undefined,!!got.st,false,rid(p,plan.at,i));
+    const now=who(p.id)??p,had=said();
+    while(i<n&&had.has(rid(p,plan.at,i)))i++;
+    const got=plan.lines[i];
+    if(got)arrive(now,got.text,got.src,Date.now(),i===0?plan.quote:undefined,!!got.st,false,rid(p,plan.at,i),told);
+    if(got)told=true;
     i++;
+    while(i<n&&had.has(rid(p,plan.at,i)))i++;
     if(got&&i<n){setTyping(p.id,true);setTimeout(step,rand(900,2400));}
     else{setTyping(p.id,false);busy.delete(p.id);}
   };
   step();
 }
+/** 这一刻该回的那几句，是不是已经都在聊天里了 */
+const replied=(p:Persona,at:number)=>list(p.id).slice(-60).some(m=>m.id===rid(p,at,0));
 
 /* ── 视频通话：接通之后一直挂着，只有你能挂。开始的时刻存着，划掉小鹿、锁屏、换设备，回来都还在通话中 ── */
 const RING=45000;
@@ -426,8 +439,8 @@ function tickBody(now:number){
   for(const p of S().personas){
     if(p.replyAt){
       if(now>=p.replyAt&&!busy.has(p.id)){const at=p.replyAt,r=plans.rq[p.id],planned=r&&r.at===at?r:undefined;if(r){delete plans.rq[p.id];savePlans();}setPersona(p.id,{replyAt:0},true);reply(p,at,planned);}
-      else if(p.replyAt-now<Math.min(6000,(p.min*1000)*.8+1200))setTyping(p.id,true);
-    }
+      else if(!busy.has(p.id)&&p.replyAt-now<Math.min(6000,(p.min*1000)*.8+1200)&&!replied(p,p.replyAt))setTyping(p.id,true);
+    }else if(!busy.has(p.id)&&typing.has(p.id))setTyping(p.id,false);
     if(!busy.has(p.id)&&!p.replyAt)proactive(p,now);
     mail(p,now);
     cyRemind(p,now);

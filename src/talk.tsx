@@ -5,7 +5,7 @@ import {Anchor,ArrowUp,Baby,Bird,BookOpen,Castle,Cloud,Clover,Cross,Dog,Fence,Fi
 import {S,addPack,box,putImage,setBox,setPack,uid,useVer,type More,type Persona,type TCard,type Talk,type Turn} from './db';
 import {Pic,dayLabel} from './App';
 import {Sheet,say} from './pages';
-import {enter,useTwice} from './ui';
+import {auto,enter,useTwice} from './ui';
 import {lines} from './engine';
 import {aiHand,dsChat,dsKey,onPhone,type Msg as AiMsg} from './ai';
 import {askKinds,cards,shuffle,spreads,type AskKind,type Drawn} from './tarot';
@@ -71,7 +71,7 @@ export function MineSheet2({p,deck,c,seed,close}:{p:Persona;deck:Deck;c:number;s
   return <Sheet title={`${name} · 我们的牌意`} close={close}>
     <p className="hint first">和 {p.name} 聊多了，这张牌在你们之间会有自己的意思。写在这里，以后抽到会先显示你写的。</p>
     <div className="chips" aria-label="加一条">{tags.map(g=><button key={g} className="chip" onClick={()=>setT(v=>(v&&!v.endsWith('\n')?v+'\n':v)+`【${g}】`)}>{g}</button>)}</div>
-    <textarea className="bulk tall" rows={6} value={t} onChange={e=>setT(e.target.value.slice(0,600))} placeholder={'比如：【在做什么】在我们这儿，这张是他在…'} aria-label="我们的牌意" autoFocus/>
+    <textarea className="bulk tall" rows={6} value={t} onChange={e=>setT(e.target.value.slice(0,600))} placeholder={'比如：【在做什么】在我们这儿，这张是他在…'} aria-label="我们的牌意" autoFocus={auto}/>
     <button className="btn" onClick={save}>记下</button>
   </Sheet>;
 }

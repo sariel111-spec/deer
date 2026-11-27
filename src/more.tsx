@@ -4,7 +4,7 @@ import {S,box,list,pushMsg,putImage,setBox,uid,useVer,type Day,type Persona} fro
 import {lines,sent} from './engine';
 import {Avatar,Pic,backTo,dayLabel} from './App';
 import {Num,Sheet,say} from './pages';
-import {enter,useTwice} from './ui';
+import {auto,enter,useTwice} from './ui';
 import {CyclePage} from './cycle';
 import {TarotPage} from './tarotpage';
 import {MailBox} from './mail';
@@ -50,7 +50,7 @@ function DaysPage({p}:{p:Persona}){
       <span className="big">{c.n>0&&<b>{c.n}</b>}<small>{c.label}</small></span>
     </button></li>;})}</ul>:<div className="ml-none"><p>生日、第一次见面、想一起倒数的日子。</p><button className="btn" onClick={()=>setEd({id:uid(),name:'',date:ymd(),yearly:true})}>加第一个日子</button></div>}
     {ed&&<Sheet title="日子" close={()=>setEd(null)}>
-      <label className="field"><span>名字</span><input value={ed.name} onChange={e=>setEd({...ed,name:e.target.value})} onKeyDown={e=>{if(enter(e))save();}} placeholder="比如 他的生日" autoFocus={!ed.name}/></label>
+      <label className="field"><span>名字</span><input value={ed.name} onChange={e=>setEd({...ed,name:e.target.value})} onKeyDown={e=>{if(enter(e))save();}} placeholder="比如 他的生日" autoFocus={!ed.name&&auto}/></label>
       <label className="field"><span>哪一天</span><input type="date" value={ed.date} onChange={e=>setEd({...ed,date:e.target.value})}/></label>
       <label className="line"><span>每年都过</span><input type="checkbox" className="switch" checked={ed.yearly} onChange={e=>setEd({...ed,yearly:e.target.checked})}/></label>
       <button className="btn" onClick={save} disabled={!ed.name.trim()||!ed.date}>存下</button>

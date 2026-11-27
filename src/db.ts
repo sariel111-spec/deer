@@ -12,7 +12,9 @@ export const uses:{id:Use;name:string}[]=[{id:'both',name:'回复和主动都用
 
 export type Card={id:string;t:string;off?:boolean};
 // 一个字卡分组。分组是公用的：哪几位在用，记在每个人自己的 decks 里
-export type Deck={id:string;name:string;when:When;use:Use;cards:Card[];created:number;updated:number;only?:string[]};   // only：这个分组只属于这几个名字的人，新加的人不会自动用上
+export type Fn='chat'|'check'|'cycle';
+export const fns:{id:Fn;name:string}[]=[{id:'chat',name:'聊天'},{id:'check',name:'报备'},{id:'cycle',name:'经期'}];
+export type Deck={id:string;name:string;when:When;use:Use;cards:Card[];created:number;updated:number;only?:string[];fn?:Fn};   // only：这个分组只属于这几个名字的人，新加的人不会自动用上
 export type Persona={
   id:string;name:string;bio:string;avatar?:string;accent:string;wall?:string;photo?:string;homeBg?:string;callPic?:string;since:string;decks:string[];
   min:number;max:number;burst:number;ghost:number;join:boolean;joinMax:number;   // 回复：最快/最慢（秒）、一次最多几条、已读不回的概率、是否拼接
@@ -303,11 +305,18 @@ export function dropPersona(id:string){
   state={...state,personas:state.personas.filter(p=>p.id!==id),prefs:{...state.prefs,last:state.prefs.last===id?'':state.prefs.last},dead:{...state.dead,[id]:Date.now()}};
   msgs.delete(id);boxes.delete(id);graves.delete(id);void delKey('m:'+id);void delKey('x:'+id);void delKey('d:'+id);save();
 }
-export function addDeck(name:string):Deck{
+export function addDeck(name:string,fn?:Fn):Deck{
   const now=Date.now();
-  const d:Deck={id:uid(),name,when:'all',use:'both',cards:[],created:now,updated:now};
+  const d:Deck={id:uid(),name,when:'all',use:'both',cards:[],created:now,updated:now,...(fn&&fn!=='chat'?{fn}:{})};
   // 新分组默认所有人公用，之后可以在分组里改成只给某几位
   state={...state,decks:[...state.decks,d],personas:state.personas.map(p=>deckTouch(p,[...p.decks,d.id]))};save();return d;
+}
+/** 这个分组是做什么用的。自己标过就照标的；没标过的，看它是不是已经被选成了谁的报备 / 经期字卡（以前选好的不用重新标） */
+export function deckFn(d:Deck):Fn{
+  if(d.fn)return d.fn;
+  for(const p of state.personas){const b=box(p.id);if((b.cycle.decks??[]).includes(d.id)||(b.cycle.soon??[]).includes(d.id))return 'cycle';}
+  for(const p of state.personas)if((box(p.id).ckDecks??[]).includes(d.id))return 'check';
+  return 'chat';
 }
 export const setDeck=(id:string,patch:Partial<Deck>)=>{state={...state,decks:state.decks.map(d=>d.id===id?{...d,...patch,updated:Date.now()}:d)};save();};
 export function dropDeck(id:string){
@@ -330,6 +339,20 @@ export function addCards(deckId:string,text:string):{added:number;dup:number}{
   for(const t of lines){if(have.has(t)){dup++;continue;}have.add(t);fresh.push({id:uid(),t});}
   if(fresh.length)setDeck(deckId,{cards:[...d.cards,...fresh]});
   return {added:fresh.length,dup};
+}
+/** 所有分组放在一起比：说的是同一句话的字卡（不看空格）。每一组至少两张，照分组的先后排 */
+export function dupCards():{t:string;at:{d:Deck;c:Card}[]}[]{
+  const m=new Map<string,{d:Deck;c:Card}[]>();
+  for(const d of state.decks)for(const c of d.cards){const k=c.t.replace(/\s+/g,'');if(!k)continue;const a=m.get(k);if(a)a.push({d,c});else m.set(k,[{d,c}]);}
+  return [...m.values()].filter(a=>a.length>1).map(a=>({t:a[0].c.t,at:a}));
+}
+/** 一次删掉好几张（可以在不同的分组里）：每个分组只记一次改动、只存一次 */
+export function dropCards(ids:{d:string;c:string}[]){
+  const by=new Map<string,Set<string>>();
+  for(const x of ids){const s=by.get(x.d)??new Set<string>();s.add(x.c);by.set(x.d,s);}
+  if(!by.size)return;
+  const now=Date.now();
+  state={...state,decks:state.decks.map(d=>by.has(d.id)?{...d,cards:d.cards.filter(c=>!by.get(d.id)!.has(c.id)),updated:now}:d)};save();
 }
 export const setCard=(deckId:string,cardId:string,patch:Partial<Card>|null)=>{
   const d=state.decks.find(x=>x.id===deckId);if(!d)return;

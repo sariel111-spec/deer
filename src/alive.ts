@@ -290,10 +290,11 @@ export async function askNotify():Promise<boolean>{
 // 云端推送接手的时候（页面在后台、话已经交给云端）：通知由云端弹，这里不再弹一遍
 let hold=false;
 export const setHold=(v:boolean)=>{hold=v;};
-export function notify(p:Persona,text:string,to?:'mail'){
+// quiet：紧跟着上一句来的（他一次回了几句）：只把通知上的字换成新的这句，不再弹出来、响一遍
+export function notify(p:Persona,text:string,to?:'mail',quiet=false){
   if(hold&&document.hidden)return;
   if(!S().prefs.notify||!('Notification' in window)||Notification.permission!=='granted')return;
-  const opt={body:text,tag:'cx-'+p.id,icon:'./icon-192.png',badge:'./icon-192.png',data:{pid:p.id,to},renotify:true} as NotificationOptions;
+  const opt={body:text,tag:'cx-'+p.id,icon:'./icon-192.png',badge:'./icon-192.png',data:{pid:p.id,to},renotify:!quiet,silent:quiet} as NotificationOptions;
   if(reg)void reg.showNotification(p.name,opt).catch(()=>{});
   else try{new Notification(p.name,opt);}catch{/* 有的浏览器只许 Service Worker 发 */}
 }

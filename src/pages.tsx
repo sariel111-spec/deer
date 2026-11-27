@@ -1,14 +1,14 @@
-import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
+import {useEffect,useLayoutEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
 import {Bookmark,Check,ChevronDown,ChevronLeft,ChevronRight,EyeOff,Grid3x3,GripHorizontal,Heart,Mail,Menu,Pin,Plus,Search,Trash2,X} from 'lucide-react';
-import {S,storage,addCards,addDeck,addPersona,box,clearMsgs,dropDeck,dropPersona,exportAll,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
-  type Deck,type Persona,type Use,type When} from './db';
+import {S,storage,addCards,addDeck,addPersona,box,clearMsgs,deckFn,dropCards,dropDeck,dropPersona,dupCards,exportAll,fns,importAll,list,putImage,readCards,setCard,setDeck,setPersona,setPrefs,shareDeck,unread,uses,useVer,whens,wipe,
+  type Deck,type Fn,type Persona,type Use,type When} from './db';
 import {onPush,pushLink,pushLive,pushOff,pushOn,pushPrep,pushSet,pushTest,pushUnlink} from './push';
 import {apply,askNotify,audioLive,audioOn,lastAway,notify,onPip,pipEnter,pipLeave,pipSlot,setMode,status,wakeLive} from './alive';
 import {lines,nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
 import {feats,homeDefault} from './more';
-import {enter,useDismiss,useTwice} from './ui';
+import {auto,enter,useDismiss,useDragClose,useTwice} from './ui';
 import {Over} from './over';
 import {cyPhase} from './cyc';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
@@ -25,10 +25,11 @@ export function Toast(){
 export function Sheet({title,close,plain,children}:{title:string;close:()=>void;plain?:boolean;children:React.ReactNode}){
   const out=useDismiss(close);
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[close]);
+  const [el,drag]=useDragClose<HTMLElement>(close);
   return <Over><div className="veil" {...out}>
-    <section className={`sheet${plain?' plain':''}`} role="dialog" aria-modal="true" aria-label={title||'操作'}>
-      <i className="grab" aria-hidden="true"/>
-      {title&&<header><h2>{title}</h2><button className="ico sm" onClick={close} aria-label="关上"><X size={20}/></button></header>}
+    <section ref={el} className={`sheet${plain?' plain':''}`} role="dialog" aria-modal="true" aria-label={title||'操作'}>
+      <i className="grab" aria-hidden="true" {...drag}/>
+      {title&&<header {...drag}><h2>{title}</h2><button className="ico sm" onClick={close} aria-label="关上"><X size={20}/></button></header>}
       {children}
     </section>
   </div></Over>;
@@ -191,6 +192,9 @@ export function Home({p}:{p:Persona}){
   const [view,setView]=useState(-1),[face,setFace]=useState(false);
   // 照片多的时候先画前面一些，往下滑到底再接着画（不然一进主页就要把几百张图全读出来）
   const [shown,setShown]=useState(36),more=useRef<HTMLDivElement>(null);
+  // 那一排划到了哪儿：进了某个功能再回来，还停在那儿，不自己划回开头
+  const hlEl=useRef<HTMLUListElement>(null);
+  useLayoutEffect(()=>{const x=hlEl.current,v=hlAt[p.id];if(x&&v)x.scrollLeft=v;},[p.id]);
   // 那一排的封面：默认是一个小图标，长按（电脑上右键）可以换成自己的照片
   const covers=st.prefs.hlPic??{},[cover,setCover]=useState(''),held=useRef({t:0,fired:false}),cfile=useRef<HTMLInputElement>(null);
   const setCov=(id:string,img?:string)=>{const next={...covers};if(img)next[id]=img;else delete next[id];setPrefs({hlPic:next});};
@@ -242,7 +246,7 @@ export function Home({p}:{p:Persona}){
     <p className="bio">{p.since?`${p.since.replace(/-/g,'.')} 起`:<button className="linkish" onClick={()=>setEdit(true)}>写下在一起的日子</button>}</p>
     <div className="rowbtn two"><a className="btn ghost" href={'#/c/'+p.id}>发消息</a><button className="btn ghost" onClick={()=>setEdit(true)}>编辑主页</button></div>
 
-    {row.length>0&&<ul className="hl" aria-label="常用的">
+    {row.length>0&&<ul className="hl" aria-label="常用的" ref={hlEl} onScroll={e=>{hlAt[p.id]=e.currentTarget.scrollLeft;}}>
       {row.map(f=><li key={f.id}><a href={`#/f/${f.id}/${p.id}`} className={dot[f.id]?'new':''} onPointerDown={e=>{if(e.button!==0)return;held.current.fired=false;held.current.t=window.setTimeout(()=>{held.current.fired=true;try{navigator.vibrate?.(8);}catch{/* */}setCover(f.id);},480);}}
         onPointerUp={()=>clearTimeout(held.current.t)} onPointerLeave={()=>clearTimeout(held.current.t)} onPointerCancel={()=>clearTimeout(held.current.t)}
         onClick={e=>{if(held.current.fired){e.preventDefault();held.current.fired=false;}}} onContextMenu={e=>{e.preventDefault();clearTimeout(held.current.t);held.current.fired=true;setCover(f.id);}}
@@ -287,6 +291,8 @@ export function Home({p}:{p:Persona}){
   </main>;
 }
 
+const hlAt:Record<string,number>={};   // 主页那一排各自划到的位置（这一次打开期间记着）
+
 /* ───────── 字卡 ───────── */
 
 export function Cards({deckId}:{deckId?:string}){
@@ -294,13 +300,16 @@ export function Cards({deckId}:{deckId?:string}){
   const st=S();
   const d=st.decks.find(x=>x.id===deckId);
   const file=useRef<HTMLInputElement>(null);
-  const [name,setName]=useState(''),[add,setAdd]=useState(false),[q,setQ]=useState(''),[kind,setKind]=useState<'all'|'reply'|'pro'>('all');
+  const [name,setName]=useState(''),[add,setAdd]=useState(false),[q,setQ]=useState(''),[kind,setKind0]=useState<'all'|Fn>(()=>{try{const v=sessionStorage.getItem('cx-ctab');return v==='chat'||v==='check'||v==='cycle'?v:'all';}catch{return 'all';}});
+  const setKind=(k:'all'|Fn)=>{setKind0(k);try{sessionStorage.setItem('cx-ctab',k);}catch{/* */}};
+  const dups=useMemo(()=>dupCards(),[st.decks]),[dup,setDup]=useState(false);
   if(d)return <DeckPage d={d}/>;
-  const make=()=>{const n=name.trim();if(!n)return;const x=addDeck(n);setName('');setAdd(false);go('#/cards/'+x.id);};
+  const make=()=>{const n=name.trim();if(!n)return;const x=addDeck(n,kind==='all'?undefined:kind);setName('');setAdd(false);go('#/cards/'+x.id);};
   // 搜字卡：在所有分组里找这几个字；分组的名字对得上也算
   const term=q.trim(),hits=term?st.decks.flatMap(x=>x.cards.filter(c=>c.t.includes(term)).map(c=>({deck:x,c}))):[];
   const named=term?st.decks.filter(x=>x.name.includes(term)):[];
-  const shownDecks=st.decks.filter(x=>kind==='all'||x.use==='both'||x.use===kind);
+  const fnOf=new Map(st.decks.map(x=>[x.id,deckFn(x)])),tabs=st.decks.length>8||st.decks.some(x=>fnOf.get(x.id)!=='chat');
+  const shownDecks=st.decks.filter(x=>kind==='all'||!tabs||fnOf.get(x.id)===kind);
   const mark=(t:string)=>{const i=t.indexOf(term);return i<0?t:<>{t.slice(0,i)}<mark>{term}</mark>{t.slice(i+term.length)}</>;};
   const load=async(f?:File)=>{
     if(!f)return;
@@ -312,7 +321,7 @@ export function Cards({deckId}:{deckId?:string}){
   const row=(x:Deck)=>{
     const users=st.personas.filter(p=>p.decks.includes(x.id));
     return <li key={x.id}><a href={'#/cards/'+x.id}>
-      <span className="who"><b>{x.name}</b><span>{x.cards.length} 张{x.when!=='all'&&<> · {whens.find(w=>w.id===x.when)?.name}</>}{x.use!=='both'&&<> · {x.use==='pro'?'只用于主动':'只用于回复'}</>}</span></span>
+      <span className="who"><b>{x.name}</b><span>{x.cards.length} 张{fnOf.get(x.id)!=='chat'&&<> · {fns.find(f=>f.id===fnOf.get(x.id))?.name}</>}{x.when!=='all'&&<> · {whens.find(w=>w.id===x.when)?.name}</>}{x.use!=='both'&&<> · {x.use==='pro'?'只用于主动':'只用于回复'}</>}</span></span>
       <span className="users">{users.length?users.slice(0,4).map(p=><Avatar key={p.id} id={p.avatar} name={p.name} size={24}/>):<small>没人在用</small>}{users.length>1&&<em>公用</em>}</span>
       <ChevronRight size={18} strokeWidth={1.6}/>
     </a></li>;
@@ -327,15 +336,45 @@ export function Cards({deckId}:{deckId?:string}){
         {hits.length>80&&<p className="hint center">只列出前 80 张，再多写几个字能找得更准。</p>}</>
         :!named.length&&<p className="empty">没有带「{term}」的字卡。</p>}
     </>:<>
-      {st.decks.length>8&&<div className="seg ctabs" role="tablist" aria-label="看哪些分组">{([['all','全部'],['reply','回复用'],['pro','主动用']] as const).map(([id,n])=><button key={id} role="tab" aria-selected={kind===id} onClick={()=>setKind(id)}>{n}</button>)}</div>}
-      {st.decks.length?<ul className="decks">{shownDecks.map(row)}</ul>
+      {tabs&&<div className="seg ctabs" role="tablist" aria-label="看哪些分组">{([['all','全部'],...fns.map(f=>[f.id,f.name])] as ['all'|Fn,string][]).map(([id,n])=><button key={id} role="tab" aria-selected={kind===id} onClick={()=>setKind(id)}>{n}</button>)}</div>}
+      {dups.length>0&&<p className="cdup"><span>有 {dups.length} 句话重复了</span><button className="linkish" onClick={()=>setDup(true)}>整理</button></p>}
+      {st.decks.length?(shownDecks.length?<ul className="decks">{shownDecks.map(row)}</ul>:<p className="empty">还没有「{fns.find(f=>f.id===kind)?.name}」的分组。点右上角的 + 新建一个，或者打开一个分组把用途改过来。</p>)
         :<div className="ml-none"><p>他说的每一句话，都是从字卡里抽出来的。<br/>先建一个分组，把他会说的话一行一句放进去。</p><button className="btn" onClick={()=>setAdd(true)}>建第一个分组</button></div>}
     </>}
-    {add&&<Sheet title="新分组" close={()=>setAdd(false)}>
-      <form className="newdeck" onSubmit={e=>{e.preventDefault();make();}}><input value={name} onChange={e=>setName(e.target.value)} placeholder="分组的名字，比如 日常" aria-label="新分组的名字" autoFocus/><button className="btn sm" disabled={!name.trim()}>新建</button></form>
+    {dup&&<DupSheet groups={dups} close={()=>setDup(false)}/>}
+    {add&&<Sheet title={tabs&&kind!=='all'&&kind!=='chat'?`新分组 · ${fns.find(f=>f.id===kind)?.name}`:'新分组'} close={()=>setAdd(false)}>
+      <form className="newdeck" onSubmit={e=>{e.preventDefault();make();}}><input value={name} onChange={e=>setName(e.target.value)} placeholder={kind==='check'?'分组的名字，比如 他的报备':kind==='cycle'?'分组的名字，比如 经期中':'分组的名字，比如 日常'} aria-label="新分组的名字" autoFocus={auto}/><button className="btn sm" disabled={!name.trim()}>新建</button></form>
       <p className="hint"><button type="button" className="linkish" onClick={()=>{setAdd(false);file.current?.click();}}>或者从文件导入</button>（一行一句的文本，或别的传讯网站导出的文件）</p>
     </Sheet>}
   </main>;
+}
+/* 去重：所有分组放在一起比。每句话留哪几张她说了算——点亮的留下，没点亮的删掉 */
+type Dup=ReturnType<typeof dupCards>[number];
+function DupSheet({groups,close}:{groups:Dup[];close:()=>void}){
+  const st=S(),[armed,twice]=useTwice();
+  const key=(x:Dup['at'][number])=>x.d.id+'/'+x.c.id;
+  // 默认：每句留最前面那一张。和它在同一个分组里的、或者同一种用途又有同一个人在用的，算真的重复，默认删掉；
+  // 给不同的人用、用途不一样（比如一张在日常、一张在报备）的，默认各留一张
+  const users=(id:string)=>st.personas.filter(p=>p.decks.includes(id)).map(p=>p.id);
+  const same=(a:Dup['at'][number],b:Dup['at'][number])=>a.d.id===b.d.id||(deckFn(a.d)===deckFn(b.d)&&users(a.d.id).some(u=>users(b.d.id).includes(u)));
+  const [off,setOff]=useState<Set<string>>(()=>{const v=new Set<string>();
+    for(const g of groups){const kept:Dup['at']=[];for(const x of g.at){if(kept.some(k=>same(k,x)))v.add(key(x));else kept.push(x);}}
+    return v;});
+  const n=(g:Dup)=>g.at.filter(x=>off.has(key(x))).length,total=groups.reduce((a,g)=>a+n(g),0);
+  const sorted=useMemo(()=>[...groups].sort((a,b)=>Number(n(b)>0)-Number(n(a)>0)),[groups]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const flip=(g:Dup,x:Dup['at'][number])=>{const k=key(x),v=new Set(off);
+    if(v.has(k))v.delete(k);else{if(g.at.filter(y=>!v.has(key(y))).length<=1){say('每句话至少留一张');return;}v.add(k);}
+    setOff(v);};
+  const run=()=>{dropCards(groups.flatMap(g=>g.at.filter(x=>off.has(key(x))).map(x=>({d:x.d.id,c:x.c.id}))));say(`删掉了 ${total} 张重复的`);close();};
+  return <Sheet title="重复的字卡" close={close}>
+    <p className="hint first">所有分组放在一起比过了。点亮的留下，没点亮的删掉；给不同的人用、用途不一样的分组，默认各留一张。</p>
+    <ul className="dups">{sorted.slice(0,120).map(g=><li key={key(g.at[0])}>
+      <p>{g.t}</p>
+      <div className="chips">{g.at.map(x=><button key={key(x)} className="chip" aria-pressed={!off.has(key(x))} onClick={()=>flip(g,x)} aria-label={`${x.d.name} 里的这一张：${off.has(key(x))?'会删掉，点一下留着':'留着，点一下删掉'}`}>{x.d.name}</button>)}</div>
+    </li>)}</ul>
+    {sorted.length>120&&<p className="hint center">只列出前 120 句，剩下的 {sorted.length-120} 句照同样的办法一起处理。</p>}
+    <button className="btn" disabled={!total} onClick={twice('go',run)}>{!total?'没有要删的':armed==='go'?`再点一次，删掉 ${total} 张`:`去重 · 删掉 ${total} 张`}</button>
+  </Sheet>;
 }
 function DeckPage({d}:{d:Deck}){
   const st=S();
@@ -345,7 +384,11 @@ function DeckPage({d}:{d:Deck}){
   const [sure,setSure]=useState(false);
   const [armed,twice]=useTwice();
   const add=()=>{const r=addCards(d.id,text);setText('');say(r.added?`加了 ${r.added} 张${r.dup?`，${r.dup} 张重复的没加`:''}`:r.dup?'这些都已经有了':'先写点什么');};
-  const shown=q.trim()?d.cards.filter(c=>c.t.includes(q.trim())):d.cards;
+  const all=q.trim()?d.cards.filter(c=>c.t.includes(q.trim())):d.cards,fn=deckFn(d);
+  // 字卡上千张的时候先画前面一段，往下滑到底再接着画（不然一点开要等它把一千多行全画完）
+  const [lim,setLim]=useState(150),tail=useRef<HTMLDivElement>(null);
+  useEffect(()=>{const x=tail.current;if(!x||typeof IntersectionObserver!=='function')return;const io=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting))setLim(n=>n+300);},{rootMargin:'600px'});io.observe(x);return()=>io.disconnect();},[all.length>lim]);
+  const shown=all.slice(0,lim);
   return <main className="page deck">
     <header className="bar"><a className="ico" href="#/cards" aria-label="回到字卡"><ChevronLeft size={28} strokeWidth={1.8}/></a><input className="title-in" value={d.name} onChange={e=>setDeck(d.id,{name:e.target.value})} aria-label="分组名字"/>
       <button className="ico" onClick={()=>download(d.name+'.txt',d.cards.map(c=>c.t).join('\n'),'text/plain')} aria-label="导出这个分组">导出</button></header>
@@ -353,6 +396,10 @@ function DeckPage({d}:{d:Deck}){
     <h3>谁在用</h3>
     <div className="chips">{st.personas.map(p=><button key={p.id} className="chip who-chip" aria-pressed={p.decks.includes(d.id)} onClick={()=>shareDeck(d.id,p.id,!p.decks.includes(d.id))}><Avatar id={p.avatar} name={p.name} size={22}/>{p.name}</button>)}</div>
     <p className="hint">点亮几位，这个分组就由他们公用；改字卡时所有人一起变。</p>
+
+    <h3>用途</h3>
+    <div className="chips" role="radiogroup" aria-label="用途">{fns.map(f=><button key={f.id} className="chip" role="radio" aria-checked={fn===f.id} aria-pressed={fn===f.id} onClick={()=>setDeck(d.id,{fn:f.id})}>{f.name}</button>)}</div>
+    {fn!=='chat'&&<p className="hint">{fn==='check'?'在「报备」的设置里选他的报备字卡时，直接从这一类里挑。':'在「经期」的设置里选经期前、经期中他说的话时，直接从这一类里挑。'}</p>}
 
     <h3>什么时候用</h3>
     <div className="chips">{whens.map(w=><button key={w.id} className="chip" aria-pressed={d.when===w.id} onClick={()=>setDeck(d.id,{when:w.id as When})}>{w.name}{w.id!=='all'&&<small>{w.from}–{w.to}点</small>}</button>)}</div>
@@ -368,6 +415,7 @@ function DeckPage({d}:{d:Deck}){
       <button className="ico sm" onClick={()=>setCard(d.id,c.id,{off:!c.off})} aria-label={c.off?'恢复这张':'先不用这张'} aria-pressed={!!c.off}><EyeOff size={17} strokeWidth={1.7}/></button>
       <button className={`ico sm${armed===c.id?' danger':''}`} onClick={twice(c.id,()=>setCard(d.id,c.id,null))} aria-label={armed===c.id?'再点一次，删掉这张':'删掉这张'}>{armed===c.id?<small>再点一次</small>:<Trash2 size={17} strokeWidth={1.7}/>}</button>
     </li>)}</ul>
+    {all.length>lim&&<div ref={tail} className="hmore" aria-hidden="true"/>}
     {!shown.length&&<p className="empty">{d.cards.length?'没有搜到。':'这个分组还是空的。'}</p>}
     <button className="chip danger" onClick={()=>{if(!sure){setSure(true);return;}dropDeck(d.id);go('#/cards');}}>{sure?'再点一次就删掉整个分组':'删掉这个分组'}</button>
   </main>;

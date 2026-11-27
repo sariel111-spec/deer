@@ -3,11 +3,12 @@
 // 他的：你指定他哪几组字卡算报备，他主动发来的话出自这几组，就也是一张报备小卡，记在这里。
 import {Fragment,useEffect,useMemo,useState} from 'react';
 import {ChevronLeft,ChevronRight,Plus,SlidersHorizontal,X} from 'lucide-react';
-import {S,box,list,pushMsg,setBox,setPrefs,uid,useVer,type Msg,type Persona,type Plan} from './db';
+import {S,box,deckFn,list,pushMsg,setBox,setPrefs,uid,useVer,type Msg,type Persona,type Plan} from './db';
 import {hisCheck,sent} from './engine';
 import {Avatar,backTo} from './App';
 import {Sheet,say} from './pages';
 import {ymd} from './note';
+import {auto} from './ui';
 
 export const quickDefault=['起床了','出门了','到了','在吃饭','在忙','下班了','到家了','要睡了'];
 export const quickOf=()=>S().prefs.quick??quickDefault;
@@ -120,7 +121,8 @@ function Conf({p,close}:{p:Persona;close:()=>void}){
   const st=S(),quick=quickOf(),plan=st.prefs.plan??[],b=box(p.id);
   const [q,setQ]=useState(''),[ed,setEd]=useState<Plan|null>(null);
   const addQ=()=>{const x=q.trim();if(!x)return;if(!quick.includes(x))setPrefs({quick:[...quick,x]});setQ('');};
-  const on=b.ckDecks??[],decks=st.decks.filter(d=>p.decks.includes(d.id)).sort((x,y)=>Number(on.includes(y.id))-Number(on.includes(x.id)));
+  const [wide,setWide]=useState(false);   // 只看「报备」这一类，还是他的全部分组
+  const on=b.ckDecks??[],his=st.decks.filter(d=>p.decks.includes(d.id)),decks=his.filter(d=>wide||on.includes(d.id)||deckFn(d)==='check').sort((x,y)=>Number(on.includes(y.id))-Number(on.includes(x.id)));
   const flip=(id:string)=>setBox(p.id,{ckDecks:on.includes(id)?on.filter(x=>x!==id):[...on,id]});
   if(ed)return <Sheet title={plan.some(x=>x.id===ed.id)?'改这条日程':'加一条日程'} close={()=>setEd(null)}><PlanForm it={ed} isNew={!plan.some(x=>x.id===ed.id)}
     save={x=>{setPrefs({plan:plan.some(y=>y.id===x.id)?plan.map(y=>y.id===x.id?x:y):[...plan,x]});setEd(null);}}
@@ -139,7 +141,8 @@ function Conf({p,close}:{p:Persona;close:()=>void}){
     <h3>{p.name} 的报备</h3>
     <p className="lede">选他哪几组字卡算报备。选了，他主动找你时会不时从这几组里说一句。</p>
     <div className="chips" role="group" aria-label="他哪几组字卡算报备">{decks.map(d=><button key={d.id} className="chip" aria-pressed={on.includes(d.id)} onClick={()=>flip(d.id)}>{d.name}<small>{d.cards.filter(c=>!c.off).length}</small></button>)}</div>
-    {!decks.length&&<p className="hint">他还没有字卡。</p>}
+    {!decks.length&&<p className="hint">{his.length?'还没有「报备」这一类的分组。':'他还没有字卡。'}</p>}
+    {!wide&&his.length>decks.length&&<p className="hint"><button className="linkish" onClick={()=>setWide(true)}>从全部分组里选</button>（选上的会归到「报备」这一类）</p>}
   </Sheet>;
 }
 
@@ -148,7 +151,7 @@ function PlanForm({it,isNew,save,drop}:{it:Plan;isNew:boolean;save:(x:Plan)=>voi
   const ok=x.name.trim()&&x.days.length>0&&/^\d\d:\d\d$/.test(x.from)&&/^\d\d:\d\d$/.test(x.to)&&x.from!==x.to;
   const day=(d:number)=>setX({...x,days:x.days.includes(d)?x.days.filter(y=>y!==d):[...x.days,d]});
   return <form className="ck-form" onSubmit={e=>{e.preventDefault();if(ok)save({...x,name:x.name.trim()});}}>
-    <label className="field"><span>做什么</span><input value={x.name} onChange={e=>setX({...x,name:e.target.value})} placeholder="上课、上班、健身…" aria-label="这条日程做什么" maxLength={30} autoFocus={isNew}/></label>
+    <label className="field"><span>做什么</span><input value={x.name} onChange={e=>setX({...x,name:e.target.value})} placeholder="上课、上班、健身…" aria-label="这条日程做什么" maxLength={30} autoFocus={isNew&&auto}/></label>
     <div className="field"><span>周几</span><div className="ck-days" role="group" aria-label="周几">{[1,2,3,4,5,6,0].map(d=><button type="button" key={d} aria-pressed={x.days.includes(d)} onClick={()=>day(d)} aria-label={'周'+week[d]}>{week[d]}</button>)}</div></div>
     <div className="ck-times">
       <label className="field"><span>从</span><input type="time" value={x.from} onChange={e=>setX({...x,from:e.target.value})} aria-label="几点开始" required/></label>

@@ -2,7 +2,7 @@
 // 不做排卵期和症状打卡——这是他陪着你的地方，不是健康 app。
 import {useRef,useState} from 'react';
 import {ChevronLeft,ChevronRight,SlidersHorizontal} from 'lucide-react';
-import {S,box,setBox,useVer,type Persona} from './db';
+import {S,box,deckFn,setBox,useVer,type Persona} from './db';
 import {cySay,cyTell} from './engine';
 import {Avatar,backTo} from './App';
 import {Num,Sheet,Switch,say} from './pages';
@@ -84,9 +84,9 @@ function Conf({p,close}:{p:Persona;close:()=>void}){
   useVer();
   const st=S(),c=box(p.id).cycle,r=cyRead(c);
   const set=(patch:Partial<Cy>)=>setBox(p.id,{cycle:{...c,...patch}});
-  const mine=st.decks.filter(d=>p.decks.includes(d.id));
+  const mine=st.decks.filter(d=>p.decks.includes(d.id)),picked=new Set([...(c.decks??[]),...(c.soon??[])]),[wide,setWide]=useState(false),cat=mine.filter(d=>wide||picked.has(d.id)||deckFn(d)==='cycle');
   const row=(key:'soon'|'decks',label:string)=>{const on=c[key]??[];
-    return <><h3>{label}</h3><div className="chips" role="group" aria-label={label}>{[...mine].sort((a,b)=>Number(on.includes(b.id))-Number(on.includes(a.id))).map(d=>
+    return <><h3>{label}</h3><div className="chips" role="group" aria-label={label}>{[...cat].sort((a,b)=>Number(on.includes(b.id))-Number(on.includes(a.id))).map(d=>
       <button key={d.id} className="chip" aria-pressed={on.includes(d.id)} onClick={()=>{
         if(on.includes(d.id)){set({[key]:on.filter(x=>x!==d.id)});return;}
         // 选走以后他平时就不说这组了：要是这是他平时唯一能说的一组，先不让选，免得他平时没话可说
@@ -98,10 +98,11 @@ function Conf({p,close}:{p:Persona;close:()=>void}){
     <Num label="两次相隔" value={c.gap} set={n=>set({gap:n})} min={15} max={60} unit="天"/>
     <p className="hint">{r.auto.gap||r.auto.len?`记录够了，现在按最近几次的平均算（相隔 ${r.gap} 天、一次 ${r.len} 天）。`:'记够两次以后，会改成按你最近几次的平均来算。'}</p>
     <Switch on={c.remind!==false} set={v=>set({remind:v})} label="快到的时候提醒我"/>
-    {mine.length?<>
+    {cat.length?<>
       {row('soon','经期前，他说')}
       {row('decks','经期中，他说')}
       <p className="hint">选了分组，那几天他每天主动说一句；你点「今天来了」，他会马上回一句。选中的分组平时他不会说，所以请选专门写给经期的。</p>
-    </>:<p className="hint">他还没有字卡分组。有了以后，可以在这里指定经期那几天他说哪些话。</p>}
+    </>:<p className="hint">{mine.length?'还没有「经期」这一类的分组。':'他还没有字卡分组。有了以后，可以在这里指定经期那几天他说哪些话。'}</p>}
+    {!wide&&mine.length>cat.length&&<p className="hint"><button className="linkish" onClick={()=>setWide(true)}>从全部分组里选</button>（选上的会归到「经期」这一类）</p>}
   </Sheet>;
 }

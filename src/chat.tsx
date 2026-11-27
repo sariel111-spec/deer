@@ -7,6 +7,7 @@ import {callOpen} from './call';
 import {PersonaSheet,Sheet,say} from './pages';
 import {enter,useDismiss,useTwice} from './ui';
 import {Avatar,Pic,dayLabel} from './App';
+import {Over} from './over';
 
 const hhmm=(t:number)=>new Date(t).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});
 const brief=(t:number)=>{const s=(Date.now()-t)/1000;return s<60?'刚刚':s<3600?Math.floor(s/60)+' 分钟前':s<86400?Math.floor(s/3600)+' 小时前':Math.floor(s/86400)+' 天前';};
@@ -201,7 +202,7 @@ export function Chat({p}:{p:Persona}){
 
     {menu&&<Ctx m={menu} close={()=>setMenu(null)} act={act}/>}
     {manage&&(st.packs??[]).some(k=>k.id===manage)&&<PackSheet k={(st.packs??[]).find(k=>k.id===manage)!} close={()=>setManage('')} gone={()=>{setManage('');setPanel('emo');}}/>}
-    {view&&<button className="viewer" onClick={()=>setView('')} aria-label="关掉大图"><Pic id={view} alt="大图"/></button>}
+    {view&&<Over><button className="viewer" onClick={()=>setView('')} aria-label="关掉大图"><Pic id={view} alt="大图"/></button></Over>}
     {more&&<Sheet title="" close={()=>setMore(false)} plain>
       <ul className="apps tools">
         <li><button onClick={pat}><span><Hand size={23} strokeWidth={1.5}/></span>拍一拍</button></li>
