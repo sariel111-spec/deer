@@ -1,7 +1,7 @@
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {flushSync} from 'react-dom';
 import {House,Layers,MessageCircle,Settings2,SquarePen} from 'lucide-react';
-import {S,addPersona,getImage,importAll,list,storageDown,unread,useVer,who} from './db';
+import {S,addPersona,getImage,peekImage,importAll,list,storageDown,unread,useVer,who} from './db';
 import {isTyping} from './engine';
 import {Cards,Settings,Home,Sheet,SyncPanel,say,Toast} from './pages';
 import {Chat,peek} from './chat';
@@ -19,35 +19,64 @@ export const dayLabel=(t:number)=>{
 };
 const brief=(t:number)=>{const s=(Date.now()-t)/1000;return s<60?'刚刚':s<3600?Math.floor(s/60)+' 分钟前':s<86400?Math.floor(s/3600)+' 小时前':Math.floor(s/86400)+' 天前';};
 
-// 换页：点出来的（不算底栏那四个之间）新旧两页原地淡入淡出，不挪位置——之前试过让页面横着挪一小段进来，看着像屏幕在晃。
-// 不是点出来的（iPhone 从屏幕边上划回去、浏览器的前进后退）系统自己有动画，这里直接换。浏览器不支持就直接换
-const tap={at:0,tabs:false};
-if(typeof window!=='undefined')addEventListener('click',e=>{tap.at=performance.now();tap.tabs=!!(e.target as HTMLElement|null)?.closest?.('.tabs');},true);
-type VT=Document&{startViewTransition?:(f:()=>void)=>unknown};
-function swap(update:()=>void){
-  const d=document as VT,w=window as unknown as {__ghost?:number};
-  const still=performance.now()-tap.at>800||tap.tabs||typeof d.startViewTransition!=='function'||matchMedia('(prefers-reduced-motion:reduce)').matches||(navigator.webdriver&&!w.__ghost);
-  if(still){update();return;}
-  try{d.startViewTransition!(()=>flushSync(update));}catch{update();}
+/* ── 换页 ──
+   点出来的（不算底栏那四个之间）：新旧两页原地淡入淡出，不挪位置。
+   不是点出来的（iPhone 从屏幕边上划回去、浏览器的前进后退）：系统自己有动画，这里当场换好、什么都不加——
+   划回去之后再淡一遍，就会看到上一页的影子在新页面上闪一下。
+   回到上一页时停在离开时滚到的位置（系统划回去时垫在下面的那张截图就是那个位置，对不上会跳）。 */
+const tap={at:0,tabs:false,used:true},edge={x:-1,at:0};
+if(typeof window!=='undefined'){
+  addEventListener('click',e=>{tap.at=performance.now();tap.used=false;tap.tabs=!!(e.target as HTMLElement|null)?.closest?.('.tabs');},true);
+  // 手指从屏幕边上起步、横着走了一段或者被系统接了过去：这是在划回去，不是点
+  addEventListener('touchstart',e=>{const t=e.touches[0];edge.x=e.touches.length===1&&(t.clientX<=30||t.clientX>=innerWidth-30)?t.clientX:-1;},{capture:true,passive:true});
+  addEventListener('touchmove',e=>{if(edge.x>=0&&Math.abs(e.touches[0].clientX-edge.x)>12)edge.at=performance.now();},{capture:true,passive:true});
+  addEventListener('touchcancel',()=>{if(edge.x>=0)edge.at=performance.now();edge.x=-1;},{capture:true,passive:true});
+  addEventListener('touchend',()=>{edge.x=-1;},{capture:true,passive:true});
 }
+type VT=Document&{startViewTransition?:(f:()=>void)=>unknown};
 // 上一页是哪儿。从聊天点进功能页、主页，返回时回到聊天而不是一律回主页
 export const nav={from:''};
+// 浏览器历史里的每一页编一个号（记在 history.state 里）：号变小了就是往回走。每一页离开时滚到哪儿，照这个号记着
+const stamp=():number|undefined=>{try{const v=(history.state as {i?:unknown}|null)?.i;return typeof v==='number'?v:undefined;}catch{return undefined;}};
+const route={shown:typeof location!=='undefined'?location.hash:'',i:0,top:0,tops:new Map<number,number>(),set:null as ((h:string)=>void)|null};
+if(typeof window!=='undefined'){const v=stamp();if(v===undefined){try{history.replaceState({...(history.state as object|null),i:0},'');}catch{/* */}}else route.i=v;}
+function turn(){
+  const to=location.hash;if(to===route.shown||!route.set)return;
+  const now=performance.now(),sc=document.querySelector<HTMLElement>('main.page');
+  if(sc)route.tops.set(route.i,sc.scrollTop);
+  let v=stamp(),old=false;
+  if(v===undefined){v=Math.max(route.i,...route.tops.keys())+1;try{history.replaceState({...(history.state as object|null),i:v},'');}catch{/* */}}   // 新走到的一页
+  else old=true;                                                                                       // 历史里已有的一页：往回或者往前
+  route.top=old?route.tops.get(v)??0:0;route.i=v;
+  nav.from=route.shown;route.shown=to;
+  const d=document as VT,w=window as unknown as {__ghost?:number};
+  const byHand=!tap.used&&now-tap.at<200&&now-edge.at>900;tap.used=true;   // 点出来的换页紧跟着那一下点（几十毫秒）；手指划一趟回去至少要两三百毫秒，所以隔得久的不算点出来的
+  const fade=byHand&&!tap.tabs&&typeof d.startViewTransition==='function'&&!matchMedia('(prefers-reduced-motion:reduce)').matches&&!(navigator.webdriver&&!w.__ghost);
+  // 当场换好：等到下一帧再换的话，划回去松手后会先露一下刚才那一页。换页时开着的小页跟着旧页面一起走，不留下落的影子（over.tsx 看这个记号）
+  const root=document.documentElement,update=()=>{root.dataset.turn='1';try{flushSync(()=>route.set!(to));}finally{delete root.dataset.turn;}};
+  if(fade){try{d.startViewTransition!(update);return;}catch{/* 不行就直接换 */}}
+  update();
+}
 export const backTo=(fallback:string)=>(e:React.MouseEvent)=>{if(nav.from&&nav.from!==location.hash){e.preventDefault();history.back();}else if(!fallback)e.preventDefault();};
-export function Pic({id,className,alt=''}:{id?:string;className?:string;alt?:string}){
-  const [src,setSrc]=useState('');
-  useEffect(()=>{let on=true;setSrc('');if(id)void getImage(id).then(v=>{if(on)setSrc(v);});return()=>{on=false;};},[id]);
-  return src?<img className={className} src={src} alt={alt} draggable={false} referrerPolicy="no-referrer"/>:null;
+// 读过一次的图当场就画（peekImage）；第一次用到的才去库里取。now：头像这样的小图，和页面同一帧画出来
+export function Pic({id,className,alt='',now}:{id?:string;className?:string;alt?:string;now?:boolean}){
+  const [got,setGot]=useState<{id?:string;src:string}>({src:''});
+  const have=id?peekImage(id):'',src=have||(got.id===id?got.src:'');
+  useEffect(()=>{let on=true;if(id&&!peekImage(id))void getImage(id).then(v=>{if(on)setGot({id,src:v});});return()=>{on=false;};},[id]);
+  return src?<img className={className} src={src} alt={alt} draggable={false} referrerPolicy="no-referrer" decoding={now?'sync':undefined}/>:null;
 }
 export function Avatar({id,name,size=40}:{id?:string;name:string;size?:number}){
   return <span className="avatar" style={{width:size,height:size,fontSize:size*.42}} aria-hidden="true">
-    {id?<Pic id={id}/>:<b>{[...name][0]??'·'}</b>}
+    {id?<Pic id={id} now/>:<b>{[...name][0]??'·'}</b>}
   </span>;
 }
 
 export function App(){
   useVer();
   const [hash,setHash]=useState(location.hash);
-  useEffect(()=>{const on=(e:HashChangeEvent)=>{try{nav.from=new URL(e.oldURL).hash;}catch{nav.from='';}swap(()=>setHash(location.hash));};addEventListener('hashchange',on);return()=>removeEventListener('hashchange',on);},[]);
+  // popstate 比 hashchange 早到（划回去松手的那一刻就到）：两个都听，先到的那个换页，后到的发现已经换过了就不动
+  useEffect(()=>{route.set=setHash;addEventListener('popstate',turn);addEventListener('hashchange',turn);return()=>{route.set=null;removeEventListener('popstate',turn);removeEventListener('hashchange',turn);};},[]);
+  useLayoutEffect(()=>{const sc=document.querySelector<HTMLElement>('main.page');if(sc&&route.top>0)sc.scrollTop=route.top;route.top=0;},[hash]);
   const st=S(),theme=st.prefs.theme;
   useEffect(()=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.bubble=st.prefs.bubble;},[theme,st.prefs.bubble]);
 

@@ -251,14 +251,14 @@ export function Home({p}:{p:Persona}){
         onPointerUp={()=>clearTimeout(held.current.t)} onPointerLeave={()=>clearTimeout(held.current.t)} onPointerCancel={()=>clearTimeout(held.current.t)}
         onClick={e=>{if(held.current.fired){e.preventDefault();held.current.fired=false;}}} onContextMenu={e=>{e.preventDefault();clearTimeout(held.current.t);held.current.fired=true;setCover(f.id);}}
         aria-label={`${f.name}${dot[f.id]?'，有新的':''}`}>
-        <span>{covers[f.id]?<Pic id={covers[f.id]} alt=""/>:<f.icon size={20} strokeWidth={1.4}/>}</span>{f.name}</a></li>)}
+        <span>{covers[f.id]?<Pic id={covers[f.id]} alt="" now/>:<f.icon size={20} strokeWidth={1.4}/>}</span>{f.name}</a></li>)}
     </ul>}
 
     <div className="seg htabs" role="tablist" aria-label="看什么">
       <button role="tab" aria-selected={tab==='pics'} onClick={()=>setTab('pics')} aria-label="照片"><Grid3x3 size={22} strokeWidth={tab==='pics'?2:1.5}/></button>
       <button role="tab" aria-selected={tab==='fav'} onClick={()=>setTab('fav')} aria-label="收藏"><Bookmark size={22} strokeWidth={tab==='fav'?2:1.5}/></button>
     </div>
-    {tab==='pics'?(pics.length?<><div className="grid hgrid">{pics.slice(0,shown).map((x,i)=><button key={x.id+i} onClick={()=>setView(i)} aria-label={`看大图，${dayLabel(x.at)}`}><Pic id={x.id} alt=""/></button>)}</div>
+    {tab==='pics'?(pics.length?<><div className="grid hgrid">{pics.slice(0,shown).map((x,i)=><button key={x.id+i} onClick={()=>setView(i)} aria-label={`看大图，${dayLabel(x.at)}`}><Pic id={x.id} alt="" now={i<9}/></button>)}</div>
         {pics.length>shown&&<div ref={more} className="hmore" aria-hidden="true"/>}</>
       :<p className="empty">你们发过的照片会排在这里。</p>)
     :(favs.length?<ul className="hfav">{favs.map(f=>{

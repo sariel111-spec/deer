@@ -442,6 +442,8 @@ export async function putImage(file:Blob,max=1280,q=.86):Promise<string>{
   c.getContext('2d')!.drawImage(bmp,0,0,c.width,c.height);bmp.close?.();
   const id=uid();if(!await setKey('a:'+id,c.toDataURL('image/jpeg',q)))throw new Error('图片没存进去');return id;
 }
+/** 这张图是不是已经在手边了（读过一次的都在）：在的话当场给出来，页面一出现图就在，不会先空一下再冒出来 */
+export const peekImage=(id:string):string=>/^https?:\/\//.test(id)?id:pics.get(id)??'';
 export async function getImage(id:string):Promise<string>{
   if(/^https?:\/\//.test(id))return id;
   if(pics.has(id))return pics.get(id)!;

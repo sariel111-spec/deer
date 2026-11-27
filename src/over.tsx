@@ -11,7 +11,7 @@ export function Over({children}:{children:React.ReactNode}){
   useLayoutEffect(()=>{setAcc(mark.current?getComputedStyle(mark.current).getPropertyValue('--accent').trim():'');},[]);
   // 关掉的那一刻：真的那张照常拿走（底下的页面马上能点），原地留一张不能点的影子，往下落着淡出去
   useLayoutEffect(()=>()=>{
-    const el=host.current;if(!el||ghostOff())return;
+    const el=host.current;if(!el||ghostOff()||document.documentElement.dataset.turn)return;   // 换页带走的小页不留影子
     try{
       const tops=[...el.querySelectorAll<HTMLElement>('.sheet')].map(x=>x.scrollTop);
       const g=el.cloneNode(true) as HTMLDivElement;
