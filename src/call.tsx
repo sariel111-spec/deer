@@ -7,6 +7,7 @@ import {callDecline,callEnd,callStart,clock,lines,onCall,ringing} from './engine
 import {blip,onPip,pipBlocked,pipCall,pipCan,pipEnter,pipLeave,pipOn} from './alive';
 import {Avatar,Pic} from './App';
 import {say} from './pages';
+import {useBackClose} from './ui';
 
 /* 界面上的状态（只在这台设备上）：整屏还是缩着、是不是正在拨出去 */
 let full=false,dialing='';
@@ -106,6 +107,8 @@ function CallScreen({p,since}:{p:Persona;since:number}){
     next();return()=>{clearTimeout(t);clearTimeout(h);};
   },[live,p.id]);
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape'&&live)shrink();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[live]);
+  // 返回键 / 从屏幕边上划回去：整屏的通话先缩成小窗（通话不断，只有点挂断才结束）；还在呼叫时就是取消
+  useBackClose(()=>{if(live)shrink();else hang(p.id);});
   const toggleCam=()=>{const v=!cam;setCam(v);try{localStorage.setItem('cx-cam',v?'1':'0');}catch{/* */}};
   // 自己的小窗可以拖到不挡画面的地方
   const down=(e:React.PointerEvent<HTMLDivElement>)=>{const r=e.currentTarget.getBoundingClientRect(),host=e.currentTarget.parentElement!.getBoundingClientRect();drag.current={on:true,x:e.clientX,y:e.clientY,ox:r.left-host.left,oy:r.top-host.top};e.currentTarget.setPointerCapture(e.pointerId);};

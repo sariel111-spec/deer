@@ -32,5 +32,5 @@ self.addEventListener('push',e=>{
   let d=null;try{d=e.data&&e.data.json();}catch(_){d=null;}
   // 图标上的数字跟着这一条走
   try{if(d&&typeof d.badge==='number'&&self.navigator&&self.navigator.setAppBadge)self.navigator.setAppBadge(d.badge).catch(()=>{});}catch(_){}
-  e.waitUntil(d&&d.title?self.registration.showNotification(d.title,{body:d.body||'',tag:d.tag||'cx-push',icon:'./icon-192.png',badge:'./icon-192.png',data:{pid:d.pid}}):background());
+  e.waitUntil(d&&d.title?self.registration.showNotification(d.title,{body:d.body||'',tag:d.tag||'cx-push',icon:'./icon-192.png',badge:'./badge-96.png',data:{pid:d.pid}}):background());
 });

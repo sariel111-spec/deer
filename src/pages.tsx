@@ -8,8 +8,9 @@ import {lines,nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
 import {feats,homeDefault} from './more';
-import {auto,enter,useDismiss,useDragClose,useTwice} from './ui';
+import {BackClose,auto,enter,useBackClose,useDismiss,useDragClose,useTwice} from './ui';
 import {Over} from './over';
+import {useInstall} from './help';
 import {cyPhase} from './cyc';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
 
@@ -26,6 +27,7 @@ export function Sheet({title,close,plain,children}:{title:string;close:()=>void;
   const out=useDismiss(close);
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[close]);
   const [el,drag]=useDragClose<HTMLElement>(close);
+  useBackClose(close);
   return <Over><div className="veil" {...out}>
     <section ref={el} className={`sheet${plain?' plain':''}`} role="dialog" aria-modal="true" aria-label={title||'操作'}>
       <i className="grab" aria-hidden="true" {...drag}/>
@@ -122,6 +124,7 @@ export function PersonaSheet({p,close}:{p:Persona;close:()=>void}){
 /** 主页照片的大图：左右划（电脑上按方向键、或点两边的箭头）看上一张下一张，点一下关掉；底下一行小字是哪天的 */
 function PicView({pics,i,go,close}:{pics:{id:string;at:number}[];i:number;go:(i:number)=>void;close:()=>void}){
   const sw=useRef<{x:number;y:number}|null>(null);
+  useBackClose(close);
   const step=(d:number)=>{const n=i+d;if(n>=0&&n<pics.length)go(n);};
   useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key==='Escape')close();else if(e.key==='ArrowLeft')step(-1);else if(e.key==='ArrowRight')step(1);};
     addEventListener('keydown',k);return()=>removeEventListener('keydown',k);});
@@ -266,7 +269,7 @@ export function Home({p}:{p:Persona}){
         return <li key={f.key}>{f.to?<a href={f.to} onClick={()=>{if(f.jump)try{sessionStorage.setItem('cx-jump',f.jump);}catch{/* */}}}>{body}</a>:<button onClick={()=>setNote(true)}>{body}</button>}</li>;})}</ul>
       :<p className="empty">聊天里长按一句话点「收藏」，它就留在这里。</p>)}
     {view>=0&&pics[view]&&<PicView pics={pics} i={view} go={setView} close={()=>setView(-1)}/>}
-    {face&&p.avatar&&<Over><button className="viewer" onClick={()=>setFace(false)} aria-label="关掉大图"><Pic id={p.avatar} alt={`${p.name} 的头像`}/></button></Over>}
+    {face&&p.avatar&&<Over><BackClose close={()=>setFace(false)}/><button className="viewer" onClick={()=>setFace(false)} aria-label="关掉大图"><Pic id={p.avatar} alt={`${p.name} 的头像`}/></button></Over>}
     <input ref={cfile} type="file" accept="image/*" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';const id=cover;setCover('');if(f&&id)try{setCov(id,await putImage(f,400));}catch{say('这张图片读不了，换一张试试');}}}/>
     {cover&&<Sheet title="" plain close={()=>setCover('')}>
       <ul className="ml-menu">
@@ -474,7 +477,7 @@ export function Settings({sec=''}:{sec?:string}){
   const mode=st.prefs.mode??'loop',away=lastAway();
   const [pl,setPl]=useState(pushLive());
   const [addr,setAddr]=useState('');
-  const mine=useRef<HTMLInputElement>(null),sy=useSync();
+  const mine=useRef<HTMLInputElement>(null),sy=useSync(),ins=useInstall();
   // 设置分成几页：首页是一张短列表，点一行进那一页（地址里带着，返回键能回来）
   const themeName={auto:'跟随系统',light:'浅色',dark:'深色'}[pf.theme],bubbleName={ins:'ins',mono:'黑白',accent:'点缀色',line:'细边'}[pf.bubble];
   const secs:[string,string,string][]=[['me','我',pf.myName],['look','外观',`${themeName} · ${bubbleName}`],
@@ -484,7 +487,9 @@ export function Settings({sec=''}:{sec?:string}){
   useEffect(()=>{void pushPrep();return onPush(()=>setPl(pushLive()));},[]);
   if(!title)return <main className="page">
     <header className="bar"><h1>设置</h1></header>
-    <ul className="setlist">{secs.map(([id,n,v])=><li key={id}><a href={'#/set/'+id}><span>{n}</span><small>{v}</small><ChevronRight size={18} strokeWidth={1.6}/></a></li>)}</ul>
+    <ul className="setlist">{secs.map(([id,n,v])=><li key={id}><a href={'#/set/'+id}><span>{n}</span><small>{v}</small><ChevronRight size={18} strokeWidth={1.6}/></a></li>)}
+      <li><a href="#/set/help"><span>使用说明</span><small/><ChevronRight size={18} strokeWidth={1.6}/></a></li>
+      {ins.can&&<li><button onClick={()=>void ins.go()}><span>安装到这台设备</span><small>像 app 一样从桌面打开</small><ChevronRight size={18} strokeWidth={1.6}/></button></li>}</ul>
     <p className="foot">回复是从你放进去的字卡里随机抽的。</p>
   </main>;
   return <main className="page sub">

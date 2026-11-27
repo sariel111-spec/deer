@@ -5,7 +5,7 @@ import {ChevronLeft,Heart,Send} from 'lucide-react';
 import {S,box,list,pushMsg,setBox,type Persona} from './db';
 import {plain,sent} from './engine';
 import {Avatar} from './App';
-import {useDismiss,useDragClose} from './ui';
+import {useBackClose,useDismiss,useDragClose} from './ui';
 import {Over} from './over';
 
 export const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -31,6 +31,7 @@ const nice=(date:string)=>{const [y,m,d]=date.split('-').map(Number),n=new Date(
 export function NoteCard({p,close}:{p:Persona;close:()=>void}){
   const today=ymd(),b=box(p.id),line=todayLine(p),mine=b.lines.find(x=>x.date===today);
   const [past,setPast]=useState(false),[only,setOnly]=useState(false),[t,setT]=useState(''),out=useDismiss(close),[el,drag]=useDragClose<HTMLElement>(close);
+  useBackClose(close);
   useEffect(()=>{if(box(p.id).lineSeen!==today)setBox(p.id,{lineSeen:today},true);},[]);
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[close]);
   const like=(date:string)=>setBox(p.id,{lines:box(p.id).lines.map(x=>x.date===date?{...x,like:!x.like,u:Date.now()}:x)},true);

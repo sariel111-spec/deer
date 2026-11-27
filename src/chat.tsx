@@ -5,7 +5,7 @@ import {hisCheck,isTyping,onCall,pool,read,redraw,sent,setActive} from './engine
 import {Tell} from './check';
 import {callOpen} from './call';
 import {PersonaSheet,Sheet,say} from './pages';
-import {enter,useDismiss,useTwice} from './ui';
+import {enter,useBackClose,useDismiss,useTwice} from './ui';
 import {Avatar,Pic,dayLabel} from './App';
 import {Over} from './over';
 
@@ -80,8 +80,13 @@ export function Chat({p}:{p:Persona}){
   },[p.id,q===null]);
   // 往上翻到头再多拿一段，位置不跳
   useLayoutEffect(()=>{const el=sc.current;if(el&&keep.current){el.scrollTop+=el.scrollHeight-keep.current;lastTop.current=el.scrollTop;keep.current=0;}},[limit]);
-  useEffect(()=>{const el=box.current;if(el){el.style.height='auto';el.style.height=Math.min(120,el.scrollHeight)+'px';}
-    try{if(text)localStorage.setItem(draftKey(p.id),text);else localStorage.removeItem(draftKey(p.id));}catch{/* 存不了草稿不要紧 */}},[text,p.id]);
+  // 输入框跟着字数长高：在画出来之前就量好、改好，原本贴着底的聊天也在同一下里贴回底——不然会先看到聊天跳一下再回来
+  // 量高度时要先把输入框缩回一行，这一下聊天区会跟着变高、滚动位置被浏览器往回拽一截（iPhone 上拽了就不还）：
+  // 所以量完一定把位置放回去——原本贴着底的贴回底，在翻旧记录的回到原处
+  useLayoutEffect(()=>{const el=box.current;if(!el)return;const sc0=sc.current,top0=sc0?.scrollTop??0;
+    el.style.height='auto';el.style.height=Math.min(120,el.scrollHeight)+'px';
+    if(near.current&&!keep.current)toEnd();else if(sc0&&sc0.scrollTop!==top0){sc0.scrollTop=top0;lastTop.current=top0;}},[text,p.id]);
+  useEffect(()=>{try{if(text)localStorage.setItem(draftKey(p.id),text);else localStorage.removeItem(draftKey(p.id));}catch{/* 存不了草稿不要紧 */}},[text,p.id]);
   const onScroll=()=>{
     const el=sc.current;if(!el)return;
     repaint();
@@ -202,7 +207,7 @@ export function Chat({p}:{p:Persona}){
 
     {menu&&<Ctx m={menu} close={()=>setMenu(null)} act={act}/>}
     {manage&&(st.packs??[]).some(k=>k.id===manage)&&<PackSheet k={(st.packs??[]).find(k=>k.id===manage)!} close={()=>setManage('')} gone={()=>{setManage('');setPanel('emo');}}/>}
-    {view&&<Over><button className="viewer" onClick={()=>setView('')} aria-label="关掉大图"><Pic id={view} alt="大图"/></button></Over>}
+    {view&&<Viewer id={view} close={()=>setView('')}/>}
     {more&&<Sheet title="" close={()=>setMore(false)} plain>
       <ul className="apps tools">
         <li><button onClick={pat}><span><Hand size={23} strokeWidth={1.5}/></span>拍一拍</button></li>
@@ -216,6 +221,10 @@ export function Chat({p}:{p:Persona}){
   </main>;
 }
 
+function Viewer({id,close}:{id:string;close:()=>void}){
+  useBackClose(close);
+  return <Over><button className="viewer" onClick={close} aria-label="关掉大图"><Pic id={id} alt="大图"/></button></Over>;
+}
 const mark=(t:string,q:string)=>{const i=t.indexOf(q);return i<0?t:<>{t.slice(0,i)}<mark>{q}</mark>{t.slice(i+q.length)}</>;};
 const Item=({on,label,icon,red}:{on:()=>void;label:string;icon:React.ReactNode;red?:boolean})=><button className={red?'danger':''} onClick={on}>{label}{icon}</button>;
 
@@ -253,6 +262,7 @@ type Acts=Record<'reply'|'copy'|'fav'|'again'|'mute'|'unsend'|'drop',(m:Msg)=>vo
 function Ctx({m,close,act}:{m:Msg;close:()=>void;act:Acts}){
   useEffect(()=>{const on=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};addEventListener('keydown',on);return()=>removeEventListener('keydown',on);},[close]);
   const mine=m.from==='me',tip=m.kind==='tip',now=m.react??(m.like?'❤️':''),out=useDismiss(close),[armed,twice]=useTwice();
+  useBackClose(close);
   return <div className={`ctx ${m.from}`} role="dialog" aria-modal="true" aria-label="消息操作" {...out}>
     {!tip&&<div className="reacts" role="group" aria-label="贴一个表情">{quick.map(e=><button key={e} aria-pressed={now===e} onClick={()=>act.react(m,e)}>{e}</button>)}</div>}
     <div className={`bubble ghost${m.kind==='img'?' pic':''}${m.st?' st':''}${tip?' tipb':''}`}>{m.kind==='img'?<Pic id={m.text}/>:m.text}</div>

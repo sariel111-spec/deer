@@ -294,7 +294,7 @@ export const setHold=(v:boolean)=>{hold=v;};
 export function notify(p:Persona,text:string,to?:'mail',quiet=false){
   if(hold&&document.hidden)return;
   if(!S().prefs.notify||!('Notification' in window)||Notification.permission!=='granted')return;
-  const opt={body:text,tag:'cx-'+p.id,icon:'./icon-192.png',badge:'./icon-192.png',data:{pid:p.id,to},renotify:!quiet,silent:quiet} as NotificationOptions;
+  const opt={body:text,tag:'cx-'+p.id,icon:'./icon-192.png',badge:'./badge-96.png',data:{pid:p.id,to},renotify:!quiet,silent:quiet} as NotificationOptions;
   if(reg)void reg.showNotification(p.name,opt).catch(()=>{});
   else try{new Notification(p.name,opt);}catch{/* 有的浏览器只许 Service Worker 发 */}
 }
@@ -302,7 +302,7 @@ export function notify(p:Persona,text:string,to?:'mail',quiet=false){
 export function remind(title:string,text:string,pid:string){
   if(hold&&document.hidden)return;
   if(!S().prefs.notify||!('Notification' in window)||Notification.permission!=='granted')return;
-  const opt={body:text,tag:'cx-tip-'+pid,icon:'./icon-192.png',badge:'./icon-192.png',data:{pid}} as NotificationOptions;
+  const opt={body:text,tag:'cx-tip-'+pid,icon:'./icon-192.png',badge:'./badge-96.png',data:{pid}} as NotificationOptions;
   if(reg)void reg.showNotification(title,opt).catch(()=>{});
   else try{new Notification(title,opt);}catch{/* 有的浏览器只许 Service Worker 发 */}
 }

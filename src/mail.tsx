@@ -9,6 +9,7 @@ import {AiBlock} from './aiui';
 import {Pic,nav} from './App';
 import {Sheet,say} from './pages';
 import {Over} from './over';
+import {BackClose,afterSheets} from './ui';
 import {letterImage} from './mailimg';
 
 // 信箱里的三个页面都写在地址里（…/mail/<pid>、…/w、…/w/<回的那封>、…/e/<接着改的那封>、…/r/<信>），
@@ -47,7 +48,8 @@ export function MailBox({p}:{p:Persona}){
   const [tab,setTab]=useState<'all'|'in'|'out'|'star'>('all'),[pace,setPace]=useState(false);
   if(nav.from&&!nav.from.startsWith(baseOf(p.id)))cameFrom[p.id]=nav.from;
   const patch=(id:string,x:Partial<Letter>)=>setBox(p.id,{letters:box(p.id).letters.map(l=>l.id===id?{...l,...x,u:Date.now()}:l)});
-  const drop=(id:string)=>{const now=box(p.id);setBox(p.id,{letters:now.letters.filter(l=>l.id!==id),mailGone:[...(now.mailGone??[]),id].slice(-400)});backFrom(p.id);say('删掉了');};
+  // 删信是在「更多」那张小页里点的：等小页把自己在历史里垫的那一格退掉，再退出这封信
+  const drop=(id:string)=>afterSheets(()=>{const now=box(p.id);setBox(p.id,{letters:now.letters.filter(l=>l.id!==id),mailGone:[...(now.mailGone??[]),id].slice(-400)});backFrom(p.id);say('删掉了');});
   const open=all.find(l=>view.k==='read'&&l.id===view.id);
   if(view.k==='write')return <Write key={view.edit??view.re??''} p={p} re={all.find(l=>l.id===view.re)} edit={all.find(l=>l.id===view.edit&&l.kept)} close={()=>backFrom(p.id)}/>;
   if(view.k==='read'&&open)return <Read key={open.id} p={p} l={open} all={all} patch={patch} drop={drop} go={setView} back={()=>backFrom(p.id)}/>;
@@ -220,7 +222,7 @@ function Read({p,l,all,patch,drop,go,back}:{p:Persona;l:Letter;all:Letter[];patc
         {newer?<button className="linkish" onClick={()=>turn(newer)}>下一封 ›</button>:<span/>}
       </nav>}
     </>}
-    {zoom&&l.img&&<Over><button className="viewer" onClick={()=>setZoom(false)} aria-label="关掉大图"><Pic id={l.img} alt="夹在信里的照片"/></button></Over>}
+    {zoom&&l.img&&<Over><BackClose close={()=>setZoom(false)}/><button className="viewer" onClick={()=>setZoom(false)} aria-label="关掉大图"><Pic id={l.img} alt="夹在信里的照片"/></button></Over>}
     {more&&!pic&&<Sheet title="" plain close={()=>setMore(false)}>
       <ul className="ml-menu">
         <li><button onClick={()=>{setMore(false);void draw();}}>存成图片</button></li>

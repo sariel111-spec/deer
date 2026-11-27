@@ -7,6 +7,7 @@ import {Cards,Settings,Home,Sheet,SyncPanel,say,Toast} from './pages';
 import {Chat,peek} from './chat';
 import {Feature} from './more';
 import {CallLayer} from './call';
+import {Help} from './help';
 import {auto,enter} from './ui';
 
 export const go=(h:string)=>{location.hash=h;};
@@ -83,7 +84,8 @@ export function App(){
   const [,a,b,c]=hash.replace(/^#\/?/,'/').split('/');
   let page:React.ReactNode;
   if(storageDown())return <div className="app"><main className="page down" role="status"><p>这台设备上的数据这一下没读出来，正在重试…</p><p className="hint">你的记录没有动。几秒后还是这样的话，把小鹿划掉重新打开一次。</p><button className="btn" onClick={()=>location.reload()}>重新打开</button></main></div>;
-  if(!st.personas.length)page=<Welcome/>;
+  if(a==='set'&&b==='help')page=<Help/>;   // 使用说明：还没写下他的名字时也能看
+  else if(!st.personas.length)page=<Welcome/>;
   else if(a==='inbox')page=<Inbox/>;
   else if(a==='cards')page=<Cards deckId={b}/>;
   else if(a==='set')page=<Settings sec={b}/>;
@@ -119,6 +121,7 @@ function Welcome(){
     <small>所有内容只存在这台设备上。回复是从你放进去的字卡里随机抽的。</small>
     <button className="linkish" onClick={()=>setSync(true)}>在别的设备上用过？连接同步把数据拿回来</button>
     <button className="linkish" onClick={()=>back.current?.click()}>或者导入一份备份文件</button>
+    <a className="linkish" href="#/set/help">第一次用？看使用说明</a>
     <input ref={back} type="file" accept="application/json,.json" hidden onChange={async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{await importAll(await f.text());say('导入好了');}catch(x){say(x instanceof Error?x.message:'这个文件读不了');}}}/>
     {sync&&<Sheet title="同步" close={()=>setSync(false)}><SyncPanel/></Sheet>}
   </main>;
