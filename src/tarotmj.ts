@@ -173,9 +173,9 @@ if(import.meta.env.DEV){
 }
 
 /* 位置 → 这个位置最该看牌的哪一面 */
-export type Aspect='trait'|'tone'|'doing'|'mood'|'love'|'say'|'link'|'me';
+export type Aspect='trait'|'tone'|'doing'|'mood'|'love'|'say'|'link'|'me'|'sig'|'env'|'topic';
 export const aspectAt:Record<SpreadId,Aspect[]>={
-  day:['say'],one:['say'],heart:['mood','love','say'],link:['link','me','mood','say'],match:['trait','tone','doing'],time:['say','say','say'],
+  day:['say'],one:['say'],heart:['mood','love','say'],link:['link','me','mood','say'],call:['sig','me','mood','env','say'],topic:['topic','say','say','say'],match:['trait','tone','doing'],time:['say','say','say'],
 };
 /** 这张牌放在这个位置，在传讯里读作什么。say（他想说的话）不在这里出，用牌本身的那句话 */
 export function readAt(d:Drawn,a:Aspect):{label:string;text:string}|null{
@@ -187,7 +187,10 @@ export function readAt(d:Drawn,a:Aspect):{label:string;text:string}|null{
     case 'mood':return {label:'他的状态',text:d.r?m.rv:m.mood+'；'+m.doing.split('、')[0]};
     case 'love':return {label:'他对你',text:d.r?m.rl:m.love};
     // 线顺不顺不拿正逆位来定，看这张牌本身说的是什么气氛
-    case 'link':return {label:'这条线',text:'这次线上的气氛：'+(d.r?cards[d.c].rev:cards[d.c].up).join('、')};
+    case 'link':return {label:'这条线',text:(d.r?cards[d.c].rev:cards[d.c].up).join('、')};
+    case 'sig':return {label:'信号',text:(d.r?cards[d.c].rev:cards[d.c].up).join('、')};
+    case 'env':return {label:'他那边',text:m.scene+(d.r?'。逆位：那边可能有事，不太方便':'')};
+    case 'topic':return {label:'话题',text:'这一轮的话围绕着：'+(d.r?cards[d.c].rev:cards[d.c].up).join('、')};
     case 'me':return {label:'你现在',text:d.r?cards[d.c].revLine:cards[d.c].upLine};
     default:return null;
   }

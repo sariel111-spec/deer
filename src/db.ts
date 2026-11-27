@@ -39,11 +39,11 @@ export type Day={id:string;name:string;date:string;yearly:boolean};
 export type Post={id:string;text:string;img?:string;at:number;liked?:boolean;cmt?:string};
 // 一次塔罗：kind 是牌阵，cards 是抽到的牌（c 第几张、r 逆位），said 是他当时说的那句，note 是你写的感想
 // ok：「对一对」牌阵里你觉得对不对得上
-export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time'|'link'|'match';date?:string;q?:string;cards:{c:number;r?:boolean}[];said?:string;note?:string;sent?:boolean;ok?:boolean;jump?:{c:number;r?:boolean};ai?:string};   // jump：洗牌时跳出来的那张；ai：AI 解出来的话
+export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time'|'link'|'match'|'topic'|'call';date?:string;q?:string;cards:{c:number;r?:boolean}[];said?:string;note?:string;sent?:boolean;ok?:boolean;jump?:{c:number;r?:boolean};ai?:string};   // jump：洗牌时跳出来的那张；ai：AI 解出来的话
 /** 占牌 · 和他的一场对话。一句话（或一个牌阵）是一个 Turn */
 export type TCard={c:number;r?:boolean};
-export type More={c:number;r?:boolean;deck:'t'|'l';why:'ok'|'go'|'kw';on?:number};   // 补的牌：核对 / 接着说 / 给第 on 张塔罗补的雷诺曼关键词
-export type Turn={id:string;at:number;u?:number;deck:'t'|'l';kind:'say'|'here'|'bye'|'doing'|'yn'|'ab'|'day3';q?:string;a?:string;b?:string;cards:TCard[];more?:More[];read?:string;ok?:boolean};
+export type More={c:number;r?:boolean;deck:'t'|'l';why:'ok'|'go'|'kw'|'jump';on?:number};   // 补的牌：核对 / 接着说 / 给第 on 张塔罗补的雷诺曼关键词
+export type Turn={id:string;at:number;u?:number;deck:'t'|'l';kind:'say'|'here'|'bye'|'doing'|'yn'|'ab'|'day3';th?:number;q?:string;a?:string;b?:string;cards:TCard[];more?:More[];read?:string;ok?:boolean};
 export type Talk={id:string;at:number;u?:number;end?:number;turns:Turn[];ai?:string};
 export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string;like?:boolean;u?:number;at?:number}[];lineSeen?:string;answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string;id?:string;plan?:string}[];ckDecks?:string[];listen:number;   // checks.id：聊天里那条消息；checks.plan：这条报的是哪天的哪条日程；ckDecks：他哪几组字卡算报备

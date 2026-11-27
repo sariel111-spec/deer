@@ -1,17 +1,17 @@
 // 占牌 · 问他：一场对话。我说一句 → 他用牌回 → 我把牌读成他的话 → 拿不准补一张 → 顺着聊 → 收尾。
 // 牌阵（他在做什么 / 是不是 / 二选一 / 他今天过得怎么样）是梦占式的：不用开场，结果记成「我看到的」。
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Anchor,ArrowUp,Baby,Bird,BookOpen,Castle,Cloud,Clover,Cross,Dog,Fence,Fish,Flower,Flower2,Hand,Heart,House,Key,LayoutGrid,Mail,Moon,Mountain,Origami,Rat,Sailboat,Signpost,Star,Sun,TreeDeciduous,User,X,type LucideIcon} from 'lucide-react';
+import {Anchor,ArrowUp,Baby,Bird,BookOpen,Castle,Cloud,Clover,Cross,Dog,Fence,Fish,Flower,Flower2,Heart,House,Key,LayoutGrid,Mail,Moon,Mountain,Origami,Rat,Sailboat,Signpost,Star,Sun,TreeDeciduous,User,X,type LucideIcon} from 'lucide-react';
 import {S,addPack,box,putImage,setBox,setPack,uid,useVer,type More,type Persona,type TCard,type Talk,type Turn} from './db';
 import {Pic,dayLabel} from './App';
 import {Sheet,say} from './pages';
 import {useTwice} from './ui';
 import {lines} from './engine';
 import {aiHand,dsChat,dsKey,onPhone,type Msg as AiMsg} from './ai';
-import {askKinds,cards,shuffle,spreads,type AskKind} from './tarot';
+import {askKinds,cards,spreads,type AskKind,type Drawn} from './tarot';
 import {facets,mj} from './tarotmj';
-import {Back,Face} from './tarotpage';
-import {HE,LTOTAL,ME,abOf,flow,hereOf,kindName,lcards,lfacets,lguide,lhint,lname,lread,lshuffle,lspreadIds,lspreads,sayPos,whoOf,ynOf,ynWord,type LAspect,type LSpread} from './leno';
+import {Back,Face,Ritual} from './tarotpage';
+import {HE,LTOTAL,ME,doingAsp,flow,hereOf,kindName,lcards,lfacets,lguide,lhint,lname,lread,lshuffle,lspreadIds,lspreads,whoOf,ynOf,ynWord,type LAspect,type LSpread} from './leno';
 
 export const SIT=2*3600e3;   // 一场：两小时内接着聊都算同一场
 type Deck='t'|'l';
@@ -45,9 +45,6 @@ export const liveTalk=(pid:string):Talk|undefined=>{const ts=talksOf(pid),t=ts[t
 const saveTalk=(pid:string,t:Talk)=>{const ts=talksOf(pid),n={...t,u:Date.now()};setBox(pid,{talks:(ts.some(x=>x.id===t.id)?ts.map(x=>x.id===t.id?n:x):[...ts,n]).slice(-200)});};
 const patchTurn=(pid:string,tid:string,id:string,patch:Partial<Turn>)=>{const t=talksOf(pid).find(x=>x.id===tid);if(t)saveTalk(pid,{...t,turns:t.turns.map(x=>x.id===id?{...x,...patch,u:Date.now()}:x)});};
 export const dropTalk=(pid:string,id:string)=>{const b=box(pid);setBox(pid,{talks:(b.talks??[]).filter(x=>x.id!==id),talksGone:[...(b.talksGone??[]),id].slice(-400)});};
-function draw(deck:Deck,n:number,rev:boolean,skip:number[]=[]):TCard[]{
-  return deck==='t'?shuffle(rev).filter(d=>!skip.includes(d.c)).slice(0,n):lshuffle(skip).slice(0,n).map(c=>({c}));
-}
 const ls=(k:string,d:string)=>{try{return localStorage.getItem(k)??d;}catch{return d;}};
 const lsSet=(k:string,v:string)=>{try{localStorage.setItem(k,v);}catch{/* */}};
 const NS:Record<Deck,number[]>={t:[1,2,3],l:[3,2,4,5]};
@@ -56,7 +53,7 @@ const tname=(d:TCard)=>cards[d.c].name+(d.r?'·逆':'');
 const cname=(deck:Deck,d:TCard,p:Persona)=>deck==='t'?tname(d):lname(d.c,box(p.id).lenoWho,p.name);
 const kws=(deck:Deck,d:TCard)=>deck==='t'?(d.r?cards[d.c].rev:cards[d.c].up).slice(0,3).join(' · '):lcards[d.c].kw.join(' · ');
 const isSpread=(k:Turn['kind']):k is LSpread=>k==='doing'||k==='yn'||k==='ab'||k==='day3';
-const spAsp:Record<LSpread,LAspect[]>={doing:['doing','mood','kw'],day3:['doing','doing','doing'],yn:['kw','kw','kw'],ab:['kw','kw','kw','kw']};
+const spAsp=(k:LSpread,c:number,i:number):LAspect=>k==='doing'?doingAsp(c,i):k==='day3'?'doing':'kw';
 /** 一场的标题：第一句话，没有就数句数 */
 export const talkTitle=(t:Talk)=>t.turns.find(x=>x.q)?.q||(t.turns.some(x=>isSpread(x.kind))?lspreads[t.turns.find(x=>isSpread(x.kind))!.kind as LSpread].name:'和他聊了一会儿');
 export const talkSub=(t:Talk,p:Persona)=>{const n=t.turns.filter(x=>x.kind==='say').length;return n?`${n} 句 · ${t.turns.filter(x=>x.read).length} 句读过了`:t.turns.map(x=>x.cards.map(d=>cname(x.deck,d,p)).join(' ')).join('　');};
@@ -94,7 +91,7 @@ export function CardSheet({p,deck,d,close,children}:{p:Persona;deck:Deck;d:TCard
         :<dl><dt>{kindName[lcards[c].kind]}牌</dt><dd><span className="tr-keys">{lcards[c].kw.join(' · ')}</span>{w?`在你们这儿，这张代表${w==='he'?p.name:'你'}。`:`问是不是时：${ynWord(lcards[c].yn)}。`}</dd></dl>}
     </div>
     {deck==='t'&&<p className="tr-pic">{mj[c].pic}</p>}
-    <dl className="tr-facets">{(deck==='t'?facets(c):lfacets(c).slice(1)).map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+    <dl className="tr-facets">{(deck==='t'?facets(c):lfacets(c)).map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
     {mine&&<p className="tr-mine"><small>我们的牌意</small>{mine}</p>}
     {rs.n>0&&<div className="tk-reads"><small>在你们的对话里出现过 {rs.n} 次</small>{rs.last.map(x=><p key={x.at}><i>{dayLabel(x.at).split(' ')[0]}</i>{x.read}</p>)}</div>}
     <div className="rowbtn"><button className="chip" onClick={()=>setEdit(true)}>{mine?'改我们的牌意':'写我们的牌意'}</button>{children}</div>
@@ -118,7 +115,7 @@ function proofOf(p:Persona,t:Talk):AiMsg[]{
   const rows=t.turns.map((x,i)=>{
     const head=x.kind==='here'?'开场 · 在吗':x.kind==='bye'?'道别':isSpread(x.kind)?`牌阵 · ${lspreads[x.kind].name}${x.q?`：${x.q}`:''}${x.kind==='ab'?`：${x.a} / ${x.b}`:''}`:`她：${x.q||'（没说话，请他先开口）'}`;
     return [`${i+1}. ${head}`,`牌（${x.deck==='t'?'塔罗':'雷诺曼'}）：${x.cards.map(d=>one(x.deck,d)).join('，')}`,
-      ...(x.more??[]).map(m=>`补牌（${m.why==='ok'?'核对':m.why==='go'?'接着说':'关键词'}）：${one(m.deck,m)}`),
+      ...(x.more??[]).map(m=>`${m.why==='jump'?'跳牌（洗牌时自己跳出来的）':`补牌（${m.why==='ok'?'核对':m.why==='go'?'接着说':'关键词'}）`}：${one(m.deck,m)}`),
       x.read?`她读成：${x.read}`:'她还没读这一句'].join('\n');
   });
   const u=['【他的人设】',`梦角：${p.name}${p.bio?'。'+p.bio:''}`,b.tarotAbout?`他的资料和说话习惯：${b.tarotAbout}`:'',voice.length?`他平时说话的样子（学语气用，不要照抄）：${voice.join(' / ')}`:'',`她的名字：${S().prefs.myName}`,'【这一场】',...rows].filter(Boolean).join('\n');
@@ -158,8 +155,8 @@ function TurnView({p,tid,x,shut,open,see,live,onMore,onMine}:{p:Persona;tid:stri
   const key=(i:number,m=false)=>`${x.id}:${m?'m':''}${i}`,allOpen=x.cards.every((_,i)=>!shut.has(key(i)))&&more.every((_,i)=>!shut.has(key(i,true)));
   const [writing,setWriting]=useState(false),[text,setText]=useState(x.read??''),[tip,setTip]=useState(false);
   const save=()=>{const v=text.trim();patchTurn(p.id,tid,x.id,{read:v||undefined});setWriting(false);};
-  const pos=(i:number)=>sp?(x.kind==='ab'?(i<2?x.a:x.b)||sp.pos[i]:sp.pos[i]):x.kind==='say'&&x.deck==='l'&&x.cards.length===3&&x.q?sayPos[i]:x.kind==='say'&&x.deck==='t'&&x.cards.length===1?'他的回应':undefined;
-  const capOf=(m:More)=>m.why==='ok'?`核对 · ${ynWord(lcards[m.c].yn)}`:m.why==='go'?'接着说':`${cards[x.cards[m.on??0]?.c??0].name}的关键词`;
+  const pos=(i:number)=>sp?(x.kind==='ab'?(i<2?x.a:x.b)||sp.pos[i]:sp.pos[i]):x.kind==='say'&&x.deck==='t'&&x.cards.length===1?'他的回应':undefined;
+  const capOf=(m:More)=>m.why==='ok'?`核对 · ${ynWord(lcards[m.c].yn)}`:m.why==='jump'?'跳牌':m.why==='go'?'接着说':`${cards[x.cards[m.on??0]?.c??0].name}的关键词`;
   const hint=x.deck==='l'?lhint(x.cards.map(d=>d.c),!!x.q,b.lenoWho,p.name):x.cards.map(d=>`${tname(d)}：${d.r?cards[d.c].revLine:cards[d.c].upLine}`);
   const mineOf=(deck:Deck,c:number)=>((deck==='t'?b.tarotMine:b.lenoMine)??{})[c];
   const mines=[...x.cards.map(d=>[x.deck,d] as const),...more.map(m=>[m.deck,m as TCard] as const)].filter(([k,d])=>mineOf(k,d.c));
@@ -169,14 +166,17 @@ function TurnView({p,tid,x,shut,open,see,live,onMore,onMine}:{p:Persona;tid:stri
     {sp?<p className="tk-sph"><b>{sp.name.split(' · ')[0]}</b>{x.q&&<span>{x.q}</span>}{x.kind==='ab'&&<span>{x.a} / {x.b}</span>}</p>
       :x.kind==='here'?<p className="tk-cap">在吗</p>:x.kind==='bye'?<p className="tk-cap">道别</p>:x.q?<p className="tk-me">{x.q}</p>:<p className="tk-cap">请他先说</p>}
     <div className={'tk-cards'+(x.kind==='ab'?' ab':'')}>
-      {x.cards.map((d,i)=><Cd key={i} deck={x.deck} d={d} shut={shut.has(key(i))} cap={pos(i)} label={cname(x.deck,d,p)} on={()=>shut.has(key(i))?open(key(i)):see(x.deck,d)}/>)}
+      {x.cards.map((d,i)=>[x.kind==='ab'&&i===2&&<span key="th" className="tk-cd theme" aria-label={`主题牌：${p.name}`}><span className="tk-c"><LFace c={x.th??b.lenoWho?.he??HE}/></span><small>{p.name}</small></span>,
+        <Cd key={i} deck={x.deck} d={d} shut={shut.has(key(i))} cap={pos(i)} label={cname(x.deck,d,p)} on={()=>shut.has(key(i))?open(key(i)):see(x.deck,d)}/>])}
       {more.map((m,i)=><Cd key={'m'+i} deck={m.deck} d={m} shut={shut.has(key(i,true))} cap={capOf(m)} label={cname(m.deck,m,p)} on={()=>shut.has(key(i,true))?open(key(i,true)):see(m.deck,m)}/>)}
     </div>
     {allOpen&&<>
-      <p className="tk-kw">{x.cards.map(d=>`${cname(x.deck,d,p)}：${kws(x.deck,d)}`).join('　')}</p>
-      {sp&&<ul className="tk-lines">{x.cards.map((d,i)=><li key={i}><i>{pos(i)}</i>{lname(d.c,b.lenoWho,p.name)}：{lread(d.c,spAsp[x.kind as LSpread][i])}</li>)}</ul>}
+      {x.deck==='t'?<p className="tk-kw">{x.cards.map(d=>`${tname(d)}：${kws('t',d)}`).join('　')}</p>
+        :!sp&&<ul className="tk-lines">{x.cards.map((d,i)=>{const w=whoOf(d.c,b.lenoWho);return <li key={i}><i>{lcards[d.c].name}</i>{w==='he'?`${p.name}本人。旁边的牌在说他`:w==='me'?'你。旁边的牌在说你':lcards[d.c].doing}</li>;})}</ul>}
+      {more.some(m=>m.why!=='ok')&&<p className="tk-kw">{more.filter(m=>m.why!=='ok').map(m=>`${cname(m.deck,m,p)}：${kws(m.deck,m)}`).join('　')}</p>}
+      {sp&&<ul className="tk-lines">{x.cards.map((d,i)=><li key={i}><i>{pos(i)}</i>{lname(d.c,b.lenoWho,p.name)}{x.kind==='doing'&&<em>{kindName[lcards[d.c].kind]}牌</em>}：{lread(d.c,spAsp(x.kind as LSpread,d.c,i))}</li>)}</ul>}
       {yn&&<p className="tk-yn"><b>{yn.word}</b>{yn.why}</p>}
-      {x.kind==='ab'&&<p className="tk-yn">{abOf(x.cards.map(d=>d.c),x.a||'甲',x.b||'乙')}</p>}
+      {x.kind==='ab'&&<p className="tk-tip">每边两张各自连成一句，再看哪一句更像 {p.name} 会说的。牌没有绝对的好坏。</p>}
       {mines.map(([k,d])=><p key={k+d.c} className="tr-mine"><small>我们的牌意 · {k==='t'?cards[d.c].name:lcards[d.c].name}</small>{mineOf(k,d.c)}</p>)}
       {x.kind==='here'?<>
         <p className="tk-tip">{hereOf(x.cards[0],(b.tarotSign??[]).includes(x.cards[0].c))}</p>
@@ -190,7 +190,7 @@ function TurnView({p,tid,x,shut,open,see,live,onMore,onMine}:{p:Persona;tid:stri
           </form>:null}
         {tip&&<ul className="tk-hint">{hint.map(h=><li key={h}>{h}</li>)}</ul>}
         {live&&!writing&&<p className="tk-acts">
-          {more.length<2&&<button className="linkish" onClick={onMore}>补一张</button>}
+          {more.filter(m=>m.why!=='jump').length<2&&<button className="linkish" onClick={onMore}>补一张</button>}
           {x.read&&<button className="linkish" onClick={()=>onMine(x.deck,x.cards[0],`${dayLabel(x.at).split(' ')[0]}「${x.q||'他先说'}」→ ${x.read}`)}>记进我们的牌意</button>}
         </p>}
       </>}
@@ -213,17 +213,6 @@ export function TalkLog({p,t,live=false,shut,open,onMore,extra=[]}:{p:Persona;t:
   </>;
 }
 
-/* ── 自己挑牌：整副牌扣着铺开，点哪张是哪张 ── */
-function Picker({deck,n,rev,done,cancel}:{deck:Deck;n:number;rev:boolean;done:(cs:TCard[])=>void;cancel:()=>void}){
-  const pile=useMemo(()=>draw(deck,deck==='t'?78:LTOTAL,rev),[deck]);
-  const [got,setGot]=useState<number[]>([]);
-  const pick=(i:number)=>{if(got.includes(i))return;const g=[...got,i];setGot(g);if(g.length===n)setTimeout(()=>done(g.map(k=>pile[k])),260);};
-  return <div className="tk-pick"><p className="lede">心里想着他，挑 {n} 张。<b>{got.length} / {n}</b></p>
-    <div className={'tk-pile '+deck} role="group" aria-label="整副牌">{pile.map((_,i)=><button key={i} className={got.includes(i)?'gone':''} onClick={()=>pick(i)} aria-label={`第 ${i+1} 张`} aria-pressed={got.includes(i)}><Back/></button>)}</div>
-    <div className="rowbtn center"><button className="linkish" onClick={cancel}>先不抽了</button></div>
-  </div>;
-}
-
 /* ── 问他 ── */
 export function TalkView({p,opened,misses,rev,session,onSpread,onLib}:{p:Persona;opened:boolean;misses:number;rev:boolean;session:{at:number;node:React.ReactNode}[];onSpread:(k:AskKind,q:string)=>void;onLib:()=>void}){
   useVer();
@@ -231,7 +220,7 @@ export function TalkView({p,opened,misses,rev,session,onSpread,onLib}:{p:Persona
   const [deck,setDeck0]=useState<Deck>(()=>ls('cx-talk-deck','t')==='l'?'l':'t');
   const [ns,setNs]=useState<Record<Deck,number>>(()=>({t:Number(ls('cx-talk-n-t','1'))||1,l:Number(ls('cx-talk-n-l','3'))||3}));
   const [text,setText]=useState(''),[a,setA]=useState(''),[bb,setBb]=useState(''),[armed,setArmed]=useState<AskKind|LSpread|null>(null),[err,setErr]=useState('');
-  const [hand,setHand]=useState(false),[picking,setPicking]=useState<{deck:Deck;n:number;go:(cs:TCard[])=>void}|null>(null);
+  const [picking,setPicking]=useState<{deck:Deck;n:number;skip:number[];pos?:string[];go:(cs:TCard[],jump?:Drawn)=>void}|null>(null);
   const [shut,setShut]=useState<Shut>(()=>new Set()),[skip,setSkip]=useState(false),[menu,setMenu]=useState(false),[moreOf,setMoreOf]=useState<Turn|null>(null),[proof,setProof]=useState(false),[bye,setBye]=useState(false),[guide,setGuide]=useState(false);
   const end=useRef<HTMLDivElement>(null);
   const setDeck=(d:Deck)=>{setDeck0(d);lsSet('cx-talk-deck',d);};
@@ -243,17 +232,16 @@ export function TalkView({p,opened,misses,rev,session,onSpread,onLib}:{p:Persona
   const down=()=>setTimeout(()=>end.current?.scrollIntoView({block:'end',behavior:'smooth'}),60);
   const put=(turn:Omit<Turn,'id'|'at'>)=>{
     const cur=liveTalk(p.id)??{id:uid(),at:Date.now(),turns:[]},x:Turn={...turn,id:uid(),at:Date.now()};
-    saveTalk(p.id,{...cur,turns:[...cur.turns,x]});setShut(s=>new Set([...s,...x.cards.map((_,i)=>`${x.id}:${i}`)]));down();
+    saveTalk(p.id,{...cur,turns:[...cur.turns,x]});setShut(s=>new Set([...s,...x.cards.map((_,i)=>`${x.id}:${i}`),...(x.more??[]).map((_,i)=>`${x.id}:m${i}`)]));down();
   };
-  const make=(d:Deck,k:number,rest:Omit<Turn,'id'|'at'|'cards'|'deck'>)=>{
-    const go=(cs:TCard[])=>{put({...rest,deck:d,cards:cs});setPicking(null);};
-    if(hand)setPicking({deck:d,n:k,go});else go(draw(d,k,rev));
-  };
+  // 每次都是：洗牌 → 牌轮上自己选。洗牌时跳出来的那张记成「跳牌」
+  const make=(d:Deck,k:number,rest:Omit<Turn,'id'|'at'|'cards'|'deck'>,skip:number[]=[],pos?:string[])=>
+    setPicking({deck:d,n:k,skip,pos,go:(cs,jump)=>{setPicking(null);put({...rest,deck:d,cards:cs,...(jump?{more:[{...jump,deck:d,why:'jump' as const}]}:{})});}});
   const reset=()=>{setText('');setA('');setBb('');setArmed(null);setErr('');};
   const send=()=>{
     const q=text.trim();setErr('');
-    if(armed==='yn'){if(!q){setErr('先写下想问的事');return;}make('l',3,{kind:'yn',q});reset();return;}
-    if(armed==='ab'){if(!a.trim()||!bb.trim()){setErr('两个选项都写上');return;}make('l',4,{kind:'ab',a:a.trim(),b:bb.trim(),q:q||undefined});reset();return;}
+    if(armed==='yn'){if(!q){setErr('先写下想问的事');return;}make('l',3,{kind:'yn',q},[],lspreads.yn.pos);reset();return;}
+    if(armed==='ab'){if(!a.trim()||!bb.trim()){setErr('两个选项都写上');return;}const th=b.lenoWho?.he??HE;make('l',4,{kind:'ab',th,a:a.trim(),b:bb.trim(),q:q||undefined},[th],[a.trim(),a.trim(),bb.trim(),bb.trim()]);reset();return;}
     if(armed&&armed!=='doing'&&armed!=='day3'){onSpread(armed,q);reset();return;}
     if(!open){say('先看看他在不在，或者点「不开场，直接说」');return;}
     if(q&&t?.turns.some(x=>x.kind==='say'&&x.q===q))say('这句刚问过了。牌不合心意，也先别重抽');
@@ -262,25 +250,33 @@ export function TalkView({p,opened,misses,rev,session,onSpread,onLib}:{p:Persona
   const choose=(k:AskKind|LSpread)=>{
     setMenu(false);setErr('');
     if(k==='match'){onSpread('match','');return;}
-    if(k==='doing'||k==='day3'){make('l',3,{kind:k});return;}
+    if(k==='doing'||k==='day3'){make('l',3,{kind:k},[],lspreads[k].pos);return;}
     setArmed(k);
   };
   const addMore=(x:Turn,m:Omit<More,'c'|'r'>)=>{
     const cur=liveTalk(p.id);if(!cur)return;
     const used=(dk:Deck)=>[...(x.deck===dk?x.cards:[]),...(x.more??[]).filter(y=>y.deck===dk)].map(d=>d.c);
-    const c=draw(m.deck,1,rev,used(m.deck))[0],i=(x.more??[]).length;
-    patchTurn(p.id,cur.id,x.id,{more:[...(x.more??[]),{...m,...c}]});setShut(s=>new Set([...s,`${x.id}:m${i}`]));setMoreOf(null);
+    setMoreOf(null);
+    setPicking({deck:m.deck,n:1,skip:used(m.deck),go:cs=>{
+      setPicking(null);const now=liveTalk(p.id)?.turns.find(y=>y.id===x.id)??x,i=(now.more??[]).length;
+      patchTurn(p.id,cur.id,x.id,{more:[...(now.more??[]),{...m,...cs[0]}]});setShut(s=>new Set([...s,`${x.id}:m${i}`]));down();
+    }});
   };
   const finish=(withCard:boolean)=>{
     setBye(false);const cur=liveTalk(p.id);if(!cur)return;
-    if(withCard){const x:Turn={id:uid(),at:Date.now(),deck,kind:'bye',cards:draw(deck,deck==='t'?1:3,rev)};saveTalk(p.id,{...cur,turns:[...cur.turns,x],end:Date.now()});}
-    else saveTalk(p.id,{...cur,end:Date.now()});
-    say('这一场记下了，在「记录」里');
+    const close=()=>{const now=liveTalk(p.id);if(now)saveTalk(p.id,{...now,end:Date.now()});say('这一场记下了，在「记录」里');};
+    if(withCard)setPicking({deck,n:deck==='t'?1:3,skip:[],go:cs=>{setPicking(null);put({deck,kind:'bye',cards:cs});close();}});
+    else close();
   };
+  const hereGo=()=>setPicking({deck:'t',n:1,skip:[],go:cs=>{setPicking(null);put({deck:'t',kind:'here',cards:cs});}});
   const done=talksOf(p.id).slice(-1)[0],justEnded=!t&&done?.end&&Date.now()-done.end<10*60e3?done:undefined;
   const says=t?.turns.filter(x=>x.kind==='say').length??0,reads=t?.turns.filter(x=>x.read).length??0;
   useEffect(()=>{if(t)down();},[]);
-  if(picking)return <Picker deck={picking.deck} n={picking.n} rev={rev} done={picking.go} cancel={()=>setPicking(null)}/>;
+  if(picking)return <div className="tk-rit">
+    <Ritual key={picking.deck+picking.n} n={picking.n} rev={rev} what={p.name} pos={picking.pos} skip={picking.deck==='t'?picking.skip:[]} noJump={picking.n===1&&picking.skip.length>0}
+      src={picking.deck==='l'?()=>lshuffle(picking.skip).map(c=>({c})):undefined} done={picking.go}/>
+    <div className="rowbtn center"><button className="linkish" onClick={()=>setPicking(null)}>先不抽了</button></div>
+  </div>;
   const sp=armed&&(armed in lspreads)?lspreads[armed as LSpread]:null,tsp=armed&&!sp?spreads[armed as AskKind]:null;
   return <div className="tk">
     {!t&&!justEnded&&!session.length&&<p className="lede">心里想着 {p.name}，对他说一句话。他用牌回你，你把牌读成他的话。<button className="linkish" onClick={()=>setGuide(true)}>怎么自己传讯</button></p>}
@@ -293,8 +289,8 @@ export function TalkView({p,opened,misses,rev,session,onSpread,onLib}:{p:Persona
     {!open&&!hereWait&&<div className="tk-open">
       <p className="lede">{hereMiss>=2?'今天试过两次了，不用勉强。':`先看看 ${p.name} 在不在。`}</p>
       {hereMiss<2&&<div className="rowbtn center">
-        {wins>=3?<><button className="btn sm" onClick={()=>put({deck:'t',kind:'here',cards:draw('t',1,rev)})}>在吗 · 一张</button><button className="chip" onClick={()=>onSpread('match','')}>对一对 · 三张</button></>
-          :<><button className="btn sm" onClick={()=>onSpread('match','')}>对一对 · 三张</button><button className="chip" onClick={()=>put({deck:'t',kind:'here',cards:draw('t',1,rev)})}>在吗 · 一张</button></>}
+        {wins>=3?<><button className="btn sm" onClick={()=>hereGo()}>在吗 · 一张</button><button className="chip" onClick={()=>onSpread('match','')}>对一对 · 三张</button></>
+          :<><button className="btn sm" onClick={()=>onSpread('match','')}>对一对 · 三张</button><button className="chip" onClick={()=>hereGo()}>在吗 · 一张</button></>}
       </div>}
       <button className="linkish" onClick={()=>setSkip(true)}>不开场，直接说</button>
     </div>}
@@ -307,7 +303,6 @@ export function TalkView({p,opened,misses,rev,session,onSpread,onLib}:{p:Persona
         <div className="seg sm" role="group" aria-label="用哪副牌"><button type="button" aria-pressed={deck==='t'} onClick={()=>setDeck('t')}>塔罗</button><button type="button" aria-pressed={deck==='l'} onClick={()=>setDeck('l')}>雷诺曼</button></div>
         <button type="button" className="tk-n" onClick={cycle} aria-label={`他一次回 ${n} 张，点一下换`}>{n} 张</button>
         <span className="grow"/>
-        <button type="button" className="ico" aria-pressed={hand} onClick={()=>setHand(v=>!v)} aria-label="自己挑牌"><Hand size={21} strokeWidth={1.6}/></button>
         <button type="button" className="ico" onClick={()=>setMenu(true)} aria-label="牌阵"><LayoutGrid size={21} strokeWidth={1.6}/></button>
       </div>}
       <div className="tk-in">

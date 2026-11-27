@@ -98,18 +98,22 @@ const court=['侍从','骑士','王后','国王'];
 export const markOf=(c:number)=>c<22?roman[c]:rankOf(c)<=10?String(rankOf(c)):court[rankOf(c)-11];
 
 /* 牌阵 */
-export type SpreadId='day'|'one'|'heart'|'time'|'link'|'match';
+export type SpreadId='day'|'one'|'heart'|'time'|'link'|'match'|'topic'|'call';
 /** 问他时可以选的牌阵，按用的先后排：开场对一对，中间问问题，不顺的时候再连线。「时间」不再列出来，旧记录照常能看 */
-export const askKinds=['match','one','heart','link'] as const;
+export const askKinds=['match','one','heart','topic','call'] as const;   // link（四张的旧连线）和 time 不再列出来，旧记录照常能看
 export type AskKind=typeof askKinds[number];
 /** 这个牌阵里，哪一张算是「他开口说的」（他说的那句话的语气看这一张） */
-export const voiceAt:Record<SpreadId,number>={day:0,one:0,heart:2,time:2,link:3,match:1};
+export const voiceAt:Record<SpreadId,number>={day:0,one:0,heart:2,time:2,link:3,match:1,topic:1,call:4};
 /** when：什么时候用；tag：名字旁边的小标 */
 export const spreads:Record<SpreadId,{name:string;hint:string;pos:string[];when?:string;tag?:string}>={
   day:{name:'今日一张',hint:'今天的牌',pos:['今天']},
   match:{name:'对一对 · 三张',tag:'开场',when:'每场开头做一次。三张像不像他，像就是连上了',hint:'看看连上的是不是他',pos:['他的性子','他说话的样子','他此刻在做什么']},
   one:{name:'一张',when:'问一个具体的问题，听他一句回应',hint:'一个问题，一张牌',pos:['他的回应']},
   heart:{name:'三张 · 他的心',when:'想知道他此刻怎么样、对你是什么感受',hint:'此刻的他、他的感受、他想说的话',pos:['此刻的他','他的感受','他想说的话']},
+  // 话题牌 + 三张：把挑话题的权利交给他（梦角圈的摆法）
+  topic:{name:'他想说的话 · 四张',when:'不问具体的事，让他自己挑话题。第一张是话题，后三张是他想说的',hint:'话题牌，后面三张是他想说的话',pos:['话题牌','他想说的','他想说的','他想说的']},
+  // 圈里叫打电话牌阵：先看信号，再看两个人，再看他那边，最后才是他说的话
+  call:{name:'连线 · 五张',tag:'读着不对劲时用',when:'像打电话前先看信号。牌读着别扭、前后对不上时抽：信号好不好，你和他各自怎么样，他那边方不方便',hint:'信号、你、他、他那边、他先说的话',pos:['信号','你','他','他那边','他先说的话']},
   link:{name:'连线 · 四张',tag:'不顺的时候用',when:'回答怪怪的、前后对不上时，看看是线上的气氛、你的状态，还是他那边的缘故',hint:'这条线、我、他、他的回应',pos:['这条线','我','他','他的回应']},
   time:{name:'三张 · 时间',hint:'过去、现在、接下来',pos:['过去','现在','接下来']},
 };

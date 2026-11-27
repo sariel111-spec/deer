@@ -49,8 +49,10 @@ export const Back=()=><span className="tr-back" aria-hidden="true"><i/></span>;
 const STEP=3.6;   // 牌轮上相邻两张差几度
 // 洗牌时偶尔会有一张自己跳出来（跳牌）：算作他急着想说的，单独记着
 const jumpChance=()=>{const w=(window as unknown as {__trJump?:number}).__trJump;return typeof w==='number'?w:.15;};
-function Ritual({n,rev,done,what,pos,skip=[]}:{n:number;rev:boolean;done:(got:Drawn[],jump?:Drawn)=>void;what:string;pos?:string[];skip?:number[]}){
-  const [deck,setDeck]=useState(()=>shuffleWithout(rev,skip));
+/** src：换一副牌来洗（雷诺曼）；noJump：这次不出跳牌 */
+export function Ritual({n,rev,done,what,pos,skip=[],src,noJump}:{n:number;rev:boolean;done:(got:Drawn[],jump?:Drawn)=>void;what:string;pos?:string[];skip?:number[];src?:()=>Drawn[];noJump?:boolean}){
+  const mk=()=>src?src():shuffleWithout(rev,skip);
+  const [deck,setDeck]=useState(mk);
   const N=deck.length;
   const [stage,setStage]=useState<'shuffle'|'pick'>('shuffle');
   const [round,setRound]=useState(0);
@@ -69,9 +71,9 @@ function Ritual({n,rev,done,what,pos,skip=[]}:{n:number;rev:boolean;done:(got:Dr
     return s.a;
   };
   const midOf=()=>Math.max(0,Math.min(N-1,Math.round((N-1)/2-g.current.a/STEP)));
-  useEffect(()=>{const t=setTimeout(()=>{if(!skip.length&&Math.random()<jumpChance())setJump(Math.floor(Math.random()*N));setStage('pick');},1150);return()=>clearTimeout(t);},[round]);
+  useEffect(()=>{const t=setTimeout(()=>{if(!skip.length&&!noJump&&Math.random()<jumpChance())setJump(Math.floor(Math.random()*N));setStage('pick');},1150);return()=>clearTimeout(t);},[round]);
   useEffect(()=>()=>cancelAnimationFrame(g.current.raf),[]);
-  const again=()=>{if(took.length)return;cancelAnimationFrame(g.current.raf);setJump(null);g.current.a=0;setMid(Math.round((N-1)/2));setDeck(shuffleWithout(rev,skip));setStage('shuffle');setRound(x=>x+1);};
+  const again=()=>{if(took.length)return;cancelAnimationFrame(g.current.raf);setJump(null);g.current.a=0;setMid(Math.round((N-1)/2));setDeck(mk());setStage('shuffle');setRound(x=>x+1);};
   const pick=(i:number)=>{
     const now=tookRef.current;
     if(now.includes(i)||now.length>=n||i===jumpRef.current)return;
@@ -171,7 +173,7 @@ function askOf(p:Persona,r:Reading,recent:Reading[]):AiMsg[]{
     `她的名字：${S().prefs.myName}`,
     '【这一次】',
     `牌阵：${sp.name}（${sp.pos.join('、')}）`,
-    `她的问题：${r.q||(r.kind==='day'?'今天的一张牌：他今天想让她知道什么':r.kind==='match'?'开场对信息：请他用三张牌说说自己，看看连上的是不是他':r.kind==='link'?'看看这次连得怎么样：线上的气氛、她的状态、他的状态、他的第一句回应':'没有写问题，就是想听他说说话')}`,
+    `她的问题：${r.q||(r.kind==='day'?'今天的一张牌：他今天想让她知道什么':r.kind==='match'?'开场对信息：请他用三张牌说说自己，看看连上的是不是他':(r.kind==='link'||r.kind==='call')?'看看这次连得怎么样：信号、她的状态、他的状态、他那边方不方便、他先说的话':r.kind==='topic'?'没有问具体的事，请他自己挑话题：第一张是话题牌，后面三张是他想说的话':'没有写问题，就是想听他说说话')}`,
     '牌：',...(r.jump?[card(r.jump,'跳牌')]:[]),...r.cards.map((d,i)=>card(d,posOf(r,i),i)),
     recent.length?'【这一场开场时抽的】（只当背景，不用再逐张解）\n'+recent.map(x=>`- ${spreads[x.kind].name}：${x.cards.map((d,i)=>`${posOf(x,i)} ${cards[d.c].name}${d.r?'（逆位）':''}`).join('，')}`).join('\n'):'',
   ].filter(Boolean).join('\n');
@@ -249,6 +251,7 @@ function Result({p,r,closedFrom,recent=[],onFlipped,onMore,onAgain,onNext,onSetu
     {items.some((x,i)=>isOpen(i))&&<p className="tr-revtip">{items.some((x,i)=>isOpen(i)&&x.d.r)&&'有逆位：不等于不好，也不一定是不顺。看这张牌自己的逆位读法，拿不准就补一张。'}<button className="linkish" onClick={()=>setTips(true)}>读牌小抄</button></p>}
     {all&&<>
       {items.some(x=>sign.has(x.d.c))&&<p className="tr-signed">他的暗号牌出现了：是他。</p>}
+      {r.kind==='call'&&r.cards[0]?.r&&r.cards[2]?.r&&r.cards[4]?.r&&<p className="tr-signed">信号、他、他先说的话，三张都是逆位：今天先别聊了，隔一天再来。最后那张不作数。</p>}
       {sum.length>0&&<p className="tr-sum"><small>合起来看</small>{sum.join('')}</p>}
       {r.said&&<div className="said"><Avatar id={p.avatar} name={p.name} size={28}/><div><span>{r.said}</span>{voice&&<small className="tr-tone">语气 · {toneOf(voice)}</small>}</div></div>}
       {(ai||busy||err)&&<section className="tr-ai" aria-live="polite" aria-busy={busy}>
@@ -414,9 +417,9 @@ export function TarotPage({p}:{p:Persona}){
   // 这一场前面问过的（两小时内、最近三次）：AI 解牌时带上，这次就是接着往下说
   // 解牌时带上的背景：只有这一场开场的对一对、连线（各取最近一次，没对上的不带）。之前问过的别的问题不带
   const recentOf=(r:Reading)=>{
-    if(r.kind==='day'||r.kind==='match'||r.kind==='link')return [];
+    if(r.kind==='day'||r.kind==='match'||r.kind==='link'||r.kind==='call')return [];
     const near=all.filter(x=>x.id!==r.id&&x.at<r.at&&r.at-x.at<SIT),last=(k:SpreadId)=>near.filter(x=>x.kind===k&&x.ok!==false).slice(-1);
-    return [...last('match'),...last('link')];
+    return [...last('match'),...(last('call').length?last('call'):last('link'))];
   };
   const choose=(k:AskKind)=>{setKind(k);if(k!=='match')try{localStorage.setItem('cx-tarot-kind',k);}catch{/* */}};
   if(lib)return <main className="page sub tr" style={{'--accent':p.accent} as React.CSSProperties}><Library p={p} close={()=>setLib(false)}/></main>;
