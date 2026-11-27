@@ -297,6 +297,14 @@ export function notify(p:Persona,text:string,to?:'mail'){
   if(reg)void reg.showNotification(p.name,opt).catch(()=>{});
   else try{new Notification(p.name,opt);}catch{/* 有的浏览器只许 Service Worker 发 */}
 }
+/** 不是他说的话的提醒（比如经期快到了）：一样听「通知」的开关；云端已经接手的时候这里不再弹一遍 */
+export function remind(title:string,text:string,pid:string){
+  if(hold&&document.hidden)return;
+  if(!S().prefs.notify||!('Notification' in window)||Notification.permission!=='granted')return;
+  const opt={body:text,tag:'cx-tip-'+pid,icon:'./icon-192.png',badge:'./icon-192.png',data:{pid}} as NotificationOptions;
+  if(reg)void reg.showNotification(title,opt).catch(()=>{});
+  else try{new Notification(title,opt);}catch{/* 有的浏览器只许 Service Worker 发 */}
+}
 /** 看过了：把这位已经弹出来的通知收掉（不给 pid 就全收） */
 export function clearNotes(pid?:string){
   void reg?.getNotifications().then(ns=>ns.forEach(n=>{const d=n.data as {pid?:string}|null;if(!pid||d?.pid===pid||(n.tag||'').startsWith('cx-'+pid))n.close();})).catch(()=>{});

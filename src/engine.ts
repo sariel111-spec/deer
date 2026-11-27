@@ -1,7 +1,7 @@
 import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Letter,type Msg,type Persona,type When} from './db';
-import {notify,blip,badge,clearNotes} from './alive';
+import {notify,remind,blip,badge,clearNotes} from './alive';
 import {pushWas,type Ahead} from './push';
-import {at0,cyDecks,cyPhase,ymd} from './cyc';
+import {at0,cyDecks,cyPhase,cyTips,ymd} from './cyc';
 
 const rand=(a:number,b:number)=>a+Math.random()*Math.max(0,b-a);
 const inWin=(w:When,t:number)=>{const x=whens.find(y=>y.id===w)!;const h=new Date(t).getHours();return x.from<x.to?h>=x.from&&h<x.to:h>=x.from||h<x.to;};
@@ -280,28 +280,48 @@ const proLine=(p:Persona,at:number,noCall:boolean,q:{at:number;src?:string}[]=[]
   if(ck.length&&seeded(p.id+'|k|'+Math.round(at))()<1/3){const r=seeded(p.id+'|kd|'+Math.round(at)),c=ck[Math.floor(r()*ck.length)];return {text:c.t,src:c.id};}
   return draw(p,'pro',at,seeded(p.id+'|d|'+Math.round(at)));
 };
-/** 经期：她指定了分组的话，快来的那几天和经期里，他每天主动说一句。
- *  那天几点以后说，只由「谁、哪天」定（上午九点半到晚上七点半之间）；这天说没说过，看聊天记录、交给云端的、和这一轮已经排好的。没指定分组就什么都不做 */
+/** 经期快到了，提醒她一下（前一天、当天各一次，一天最多一次）。页面开着：一条小提示；页面在后台：到点弹一条通知（云端已接手就由云端弹） */
+function cyRemind(p:Persona,now:number){
+  const day=ymd(now),due=cyTips(box(p.id).cycle,now).find(t=>t.day===day);if(!due)return;
+  const k='cx-cy-tip:'+p.id;
+  try{if(localStorage.getItem(k)===day)return;}catch{return;}
+  if(!document.hidden)dispatchEvent(new CustomEvent('cx-say',{detail:due.text}));
+  else if(now>=due.at)remind('经期',due.text,p.id);
+  else return;
+  try{localStorage.setItem(k,day);}catch{/* 记不下就算了，最多再提醒一次 */}
+}
+/** 经期那几天他说的那一句：经期前（预计日前两天起）用一组，经期中用另一组，都是她指定的。一天一句，哪一句只由「谁、哪天」定——页面上看到的、他到点主动说的、她一告诉他就回的，是同一句 */
+function cyCard(p:Persona,day:string){
+  const c=box(p.id).cycle,ph=cyPhase(c,day);if(!ph)return null;
+  const ids=(ph==='in'?c.decks:c.soon)??[];if(!ids.length)return null;
+  const cards=S().decks.filter(d=>ids.includes(d.id)&&p.decks.includes(d.id)).flatMap(d=>d.cards.filter(x=>!x.off).map(x=>({text:x.t,src:d.id+'/'+x.id})));
+  return cards.length?cards[Math.floor(seeded(p.id+'|cyd|'+day)()*cards.length)]:null;
+}
+/** 这一天他说过经期那句了没有：看聊天记录、交给云端还没落下来的、这一轮已经排好的 */
+function cySaid(p:Persona,day:string,q:{at:number;src?:string}[]=[]){
+  const all=new Set(cyDecks(box(p.id).cycle)),mine=(src?:string)=>!!src&&all.has(src.split(',')[0].split('/')[0]),d0=at0(day),on=(t:number)=>t>=d0&&t<d0+864e5;
+  return q.some(x=>on(x.at)&&mine(x.src))||held.some(h=>h.pid===p.id&&on(h.at)&&mine(h.src))||list(p.id).some(m=>m.from==='ta'&&on(m.at)&&mine(m.src));
+}
+/** 他主动找你时：到了那天该说的那一刻（上午九点半到晚上七点半之间，由「谁、哪天」定），还没说过，就先说这一句。没指定分组就什么都不做 */
 function cyLine(p:Persona,at:number,q:{at:number;src?:string}[]){
   const c=box(p.id).cycle;if(!c.decks?.length&&!c.soon?.length)return null;
-  const day=ymd(at),ph=cyPhase(c,day);if(!ph)return null;
-  const ids=(ph==='in'?c.decks:c.soon)??[];if(!ids.length)return null;
-  const d0=at0(day),d1=d0+864e5;
-  if(at<d0+(9.5+seeded(p.id+'|cy|'+day)()*10)*3600e3)return null;
-  const all=new Set(cyDecks(c)),mine=(src?:string)=>!!src&&all.has(src.split(',')[0].split('/')[0]),on=(t:number)=>t>=d0&&t<d1;
-  if(q.some(x=>on(x.at)&&mine(x.src))||held.some(h=>h.pid===p.id&&on(h.at)&&mine(h.src))||list(p.id).some(m=>m.from==='ta'&&on(m.at)&&mine(m.src)))return null;
-  const cards=S().decks.filter(d=>ids.includes(d.id)&&p.decks.includes(d.id)&&inWin(d.when,at)).flatMap(d=>d.cards.filter(x=>!x.off).map(x=>({id:d.id+'/'+x.id,t:x.t})));
-  if(!cards.length)return null;
-  const one=cards[Math.floor(seeded(p.id+'|cyd|'+Math.round(at))()*cards.length)];
-  return {text:one.t,src:one.id};
+  const day=ymd(at),one=cyCard(p,day);if(!one)return null;
+  if(at<at0(day)+(9.5+seeded(p.id+'|cy|'+day)()*10)*3600e3||cySaid(p,day,q))return null;
+  return one;
 }
-/** 经期页上他说的那一句：那几天从她指定的分组里挑（一天里不变）；没指定分组、又正在经期，就还是从他平时的话里随手抽一句 */
+/** 她刚告诉他「来了」：他马上回一句（就是今天那一句，之后今天不会再说一遍）。没指定「经期中」的分组、或今天已经说过，就不说。返回他说的话 */
+export function cyTell(pid:string){
+  const p=who(pid);if(!p)return '';
+  const day=ymd(),one=cyPhase(box(p.id).cycle,day)==='in'?cyCard(p,day):null;
+  if(!one||cySaid(p,day))return '';
+  if(plans.pq[p.id]){delete plans.pq[p.id];savePlans();}   // 之前排好的那几句里可能有今天这句：丢掉重排，免得到点再说一遍
+  arrive(p,one.text,one.src,Date.now());
+  return one.text;
+}
+/** 经期页上他说的那一句：就是今天那一句；没指定分组、又正在经期，就还是从他平时的话里抽一句（一天里不变） */
 export function cySay(p:Persona,day=ymd()){
-  const c=box(p.id).cycle,ph=cyPhase(c,day);if(!ph)return '';
-  const ids=(ph==='in'?c.decks:c.soon)??[];
-  const cards=S().decks.filter(d=>ids.includes(d.id)&&p.decks.includes(d.id)).flatMap(d=>d.cards.filter(x=>!x.off).map(x=>x.t));
-  if(cards.length)return cards[Math.floor(seeded(p.id+'|cys|'+day)()*cards.length)];
-  if(ph!=='in')return '';
+  const one=cyCard(p,day);if(one)return one.text;
+  if(cyPhase(box(p.id).cycle,day)!=='in')return '';
   const all=plain(p).flatMap(d=>d.cards.filter(x=>!x.off).map(x=>x.t));
   return all.length?all[Math.floor(seeded(p.id+'|cys|'+day)()*all.length)]:'';
 }
@@ -382,6 +402,8 @@ export function ahead():Ahead[]{
     for(const l of bx.letters)if(l.from==='me'&&l.due&&l.plan&&!l.got)out.push({at:Math.max(l.due,now),title:p.name,body:'给你回了一封信',pid:p.id});
     if(bx.mailDue)out.push({at:Math.max(bx.mailDue,now),title:p.name,body:'给你回了一封信',pid:p.id});
     if(bx.mailPro&&bx.mailNext)out.push({at:Math.max(bx.mailNext.at,now),title:p.name,body:'给你写了一封信',pid:p.id});
+    // 经期快到了的提醒（不是他说的话，不进聊天）
+    for(const t of cyTips(bx.cycle,now))if(t.at>now&&t.at<now+72*3600e3)out.push({at:t.at,title:'经期',body:t.text,pid:p.id});
   }
   for(const id of Object.keys(plans.pq))if(!who(id))delete plans.pq[id];
   for(const id of Object.keys(plans.rq))if(!who(id))delete plans.rq[id];
@@ -408,6 +430,7 @@ function tickBody(now:number){
     }
     if(!busy.has(p.id)&&!p.replyAt)proactive(p,now);
     mail(p,now);
+    cyRemind(p,now);
     // 响了很久没人接
     const r=box(p.id).ring;
     if(r&&now-r.at>=RING){setBox(p.id,{ring:undefined},true);missed(p,r.at+RING,callId(p,r.at));}

@@ -1,11 +1,11 @@
 // 经期：记得快（来了 / 结束了各点一下）、能回看（一张月历）、预测跟着记录走、他知道。
 // 不做排卵期和症状打卡——这是他陪着你的地方，不是健康 app。
-import {useState} from 'react';
+import {useRef,useState} from 'react';
 import {ChevronLeft,ChevronRight,SlidersHorizontal} from 'lucide-react';
 import {S,box,setBox,useVer,type Persona} from './db';
-import {cySay} from './engine';
+import {cySay,cyTell} from './engine';
 import {Avatar,backTo} from './App';
-import {Num,Sheet,say} from './pages';
+import {Num,Sheet,Switch,say} from './pages';
 import {useTwice} from './ui';
 import {cyMarks,cyRead,diff,plus,ymd,type Cy} from './cyc';
 
@@ -22,13 +22,21 @@ export function CyclePage({p}:{p:Persona}){
   // 顶上：一个大数字，外面一圈细环。环上深的一段是经期那几天，小圆点是今天走到哪了
   const gone=r.last?diff(r.last.s,today):0,frac=r.last?Math.min(.999,gone/r.gap):0,ang=frac*2*Math.PI-Math.PI/2;
   const big=!r.last?'—':on?`第 ${r.day} 天`:r.wait>0?String(r.wait):r.wait===0?'今天':`晚 ${-r.wait} 天`;
-  const cap=!r.last?'还没有记录':on?'经期中':r.wait>0?`天后 · 大约 ${md(r.next)}`:r.wait===0?'可能今天来':`原本大约 ${md(r.next)}`;
-  const start=(d:string)=>{if(c.starts.includes(d))return;set({starts:[...c.starts,d].sort()});setSel('');say(d===today?'记下了':`${md(d)} 记下了`);};
-  const endAt=(s:string,d:string)=>{set({ends:{...c.ends,[s]:d}});setSel('');say(d===today?'记下了，辛苦了':`记到 ${md(d)} 结束`);};
+  const cap=!r.last?'还没有记录':on?'经期中':r.wait>0?`天后 · 大约 ${md(r.next)}`:r.wait===0?'大概就是今天':`原本大约 ${md(r.next)}`;
+  // 告诉他来了：记下来，他马上回一句（他有「经期中」的字卡分组的话）。补记以前的日子不惊动他
+  const start=(d:string)=>{if(c.starts.includes(d))return;set({starts:[...c.starts,d].sort()});setSel('');
+    if(d===today&&cyTell(p.id))return;
+    say(d===today?'记下了':`${md(d)} 记下了`);};
+  const endAt=(s:string,d:string)=>{set({ends:{...c.ends,[s]:d}});setSel('');say(d===today?'记下了，这几天辛苦了':`记到 ${md(d)} 结束`);};
   const drop=(s:string)=>{const ends={...c.ends};delete ends[s];set({starts:c.starts.filter(x=>x!==s),ends});setSel('');say('删掉了');};
   // 月历
   const [y,m]=mon.split('-').map(Number),first=new Date(y,m-1,1),n=new Date(y,m,0).getDate(),lead=(first.getDay()+6)%7;
   const step=(k:number)=>{const d=new Date(y,m-1+k,1);setMon(ymd(d).slice(0,7));setSel('');};
+  // 月历可以左右划着翻月
+  const sw=useRef<{x:number;y:number}|null>(null);
+  const swipe={onTouchStart:(e:React.TouchEvent)=>{const t=e.touches[0];sw.current=e.touches.length===1?{x:t.clientX,y:t.clientY}:null;},
+    onTouchEnd:(e:React.TouchEvent)=>{const a=sw.current,t=e.changedTouches[0];sw.current=null;if(!a)return;const dx=t.clientX-a.x,dy=t.clientY-a.y;if(Math.abs(dx)>56&&Math.abs(dx)>Math.abs(dy)*1.6)step(dx<0?1:-1);}};
+  const stats:[string,string][]=r.last?[[`${r.gap} 天`,r.auto.gap?'平均相隔':'相隔'],[`${r.len} 天`,r.auto.len?'平均一次':'一次'],[md(r.last.s),'上次']]:[];
   // 点了某一天：这一天能做什么
   const hit=sel?r.periods.find(x=>sel>=x.s&&sel<=x.e):undefined;
   const prev=sel&&!hit?[...r.periods].reverse().find(x=>x.s<sel&&diff(x.s,sel)<15):undefined;   // 前面不远有一次：可以说「那次到这天才结束」
@@ -46,12 +54,13 @@ export function CyclePage({p}:{p:Persona}){
     {on?<button className="btn wide ghost" onClick={()=>endAt(r.last!.s,today)}>今天结束了</button>
       :!r.ended&&<button className="btn wide" onClick={()=>start(today)}>今天来了</button>}
     {his&&<div className="said"><Avatar id={p.avatar} name={p.name} size={28}/><span>{his}</span></div>}
+    {stats.length>0&&<dl className="cy-stats">{stats.map(([v,k])=><div key={k}><dd>{v}</dd><dt>{k}</dt></div>)}</dl>}
 
     <div className="cy-cal">
       <header><button className="ico sm" onClick={()=>step(-1)} aria-label="上个月"><ChevronLeft size={20} strokeWidth={1.7}/></button>
-        <b>{y}年{m}月</b>
+        <button className="cy-mon" onClick={()=>{setMon(today.slice(0,7));setSel('');}} aria-label={`${y}年${m}月${mon===today.slice(0,7)?'':'，点一下回到这个月'}`}>{y}年{m}月</button>
         <button className="ico sm" onClick={()=>step(1)} aria-label="下个月"><ChevronRight size={20} strokeWidth={1.7}/></button></header>
-      <div className="cy-grid" role="group" aria-label={`${y}年${m}月`}>
+      <div className="cy-grid" role="group" aria-label={`${y}年${m}月`} {...swipe}>
         {['一','二','三','四','五','六','日'].map(w=><small key={w}>{w}</small>)}
         {Array.from({length:lead},(_,i)=><i key={'x'+i}/>)}
         {Array.from({length:n},(_,i)=>{const d=`${mon}-${String(i+1).padStart(2,'0')}`,k=marks.get(d);
@@ -59,14 +68,14 @@ export function CyclePage({p}:{p:Persona}){
             aria-label={`${md(d)}${d===today?'，今天':''}${k==='p'?'，经期':k==='f'?'，预计经期':''}`}>{i+1}</button>;})}
       </div>
       {sel?<div className="cy-act" role="group" aria-label={md(sel)}><b>{md(sel)}</b>
-          {hit?<>{!(hit.done&&hit.e===sel)&&<button className="trow" onClick={()=>endAt(hit.s,sel)}>这天结束的</button>}
+          {hit?<>{!(hit.done&&hit.e===sel)&&<button className="trow" onClick={()=>endAt(hit.s,sel)}>这天结束</button>}
               <button className="trow danger" onClick={twice('drop',()=>drop(hit.s))}>{armed==='drop'?'再点一次，删掉这一次':'删掉这一次'}</button></>
-            :<><button className="trow" onClick={()=>start(sel)}>这天来的</button>
-              {prev&&<button className="trow" onClick={()=>endAt(prev.s,sel)}>{md(prev.s)}那次，到这天才结束</button>}</>}
+            :<><button className="trow" onClick={()=>start(sel)}>这天开始</button>
+              {prev&&<button className="trow" onClick={()=>endAt(prev.s,sel)}>上一次到这天才结束</button>}</>}
         </div>
-        :<p className="cy-key"><i className="p"/>记下的<i className="f"/>预计的</p>}
+        :<p className="cy-key"><i className="p"/>经期<i className="f"/>预计</p>}
     </div>
-    <p className="foot">{r.last?`现在按相隔 ${r.gap} 天、一次 ${r.len} 天来算。`:''}预测只是往后数日子，不是医学判断。</p>
+    <p className="foot">预计的日子只是往后数，不是医学判断。</p>
     {conf&&<Conf p={p} close={()=>setConf(false)}/>}
   </main>;
 }
@@ -88,10 +97,11 @@ function Conf({p,close}:{p:Persona;close:()=>void}){
     <Num label="一次大概" value={c.len} set={n=>set({len:n})} min={1} max={15} unit="天"/>
     <Num label="两次相隔" value={c.gap} set={n=>set({gap:n})} min={15} max={60} unit="天"/>
     <p className="hint">{r.auto.gap||r.auto.len?`记录够了，现在按最近几次的平均算（相隔 ${r.gap} 天、一次 ${r.len} 天）。`:'记够两次以后，会改成按你最近几次的平均来算。'}</p>
+    <Switch on={c.remind!==false} set={v=>set({remind:v})} label="快到的时候提醒我"/>
     {mine.length?<>
-      {row('soon','快来的时候，他说')}
-      {row('decks','经期里，他说')}
-      <p className="hint">选了分组，那几天他每天主动发一句。选中的分组平时他不会再说，所以请选专门写给经期的。</p>
+      {row('soon','经期前，他说')}
+      {row('decks','经期中，他说')}
+      <p className="hint">选了分组，那几天他每天主动说一句；你点「今天来了」，他会马上回一句。选中的分组平时他不会说，所以请选专门写给经期的。</p>
     </>:<p className="hint">他还没有字卡分组。有了以后，可以在这里指定经期那几天他说哪些话。</p>}
   </Sheet>;
 }

@@ -42,5 +42,12 @@ export function cyMarks(c:Cy,today=ymd()){
   if(r.last)for(let k=1;k<=6;k++){const s=plus(r.last.s,r.gap*k);for(let i=0;i<r.len;i++){const d=plus(s,i);if(d>today&&!m.has(d))m.set(d,'f');}}
   return m;
 }
+/** 快到预计的日子时提醒她：前一天晚上八点「大概明天来」，当天早上九点「大概今天来」。已经在经期里、或者关了提醒，就没有。
+ *  返回还没到点的那几条（页面在后台时交给云端推；页面开着时由 engine 自己看着说） */
+export function cyTips(c:Cy,now=Date.now()):{at:number;text:string;day:string}[]{
+  if(c.remind===false||!c.starts.length)return [];
+  const r=cyRead(c,ymd(now));if(r.inside||!r.next)return [];
+  return [{day:plus(r.next,-1),h:20,text:'经期大概明天来'},{day:r.next,h:9,text:'经期大概今天来'}].map(x=>({at:at0(x.day)+x.h*3600e3,text:x.text,day:x.day}));
+}
 /** 她给他指定的经期字卡分组（两种日子的都算）：这些分组的话只在那几天由他主动说，平时不随口说 */
 export const cyDecks=(c:Cy)=>[...(c.decks??[]),...(c.soon??[])];

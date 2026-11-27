@@ -43,7 +43,7 @@ export type Reading={id:string;at:number;kind:'day'|'one'|'heart'|'time'|'link'|
 export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];lines:{date:string;text:string;like?:boolean;u?:number;at?:number}[];lineSeen?:string;answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string;id?:string;plan?:string}[];ckDecks?:string[];listen:number;   // checks.id：聊天里那条消息；checks.plan：这条报的是哪天的哪条日程；ckDecks：他哪几组字卡算报备
   focus:{n:number;min:number};
-  cycle:{starts:string[];len:number;gap:number;ends?:Record<string,string>;decks?:string[];soon?:string[]};posts:Post[];at?:number;fu?:Record<string,number>;   // fu：每一项设置是什么时候改的（同步时各项各听各的后改）
+  cycle:{starts:string[];len:number;gap:number;ends?:Record<string,string>;decks?:string[];soon?:string[];remind?:boolean};posts:Post[];at?:number;fu?:Record<string,number>;   // fu：每一项设置是什么时候改的（同步时各项各听各的后改）
   
   call?:{at:number};ring?:{at:number};
   mailGone?:string[];mailPace?:number;mailLen?:number;mailPro?:number;mailNext?:{at:number;text:string;img?:string};mailPics?:string[];mailCall?:string;mailSign?:string;   // mailCall：他在信里怎么称呼你；mailSign：他的落款
