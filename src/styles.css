@@ -1036,3 +1036,49 @@ button.ml-photo{cursor:zoom-in}
 .prow>label{flex:none;width:84px;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tr.sub .prow{margin:0 16px}
 @media (min-width:700px){.tk-cd{--cw:72px}.tk-me,.tk-he,.tk-read{max-width:64%}}
+
+/* ── 占牌 · 问他 第二版：只留气泡、牌、一行灰字 ── */
+.tk-turn{padding:12px 16px 0}
+.tk-cards{gap:8px}
+.tk-cd{--cw:58px;gap:4px}
+.tk-names{margin:7px 0 0;font-size:12px;line-height:1.5;color:var(--mute)}
+.tk-he{margin-top:8px}
+.tk-read{display:flex;align-items:flex-end;gap:10px;margin-top:8px;max-width:82%}
+.tk-read textarea{flex:1;min-width:0;min-height:38px;max-height:160px;padding:8px 14px;border:0;border-radius:20px;background:var(--soft);font-size:16px;line-height:1.4}
+.tk-read textarea:focus{border:0;box-shadow:inset 0 0 0 1px var(--line)}
+.tk-save{flex:none;height:38px;padding:0 2px;font-size:14.5px;font-weight:600;color:#3A82F7}
+.tk-acts{gap:18px;margin:4px 0 0;min-height:28px}
+.tk-acts button{position:relative;font-size:12.5px;color:var(--mute)}
+.tk-acts button::after{content:"";position:absolute;inset:-8px -6px}
+.tk-acts.end{margin:22px 16px 0;padding-top:0;border-top:0;gap:22px}
+.tk-acts.end .linkish{font-size:13px;color:var(--mute)}
+.tk-hint{margin:8px 0 0;padding:0;border-radius:0;background:none;display:grid;gap:8px;font-size:13px;line-height:1.6;color:var(--mute)}
+.tk-hint .tk-lines{margin:0;font-size:13px;gap:3px}.tk-hint .tk-lines i{min-width:3.4em;color:var(--fg)}
+.tk-tips{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+.tk-hint p{margin:0}.tk-hint .tr-mine{color:var(--fg)}
+.tk-turn.sp{margin:0;padding:18px 16px 0;border-radius:0;box-shadow:none;display:grid;justify-items:center;text-align:center}
+.tk-turn.sp .tk-sph{justify-content:center;margin:0 0 10px;font-size:12px;color:var(--mute)}.tk-turn.sp .tk-sph b{font-weight:500;color:var(--mute)}
+.tk-turn.sp .tk-cards{justify-content:center}
+.tk-turn.sp .tk-hint{justify-items:center}.tk-turn.sp .tk-hint .tk-lines{text-align:left}
+.tk-turn.sp .tk-read{width:100%;max-width:300px}
+.tk-turn.sp .tk-acts{justify-content:center}
+.tk-note{margin-top:8px;padding:0;border-top:0;width:auto;max-width:86%;text-align:center;font-size:15px;line-height:1.55}
+.tk-yn{margin-top:6px;font-size:13px;color:var(--mute)}.tk-yn b{display:block;margin:0 0 2px;font-size:17px;font-weight:600;color:var(--fg)}
+.tk-tip{font-size:13px;color:var(--mute)}
+.tk-old{background:none;padding:4px 12px;margin-top:16px}
+.tk-bar{border-top:0;padding:8px 12px calc(8px + env(safe-area-inset-bottom));gap:6px}
+.tk-row{gap:14px;padding:0 4px;min-height:32px}
+.tk-decks{display:flex;gap:14px}
+.tk-decks button,.tk-n{position:relative;height:auto;padding:0;background:none;border-radius:0;font-size:13.5px;color:var(--mute)}
+.tk-decks button::after,.tk-n::after{content:"";position:absolute;inset:-9px -6px}
+.tk-decks button[aria-pressed=true]{color:var(--fg);font-weight:600}
+.tk-row .ico{width:32px;height:32px;border-radius:50%}
+.tk-row .ico[aria-pressed=true]{background:none;color:#3A82F7}
+.tk-in input,.tk-ab input{height:42px;border:0;border-radius:21px;background:var(--soft);padding:0 16px}
+.tk-in input:focus,.tk-ab input:focus{box-shadow:inset 0 0 0 1px var(--line)}
+.tk-send{width:34px;height:34px}
+.tk-open{margin:30px 16px 8px}
+.tk>.lede{margin-top:34px!important}
+@media (min-width:700px){.tk-cd{--cw:66px}.tk-read{max-width:64%}.tk-turn.sp .tk-read{max-width:340px}}
+.tk-turn{scroll-margin-bottom:130px}
+.tk>.lede .linkish,.tk-open>.linkish{color:var(--mute);font-size:13px}
