@@ -6,6 +6,7 @@ import {Cards,Settings,Home,Sheet,SyncPanel,say,Toast} from './pages';
 import {Chat,peek} from './chat';
 import {Feature} from './more';
 import {CallLayer} from './call';
+import {enter} from './ui';
 
 export const go=(h:string)=>{location.hash=h;};
 const hhmm=(t:number)=>new Date(t).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -72,7 +73,7 @@ function Welcome(){
     <img src="./icon-192.png" alt="" width={84} height={84}/>
     <h1>想和谁说话</h1>
     <p>先写下他的名字。头像、字卡、回复的节奏，进去之后都可以慢慢调。</p>
-    <input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')start();}} placeholder="他的名字" aria-label="他的名字" autoFocus/>
+    <input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(enter(e))start();}} placeholder="他的名字" aria-label="他的名字" autoFocus/>
     <button className="btn" onClick={start} disabled={!name.trim()}>开始</button>
     <small>所有内容只存在这台设备上。回复是从你放进去的字卡里随机抽的。</small>
     <button className="linkish" onClick={()=>setSync(true)}>在别的设备上用过？连接同步把数据拿回来</button>
@@ -105,7 +106,7 @@ function NewPersona({close}:{close:()=>void}){
   const [name,setName]=useState('');
   const ok=()=>{const n=name.trim();if(!n)return;const p=addPersona(n);close();go('#/c/'+p.id);};
   return <Sheet title="添加一位" close={close}>
-    <label className="field"><span>他的名字</span><input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')ok();}} autoFocus/></label>
+    <label className="field"><span>他的名字</span><input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(enter(e))ok();}} autoFocus/></label>
     <p className="hint">现有的字卡分组会默认都给他用，之后可以在「字卡」里改成只给某几位。</p>
     <button className="btn" onClick={ok} disabled={!name.trim()}>添加</button>
   </Sheet>;

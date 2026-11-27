@@ -5,7 +5,7 @@ import {Anchor,ArrowUp,Baby,Bird,BookOpen,Castle,Cloud,Clover,Cross,Dog,Fence,Fi
 import {S,addPack,box,putImage,setBox,setPack,uid,useVer,type More,type Persona,type TCard,type Talk,type Turn} from './db';
 import {Pic,dayLabel} from './App';
 import {Sheet,say} from './pages';
-import {useTwice} from './ui';
+import {enter,useTwice} from './ui';
 import {lines} from './engine';
 import {aiHand,dsChat,dsKey,onPhone,type Msg as AiMsg} from './ai';
 import {askKinds,cards,shuffle,spreads,type AskKind,type Drawn} from './tarot';
@@ -193,7 +193,7 @@ function TurnView({p,tid,x,shut,open,see,live,onMore,onMine}:{p:Persona;tid:stri
         </div>}
         {x.read&&!writing?<button className={sp?'tk-note':'tk-he'} onClick={()=>live&&setWriting(true)} aria-label={`${label}：${x.read}${live?'，点一下改':''}`}>{x.read}</button>
           :live||writing?<form className="tk-read" onSubmit={e=>{e.preventDefault();save();}}>
-            <textarea rows={1} value={text} onChange={e=>{setText(e.target.value.slice(0,400));e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px';}} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();save();}}} placeholder={sp?'我看到的…':'他说…'} aria-label={sp?'我看到的':'我读到的，他这句话是'}/>
+            <textarea rows={1} value={text} onChange={e=>{setText(e.target.value.slice(0,400));e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px';}} onKeyDown={e=>{if(enter(e)){e.preventDefault();save();}}} placeholder={sp?'我看到的…':'他说…'} aria-label={sp?'我看到的':'我读到的，他这句话是'}/>
             {(text.trim()||x.read)&&<button className="tk-save">记下</button>}
           </form>:null}
         {live&&!writing&&<p className="tk-acts">
@@ -230,12 +230,11 @@ export function TalkView({p,opened,misses,rev,session,onSpread,onLib}:{p:Persona
   const [text,setText]=useState(''),[a,setA]=useState(''),[bb,setBb]=useState(''),[armed,setArmed]=useState<AskKind|LSpread|null>(null),[err,setErr]=useState('');
   const [hand,setHand0]=useState(()=>ls('cx-talk-hand','')==='1');
   const setHand=(v:boolean)=>{setHand0(v);lsSet('cx-talk-hand',v?'1':'');};
-  const [pickDeck,setPickDeck]=useState(false);
   const [picking,setPicking]=useState<{deck:Deck;n:number;skip:number[];pos?:string[];go:(cs:TCard[],jump?:Drawn)=>void}|null>(null);
   const [shut,setShut]=useState<Shut>(()=>new Set()),[skip,setSkip]=useState(false),[menu,setMenu]=useState(false),[moreOf,setMoreOf]=useState<Turn|null>(null),[proof,setProof]=useState(false),[bye,setBye]=useState(false),[guide,setGuide]=useState(false);
   const end=useRef<HTMLDivElement>(null);
   const setDeck=(d:Deck)=>{setDeck0(d);lsSet('cx-talk-deck',d);};
-  const n=ns[deck],setN=(v:number)=>{setNs({...ns,[deck]:v});lsSet('cx-talk-n-'+deck,String(v));};
+  const n=ns[deck],cycle=()=>{const list=[...NS[deck]].sort(),v=list[(list.indexOf(n)+1)%list.length];setNs({...ns,[deck]:v});lsSet('cx-talk-n-'+deck,String(v));};
   const hereOk=!!t?.turns.some(x=>x.kind==='here'&&x.ok),hereMiss=(t?.turns.filter(x=>x.kind==='here'&&x.ok===false).length??0)+misses,hereWait=!!t?.turns.some(x=>x.kind==='here'&&x.ok===undefined);
   const open=opened||hereOk||skip||!!t?.turns.some(x=>x.kind==='say');
   // 对上过三场以后，开场默认换成轻的「在吗」一张
@@ -314,7 +313,8 @@ export function TalkView({p,opened,misses,rev,session,onSpread,onLib}:{p:Persona
       {armed==='ab'&&<div className="tk-ab"><input value={a} onChange={e=>{setA(e.target.value.slice(0,20));setErr('');}} placeholder="选项一" aria-label="选项一"/><input value={bb} onChange={e=>{setBb(e.target.value.slice(0,20));setErr('');}} placeholder="选项二" aria-label="选项二"/></div>}
       {err&&<p className="tk-err" role="alert">{err}</p>}
       <div className="tk-in">
-        {!armed&&<button type="button" className="tk-deck" onClick={()=>setPickDeck(true)} aria-label={`现在用${deck==='t'?'塔罗':'雷诺曼'}，他一次回 ${n} 张。点一下换`}>{deck==='t'?'塔':'雷'}</button>}
+        {!armed&&<><button type="button" className="tk-deck" onClick={()=>setDeck(deck==='t'?'l':'t')} aria-label={`现在用${deck==='t'?'塔罗':'雷诺曼'}。点一下换成${deck==='t'?'雷诺曼':'塔罗'}`}>{deck==='t'?'塔罗':'雷诺曼'}</button>
+          <button type="button" className="tk-n" onClick={cycle} aria-label={`他一次回 ${n} 张。点一下换`}>{n} 张</button></>}
         <input value={text} onChange={e=>{setText(e.target.value.slice(0,80));setErr('');}} enterKeyHint="send" placeholder={armed==='yn'?'想问的事，比如：这周他会来梦里吗':armed==='ab'?'为了什么事在选（可不写）':tsp?`想问 ${p.name} 什么（可不写）`:`对 ${p.name} 说…`} aria-label={armed?'想问的事':'对他说'}/>
         {armed||text.trim()?<button className="tk-send">{armed?'抽牌':'发送'}</button>:<>
           <button type="button" className="ico" aria-pressed={hand} onClick={()=>setHand(!hand)} aria-label={hand?'现在是自己洗牌、自己选。点一下换回快抽':'现在是快抽。点一下改成自己洗牌、自己选'} title="自己抽牌"><Hand size={22} strokeWidth={1.6}/></button>
@@ -322,14 +322,6 @@ export function TalkView({p,opened,misses,rev,session,onSpread,onLib}:{p:Persona
         </>}
       </div>
     </form>
-    {pickDeck&&<Sheet title="这一句用什么牌" close={()=>setPickDeck(false)}>
-      <div className="tk-decks" role="group" aria-label="用哪副牌">
-        <button aria-pressed={deck==='t'} onClick={()=>setDeck('t')}><b>塔罗</b><small>78 张，分正逆。适合听他细说</small></button>
-        <button aria-pressed={deck==='l'} onClick={()=>setDeck('l')}><b>雷诺曼</b><small>36 张，不分正逆。适合日常小事</small></button>
-      </div>
-      <h3>他一次回几张</h3>
-      <div className="chips tk-ns">{[...NS[deck]].sort().map(v=><button key={v} className={'chip'+(v===n?' on':'')} aria-pressed={v===n} onClick={()=>{setN(v);setPickDeck(false);}}>{v} 张</button>)}</div>
-    </Sheet>}
     {menu&&<Sheet title="牌阵" close={()=>setMenu(false)}>
       <p className="hint first">想看他的状态、问一件具体的事时用。牌阵不用开场，结果记成你看到的，不算他说的话。</p>
       <div className="tk-lead"><button onClick={()=>{setMenu(false);if(!open){say('先看看他在不在，或者点「不开场，直接说」');return;}make(deck,n,{kind:'say'});}}><b>请他先说</b><small>你不说话，让他先开口</small></button></div>

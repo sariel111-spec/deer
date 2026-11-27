@@ -432,7 +432,8 @@ export function TarotPage({p}:{p:Persona}){
     {tab==='day'&&(dayRec?<>
       <p className="lede">{p.name} 今天给你的牌。明天再来抽新的。</p>
       <Result key={dayRec.id} p={p} r={dayRec} closedFrom={closed(dayRec.id)} onFlipped={()=>setFresh('')} onSetup={()=>setLib(true)}/>
-    </>:going==='day'?<Ritual n={1} rev={rev} what="他" done={(got,jump)=>save('day',got,jump)}/>:<>
+    </>:going==='day'?<><Ritual n={1} rev={rev} what="他" done={(got,jump)=>save('day',got,jump)}/>
+      <div className="rowbtn center"><button className="linkish" onClick={()=>setGoing(null)}>先不抽了</button></div></>:<>
       <p className="lede">一天一张，看看 {p.name} 今天想让你知道什么。</p>
       <button className="tr-start" onClick={()=>setGoing('day')} aria-label="抽今天的牌"><Back/><span>抽今天的牌</span></button>
     </>)}

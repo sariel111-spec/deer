@@ -12,3 +12,5 @@ export function useTwice(){
   const tap=(key:string,run:()=>void)=>()=>{clearTimeout(t.current);if(armed!==key){setArmed(key);t.current=window.setTimeout(()=>setArmed(''),3000);return;}setArmed('');run();};
   return [armed,tap] as const;
 }
+// 回车算不算「发出去」：输入法还在选字的那一下不算（Safari 选字回车时 isComposing 已经是 false，要再看 keyCode）
+export const enter=(e:React.KeyboardEvent)=>e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing&&e.keyCode!==229;

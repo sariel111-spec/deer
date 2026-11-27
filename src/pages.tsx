@@ -8,7 +8,7 @@ import {lines,nudge} from './engine';
 import {connect,defaultRepo,disconnect,setAuto,syncNow,useSync} from './sync';
 import {Avatar,Pic,backTo,dayLabel,go,nav} from './App';
 import {feats,homeDefault} from './more';
-import {useDismiss,useTwice} from './ui';
+import {enter,useDismiss,useTwice} from './ui';
 import {Over} from './over';
 import {cyPhase} from './cyc';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
@@ -149,7 +149,7 @@ function Switcher({p,close}:{p:Persona;close:()=>void}){
         <Avatar id={x.avatar} name={x.name} size={48}/><span className="who"><b>{x.name}</b><span>{n?`${n} 条新消息`:x.bio||'　'}</span></span>
         {x.id===p.id&&<Check size={20} strokeWidth={2}/>}
       </a></li>;})}</ul>
-    <div className="newdeck"><input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add();}} placeholder="再添加一位，写下他的名字" aria-label="新一位的名字"/><button className="btn sm" onClick={add} disabled={!name.trim()}>添加</button></div>
+    <div className="newdeck"><input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(enter(e))add();}} placeholder="再添加一位，写下他的名字" aria-label="新一位的名字"/><button className="btn sm" onClick={add} disabled={!name.trim()}>添加</button></div>
   </Sheet>;
 }
 

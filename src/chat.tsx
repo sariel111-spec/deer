@@ -5,7 +5,7 @@ import {hisCheck,isTyping,onCall,pool,read,redraw,sent,setActive} from './engine
 import {Tell} from './check';
 import {callOpen} from './call';
 import {PersonaSheet,Sheet,say} from './pages';
-import {useDismiss,useTwice} from './ui';
+import {enter,useDismiss,useTwice} from './ui';
 import {Avatar,Pic,dayLabel} from './App';
 
 const hhmm=(t:number)=>new Date(t).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -177,10 +177,10 @@ export function Chat({p}:{p:Persona}){
         <textarea ref={box} rows={1} value={text} onChange={e=>setText(e.target.value)} placeholder="发消息…" aria-label={`给${p.name}发消息`}
           onPaste={e=>{const f=Array.from(e.clipboardData.files).find(x=>x.type.startsWith('image/'));if(f){e.preventDefault();void sendPic(f);}}}
           enterKeyHint="send" onFocus={()=>setPanel('')}
-          onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();send();}}}/>
+          onKeyDown={e=>{if(enter(e)){e.preventDefault();send();}}}/>
         <button className="ico sm" onClick={()=>{box.current?.blur();setPanel(v=>v?'':packs.length&&!text.trim()?packs[0].id:'emo');}} aria-label="表情" aria-pressed={!!panel}><Smile size={23} strokeWidth={1.7}/></button>
         {text.trim()?<button className="send" onClick={send}>发送</button>:<>
-          <button className="ico sm" onClick={()=>setMore(true)} aria-label="更多"><Plus size={25} strokeWidth={1.7}/></button>
+          <button className="ico sm" onClick={()=>{setPanel('');setMore(true);}} aria-label="更多"><Plus size={25} strokeWidth={1.7}/></button>
           <button className="ico sm" onClick={()=>push({kind:'text',text:'❤️'})} aria-label="发一颗心"><Heart size={23} strokeWidth={1.7}/></button>
         </>}
       </div>

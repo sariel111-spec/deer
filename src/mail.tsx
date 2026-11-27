@@ -211,7 +211,7 @@ function Read({p,l,all,patch,drop,go,back}:{p:Persona;l:Letter;all:Letter[];patc
       {his?<AiBlock name={p.name} noBio={!p.bio&&!box(p.id).tarotAbout} build={build} saved={l.ai??''} save={t=>patch(l.id,{ai:t})} label="解读这封信" setup={'#/f/draw/'+p.id} auto={fresh&&dsAuto()}>
         <button className="chip" onClick={()=>go({k:'write',re:l.id})}>回信</button>
       </AiBlock>:<div className="rowbtn ml-acts">
-        {l.kept&&<button className="chip on" onClick={()=>{const n=sendLetter(p,l.text,l.re);const now=box(p.id);setBox(p.id,{letters:now.letters.filter(x=>x.id!==l.id),mailGone:[...(now.mailGone??[]),l.id].slice(-400)});go({k:'read',id:n.id},true);say('寄出去了');}}>现在寄出</button>}
+        {l.kept&&<button className="chip on" onClick={()=>{const n=sendLetter(p,l.text,l.re,l.img);const now=box(p.id);setBox(p.id,{letters:now.letters.filter(x=>x.id!==l.id),mailGone:[...(now.mailGone??[]),l.id].slice(-400)});go({k:'read',id:n.id},true);say('寄出去了');}}>现在寄出</button>}
         {l.kept&&<button className="chip" onClick={()=>go({k:'write',edit:l.id})}>接着改</button>}
         {!l.kept&&<button className="chip" onClick={()=>go({k:'write',re:l.id})}>接着写一封</button>}
       </div>}
