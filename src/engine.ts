@@ -1,6 +1,7 @@
 import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Letter,type Msg,type Persona,type When} from './db';
 import {notify,remind,blip,badge,clearNotes} from './alive';
 import {pushWas,type Ahead} from './push';
+import {isShell} from './native';
 import {at0,cyDecks,cyPhase,cyTips,ymd} from './cyc';
 
 const rand=(a:number,b:number)=>a+Math.random()*Math.max(0,b-a);
@@ -177,9 +178,9 @@ function arrive(p:Persona,text:string,src:string,at:number,re?:string,sticker=fa
   else pushMsg({pid:p.id,from:'ta',kind:'text',text,at,src,re,...(id?{id}:{})});
   const here=!document.hidden&&active===p.id;
   if(here){setPersona(p.id,{readAt:Math.max(Date.now(),at)},true);if(!late)blip();}
-  // 人就在他的报备页上：回的话就显示在那一条下面，响一声就够了，不再弹通知
-  else if(!document.hidden&&location.hash.startsWith('#/f/check/'+p.id)){if(!late)blip();}
-  else if(!cloud&&!(late&&pushWas()))notify(p,text,undefined,quiet);
+  // 这一句交给过手机的闹钟（安装包）、人还没回来、页面却还醒着：自己当场弹，不干等闹钟
+  else if(cloud){if(isShell()&&document.hidden)notify(p,text,undefined,quiet);}
+  else if(!(late&&pushWas()))notify(p,text,undefined,quiet);
   badge();
 }
 

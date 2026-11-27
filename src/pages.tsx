@@ -11,7 +11,7 @@ import {feats,homeDefault} from './more';
 import {BackClose,auto,enter,useBackClose,useDismiss,useDragClose,useTwice} from './ui';
 import {Over} from './over';
 import {useInstall} from './help';
-import {isShell,shellSave,shellOpen} from './native';
+import {isShell,shellSave,shellOpen,setShellKeep,shellSync} from './native';
 import {cyPhase} from './cyc';
 import {NoteCard,keepToday,noteNew,todayLine} from './note';
 
@@ -510,8 +510,9 @@ export function Settings({sec=''}:{sec?:string}){
     </>}
     {sec==='bg'&&s.shell&&<>
     <p className="hint first">这是装在手机上的安装包：他要说的话，到点由手机自己弹出来，小鹿被划掉也照样弹。不需要云端推送，也不用后台保活。</p>
-    <Switch on={s.notify==='granted'&&pf.notify} set={async v=>{if(!v){setPrefs({notify:false});setS(status());return;}const ok=await askNotify();setS(status());say(ok?'通知开好了':'系统没有同意。到手机的 设置 → 应用 → 小鹿 → 通知 里打开');}} label="消息通知" note="他找你时弹系统通知"/>
+    <Switch on={s.notify==='granted'&&pf.notify} set={async v=>{if(!v){setPrefs({notify:false});shellSync();setS(status());return;}const ok=await askNotify();setS(status());say(ok?'通知开好了':'系统没有同意。到手机的 设置 → 应用 → 小鹿 → 通知 里打开');}} label="消息通知" note="他找你时弹系统通知"/>
     {s.notify==='granted'&&pf.notify&&<div className="rowbtn"><button className="chip" onClick={()=>{const p=st.personas.find(x=>x.id===pf.last)??st.personas[0];if(p){notify(p,lines(p,1)[0]??'这是一条测试通知');say('发了，看看有没有弹出来');}}}>发一条测试通知</button></div>}
+    {s.shellKeep&&s.notify==='granted'&&pf.notify&&<Switch on={s.shellKeep==='on'} set={async v=>{await setShellKeep(v);setS(status());}} label="后台常驻" note="通知栏里一直挂一条不响的「待机中」。开着的话系统不容易把小鹿停掉，他的消息来得更准"/>}
     {s.shellSet&&<div className="rowbtn"><button className="chip" onClick={()=>shellOpen('notify')}>系统的通知设置</button><button className="chip" onClick={()=>shellOpen('app')}>系统的应用设置</button></div>}
     <p className="hint">到了但不从屏幕顶上弹出来：在系统的通知设置里点进「他的消息」，把「横幅」打开（华为、小米默认是关的）。<br/>人不在小鹿里就收不到：在系统的应用设置里把电池改成「不限制」，允许自启动和后台活动。华为在 设置 → 应用和服务 → 应用启动管理 → 小鹿 → 改成手动管理，三项都打开。</p>
     </>}
