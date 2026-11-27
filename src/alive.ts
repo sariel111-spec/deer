@@ -6,7 +6,7 @@
 // 4 Service Worker：发系统通知、点通知回到对话；浏览器肯给的话，定期在后台醒来替他把话送到
 // 5 回到页面的那一刻补上离开期间他该说的话（这一层任何设备都有效）
 import {S,getImage,list,onChange,reload,setPrefs,unread,type Persona} from './db';
-import {isShell,shell,shellAsk,shellGranted,shellOn} from './native';
+import {isShell,shell,shellAsk,shellGranted,shellCan,shellOn} from './native';
 
 let reg:ServiceWorkerRegistration|null=null;
 let onTick=()=>{};
@@ -335,7 +335,7 @@ export function blip(){
 export const status=()=>({
   installed:standalone(),
   notify:isShell()?(shellGranted()?'granted':'default'):'Notification' in window?Notification.permission:'unsupported',
-  shell:isShell(),
+  shell:isShell(),shellSet:shellCan(),
   sw:!!reg,audio:audioLive(),osc:oscLive(),pip:pipLive,pipCan:pipCan(),pipBlocked:pipBlocked(),wake:wakeLive(),lock:locked,persisted,periodic,
   ios:/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/macintosh/i.test(navigator.userAgent)),
 });

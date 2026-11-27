@@ -3,6 +3,15 @@ import {LocalNotifications} from '@capacitor/local-notifications';
 import {App} from '@capacitor/app';
 import {Directory,Encoding,Filesystem} from '@capacitor/filesystem';
 import {Share} from '@capacitor/share';
+import {Capacitor,registerPlugin} from '@capacitor/core';
+
+// 安装包自己带的一个小插件（1.1 起）：打开系统里这个 app 的通知设置 / 应用设置。老的安装包没有，按钮就不出现
+const Deer=registerPlugin<{openNotify():Promise<void>;openApp():Promise<void>}>('Deer');
+export const canOpen=()=>{try{return Capacitor.isPluginAvailable('Deer');}catch{return false;}};
+export const openNotify=()=>Deer.openNotify().catch(()=>{});
+export const openApp=()=>Deer.openApp().catch(()=>{});
+/** 切到后台 / 回到前台（系统告诉壳的，比网页自己的 visibilitychange 多一道保险） */
+export function onState(f:(active:boolean)=>void){void App.addListener('appStateChange',s=>f(s.isActive));}
 
 const ICON='ic_stat_deer';
 // 两条通道：他的消息（会弹出来、会响）；紧跟着的下一句（只换字，不再弹、不再响）
@@ -17,18 +26,25 @@ const idOf=(key:string)=>{let h=7;for(let i=0;i<key.length;i++)h=(h*31+key.charC
 export const granted=async()=>{try{return (await LocalNotifications.checkPermissions()).display==='granted';}catch{return false;}};
 export const ask=async()=>{try{return (await LocalNotifications.requestPermissions()).display==='granted';}catch{return false;}};
 /** 现在就弹一条。quiet：紧跟着上一句来的，只把字换成新的 */
-export async function show(title:string,body:string,extra:object,group:string,quiet=false){
-  try{await channels();await LocalNotifications.schedule({notifications:[{id:idOf(group),title,body,extra,smallIcon:ICON,group,channelId:quiet?SOFT:MSG}]});}catch{/* 弹不出来也不影响聊天 */}
+export async function show(title:string,body:string,extra:object,key:string,quiet=false){
+  const id=idOf(key);
+  try{
+    await channels();
+    // 系统对「同一个号再发一次」只换字、不再弹也不再响。不是紧跟着的那种，先把旧的那条收掉，这一条才会重新弹出来
+    if(!quiet)await LocalNotifications.removeDeliveredNotifications({notifications:[{id,title:'',body:''}]}).catch(()=>{});
+    await LocalNotifications.schedule({notifications:[{id,title,body,extra,smallIcon:ICON,channelId:quiet?SOFT:MSG}]});
+  }catch{/* 弹不出来也不影响聊天 */}
 }
 /** 人离开的时候：把接下来该到的话按时刻交给手机，到点由系统弹出来（小鹿被划掉也照样弹） */
-const PLAN=910000000;
+const PLAN=910000000,WHO='cx-shell-plan';
 export async function plan(items:{at:number;title:string;body:string;pid:string}[]){
   await cancelPlan();
   if(!items.length)return;
   const now=Date.now(),list=[...items].sort((a,b)=>a.at-b.at).slice(0,48),last:Record<string,number>={};
+  try{localStorage.setItem(WHO,JSON.stringify(list.map(x=>x.pid)));}catch{/* */}
   try{await channels();await LocalNotifications.schedule({notifications:list.map((x,i)=>{
     const near=x.at-(last[x.pid]??-1e9)<20000;last[x.pid]=x.at;   // 他一次说几句：第一句弹出来，后面几句安静地跟上
-    return {id:PLAN+i,title:x.title,body:x.body,extra:{pid:x.pid,to:/信$/.test(x.body)?'mail':undefined},smallIcon:ICON,group:'cx-'+x.pid,channelId:near?SOFT:MSG,
+    return {id:PLAN+i,title:x.title,body:x.body,extra:{pid:x.pid,to:/信$/.test(x.body)?'mail':undefined},smallIcon:ICON,channelId:near?SOFT:MSG,
       schedule:{at:new Date(Math.max(x.at,now+1500)),allowWhileIdle:true}};})});}catch{/* */}
 }
 /** 人回来了：还没到点的收回来 */
@@ -39,7 +55,9 @@ export async function cancelPlan(){
 export async function clearShown(pid?:string){
   try{
     if(!pid){await LocalNotifications.removeAllDeliveredNotifications();return;}
-    const d=await LocalNotifications.getDeliveredNotifications(),mine=d.notifications.filter(n=>n.group==='cx-'+pid||n.group==='cx-tip-'+pid||(n.extra as {pid?:string}|undefined)?.pid===pid);
+    let who:string[]=[];try{who=JSON.parse(localStorage.getItem(WHO)??'[]') as string[];}catch{/* */}
+    const ids=new Set([idOf('cx-'+pid),idOf('cx-tip-'+pid),...who.map((x,i)=>x===pid?PLAN+i:-1)]);
+    const d=await LocalNotifications.getDeliveredNotifications(),mine=d.notifications.filter(n=>ids.has(n.id));
     if(mine.length)await LocalNotifications.removeDeliveredNotifications({notifications:mine});
   }catch{/* */}
 }
