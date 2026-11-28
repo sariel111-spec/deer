@@ -8,6 +8,12 @@ let mod:Promise<Shell>|null=null;
 /** 壳里用的那些原生能力（用到才加载）。测试时可以放一个假的 window.__shell 顶替 */
 export const shell=():Promise<Shell>=>mod??=(w().__shell?Promise.resolve(w().__shell!):import('./shell'));
 let ok=false,can=false,keepCan=false;
+let inf:import('./shell').Info={};
+/** 安装包报的情况（1.3 起：版本、手机牌子、电池是不是不限制）。回到小鹿时会再问一遍 */
+export const shellInfo=()=>inf;
+export async function shellRefresh(){if(!isShell())return inf;try{inf=await (await shell()).info();}catch{/* */}return inf;}
+export const shellBattery=()=>{void shell().then(m=>m.askBattery());};
+export const shellLaunch=()=>{void shell().then(m=>m.openLaunch());};
 const KEEP='cx-shell-keep2',TRY='cx-shell-keep-try';
 // 这一页是不是这次打开 app 以后的第一页（网站自己刷新一下不算重新打开；sessionStorage 跟着 app 进程走）
 const firstPage=(()=>{try{const had=sessionStorage.getItem('cx-shell-alive');sessionStorage.setItem('cx-shell-alive','1');return !had;}catch{return false;}})();
@@ -45,8 +51,8 @@ type Ahead={at:number;title:string;body:string;pid:string};
 export async function startShell(ahead:()=>Ahead[],freed:(at:number)=>void,setHold:(v:boolean)=>void){
   if(!isShell())return;
   const m=await shell();
-  ok=await m.granted();can=m.canOpen();keepCan=await m.canKeep();
-  slog(`打开小鹿：安装包${keepCan?'1.2+':can?'1.1':'1.0'} 通知权限=${ok?'有':'无'} 开关=${S().prefs.notify?'开':'关'} 常驻=${shellKeep()??'没有'}`);
+  ok=await m.granted();can=m.canOpen();keepCan=await m.canKeep();inf=await m.info();
+  slog(`打开小鹿：安装包${(inf.v??0)>=3?'1.3+':keepCan?'1.2':can?'1.1':'1.0'} 通知权限=${ok?'有':'无'} 开关=${S().prefs.notify?'开':'关'} 常驻=${shellKeep()??'没有'}${(inf.v??0)>=3?` 电池不限制=${inf.battery?'是':'否'} 手机=${inf.maker??''}`:''}`);
   m.onAlarm();
   if(S().prefs.notify&&!ok)setPrefs({notify:false});   // 系统里把权限关了：开关跟着显示成没开
   // 刚装好第一次打开：像别的聊天 app 一样问一次要不要通知（只问这一次，之后在设置里自己开关）
@@ -57,9 +63,12 @@ export async function startShell(ahead:()=>Ahead[],freed:(at:number)=>void,setHo
   let beat=0,since=0;
   const away=(why:string)=>{if(!shellOn()){slog('离开（'+why+'）：通知没开，不交');return;}const t=Date.now();if(t-gone<1500)return;gone=t;here=0;
     const list=ahead();slog(`离开（${why}）：接下来有 ${list.length} 条`);void m.plan(list);setHold(true);
+    // 1.3 起：半小时内有话要到，就让手机在那之前别睡（息屏了页面也照样走，到点当场弹）；更久以后的交给闹钟
+    if((inf.v??0)>=3&&shellKeep()==='on'){const soon=list.filter(x=>x.at-t<30*60000).map(x=>x.at);void m.stayAwake(soon.length?Math.max(...soon)-t+20000:0);}
     // 人不在的时候每半分钟记一笔，看得出页面在后台是不是还醒着
     since=t;clearInterval(beat);beat=window.setInterval(()=>{const s=Math.round((Date.now()-since)/1000);if(s<=600)slog(`后台 ${s} 秒：页面还醒着`);else clearInterval(beat);},30000);};
-  const back=()=>{const t=Date.now();if(t-here<1500)return;here=t;if(gone)slog(`回来了（离开了 ${Math.round((t-gone)/1000)} 秒）`);gone=0;clearInterval(beat);setHold(false);void m.cancelPlan().then(()=>freed(Date.now()));void m.clearShown();};
+  const back=()=>{const t=Date.now();if(t-here<1500)return;here=t;const was=gone;if(gone)slog(`回来了（离开了 ${Math.round((t-gone)/1000)} 秒）`);gone=0;clearInterval(beat);setHold(false);void m.cancelPlan().then(()=>freed(Date.now()));void m.clearShown();
+    if((inf.v??0)>=3&&was){if(shellKeep()==='on'&&shellOn())void m.stayAwake(0);void shellRefresh();}};
   document.addEventListener('visibilitychange',()=>{if(document.hidden)away('页面隐藏');else back();});
   addEventListener('pagehide',()=>away('页面收起'));
   m.onState(active=>{if(active)back();else away('系统通知');});

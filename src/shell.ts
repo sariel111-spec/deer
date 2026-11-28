@@ -7,7 +7,15 @@ import {Capacitor,registerPlugin} from '@capacitor/core';
 import {err,slog} from './slog';
 
 // 安装包自己带的一个小插件（1.1 起）：打开系统里这个 app 的通知设置 / 应用设置。老的安装包没有，按钮就不出现
-const Deer=registerPlugin<{openNotify():Promise<void>;openApp():Promise<void>;info():Promise<{keep?:boolean}>;keepOn(o:{title:string;text:string}):Promise<void>;keepOff():Promise<void>}>('Deer');
+/** 安装包自己报的情况（1.3 起才有后面几样）：v 版本号；maker 手机牌子；battery 系统的省电有没有放过小鹿；awake 现在是不是握着「别睡」的锁 */
+export type Info={keep?:boolean;v?:number;maker?:string;sdk?:number;battery?:boolean;awake?:boolean};
+const Deer=registerPlugin<{openNotify():Promise<void>;openApp():Promise<void>;info():Promise<Info>;keepOn(o:{title:string;text:string;awake?:number}):Promise<void>;keepOff():Promise<void>;askBattery():Promise<{how?:string}>;openLaunch():Promise<{how?:string}>}>('Deer');
+export const info=async():Promise<Info>=>{try{return canOpen()?await Deer.info():{};}catch{return {};}};
+/** 请系统别对小鹿省电（弹系统自己的那一张）；打开这台手机自己的「自启动 / 应用启动管理」（1.3 起） */
+export const askBattery=async()=>{try{const r=await Deer.askBattery();slog('电池不限制：去问了（'+(r.how??'')+'）');}catch(e){slog('电池不限制出错 '+err(e));}};
+export const openLaunch=async()=>{try{const r=await Deer.openLaunch();slog('自启动那一页：'+(r.how==='app'?'没找到，开了应用设置':'开了 '+(r.how??'')));return r.how??'';}catch(e){slog('自启动那一页出错 '+err(e));return '';}};
+/** 他有话快到的这一阵别让手机睡（毫秒；0＝松开）。只在常驻开着时有用 */
+export const stayAwake=async(ms:number)=>{try{await Deer.keepOn({title:'待机中',text:'他找你的时候会弹出来',awake:Math.max(0,Math.round(ms))});if(ms>0)slog(`不让手机睡 ${Math.round(ms/1000)} 秒`);}catch(e){slog('不让睡出错 '+err(e));}};
 /** 这个安装包会不会「后台常驻」（1.2 起） */
 export const canKeep=async()=>{try{return canOpen()&&!!(await Deer.info()).keep;}catch{return false;}};
 /** 后台常驻：通知栏挂一条不响的「待机中」，系统就不会把小鹿停掉，他的话到点由还醒着的页面当场弹 */
