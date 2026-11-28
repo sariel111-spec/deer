@@ -291,8 +291,6 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .qa li>button{display:block;width:100%;padding:14px 16px;text-align:left;color:inherit}
 .qa p{margin-top:4px;font-size:15px;line-height:1.55;color:var(--fg);white-space:pre-wrap;overflow-wrap:anywhere}
 .qa b{font-size:13px;color:var(--mute)}
-.q1 label{display:grid;gap:10px}.q1 b{font-size:17px;font-weight:600;line-height:1.4}
-.q1 textarea{width:100%;border:0;outline:0;resize:vertical;background:var(--soft);border-radius:12px;padding:10px 12px;font-size:16px;line-height:1.5}
 /* 塔罗。牌的宽高都明写（--cw 是牌宽，高 = 宽 × 1.713），不靠 aspect-ratio */
 .tr{--cw:112px;--ch:calc(var(--cw) * 1.713)}
 .tr-back,.tr-face{position:relative;display:block;width:100%;height:100%;border-radius:calc(var(--cw) * .085);overflow:hidden;background:var(--bg);box-shadow:inset 0 0 0 1px var(--fg);transition:transform .2s var(--ease),opacity .3s}
@@ -403,15 +401,6 @@ h3{font-size:13px;font-weight:600;color:var(--mute);margin-top:26px;margin-botto
 .tr-big{--cw:118px;flex:none;display:block;width:var(--cw);height:calc(var(--cw) * 1.713)}
 .tr-detail dl{margin:0;min-width:0}.tr-detail dt{font-size:12px;font-weight:600;color:var(--mute);margin-top:10px}.tr-detail dt:first-child{margin-top:0}
 .tr-detail dd{margin:2px 0 0;font-size:14.5px;line-height:1.6}.tr-detail dd .tr-keys{display:block;margin:0 0 2px}
-.duel{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:30px}
-.duel button{position:relative;height:150px;border-radius:20px;box-shadow:inset 0 0 0 1px var(--line);font-size:20px;transition:background-color .2s,color .2s,opacity .2s}
-.duel b{font-weight:600}
-.duel .on{background:var(--fg);color:var(--bg);box-shadow:none}.duel .dim{opacity:.35}
-.pickers{position:absolute;left:0;right:0;bottom:14px;display:flex;justify-content:center}
-.pickers .avatar{box-shadow:0 0 0 2px var(--fg);margin:0 -3px}
-.score{display:grid;justify-items:center;gap:8px;padding:64px 0 0;text-align:center}
-.score b{font-size:64px;font-weight:200;letter-spacing:-.03em;line-height:1}
-.score span{color:var(--mute);font-size:13.5px}.score .btn{margin-top:20px}
 .chips.roomy{margin-top:16px}
 .timeline li{display:flex;align-items:center;gap:14px;min-height:44px;border-bottom:1px solid var(--line)}
 .timeline time{flex:none;color:var(--mute);font-size:13px;font-variant-numeric:tabular-nums}
@@ -889,9 +878,6 @@ button.ml-photo{cursor:zoom-in}
 .linkish::after{content:'';position:absolute;inset:-10px -8px}
 
 /* 问卷：一次一题 */
-.q1-n{margin-top:18px;font-size:12.5px;color:var(--mute);font-variant-numeric:tabular-nums}
-.q1{margin-top:10px;display:grid;gap:14px}
-.q1 .btn{justify-self:end;min-width:108px}
 .lede.center{text-align:center;margin-top:22px}
 
 .over{display:contents}
@@ -1238,3 +1224,50 @@ button.dy-hero:active{background:var(--soft)}
 .bubble.pk .pk-opts>span.on{color:var(--bg)}
 .bubble.pk .pk-opts small{font-size:11px;font-weight:400;opacity:.72;white-space:nowrap}
 .pk-log>.linkish{margin:12px 0 4px;font-size:13px}
+
+/* 问卷 */
+.qz-in{display:block;width:calc(100% - 32px);min-height:44px;max-height:40vh;margin-top:14px;padding:10px 13px;border:1px solid var(--line);border-radius:12px;background:var(--bg);outline:0;font-size:16px;line-height:1.45;resize:none;field-sizing:content;font-family:inherit;color:inherit}
+.qz-in:focus{border-color:var(--mute)}
+.newdeck.qz-add{margin-top:8px}
+.pk-q+.qz-list{margin-top:6px}
+.qz-list{list-style:none;margin-top:14px;padding:0}
+.qz-list li{display:flex;align-items:center;gap:2px;border-bottom:1px solid var(--line)}
+.qz-list li>button:first-child{flex:1;min-width:0;display:grid;gap:8px;padding:13px 0;text-align:left;color:inherit}
+.qz-list b{font-weight:600;line-height:1.45;overflow-wrap:anywhere}
+.qz-list small{font-size:12.5px;color:var(--mute)}
+.qz-list .pk-opts{align-items:center}.qz-list .pk-opts small{margin-left:4px}
+.qz-list li.ed b{color:var(--mute)}
+.qz-many{flex:none;height:30px;padding:0 10px;border-radius:99px;font-size:12px;color:var(--mute);box-shadow:inset 0 0 0 1px var(--line)}
+.qz-many[aria-pressed=true]{background:var(--fg);color:var(--bg);box-shadow:none}
+.qz-hist{list-style:none;margin:30px 16px 0!important;padding:0;border-top:1px solid var(--line)}
+.qz-hist a{display:grid;gap:5px;padding:13px 0 14px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}
+.qz-hist small{font-size:12.5px;color:var(--mute);font-variant-numeric:tabular-nums}
+.qz-old .qa{margin:0}.qz-old .qa li>div{padding:12px 0 13px}.qz-old .qa p{user-select:text;-webkit-user-select:text}
+.qz-head{margin-top:14px}
+.qz-head .linkish{font-size:13px;color:var(--mute)}
+.qz-head .linkish::before{content:"";display:inline-block;width:6px;height:6px;margin:0 6px 1px 2px;border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg)}
+.qz-head h2{margin-top:14px;font-size:22px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.qz-head p{margin-top:6px;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}
+.qz-head+.lede{margin-top:14px}
+.qz-paper{list-style:none;margin-top:10px;padding:0}
+.qz-paper li{display:grid;gap:11px;padding:20px 0 2px}
+.qz-paper b{font-weight:600;line-height:1.45;overflow-wrap:anywhere}
+.qz-paper b small{margin-left:8px;font-size:12px;font-weight:400;color:var(--mute);white-space:nowrap}
+.qz-ops{gap:8px}
+.qz-ops>span,.qz-ops>button{display:inline-flex;align-items:center;min-height:34px;padding:4px 14px;border-radius:99px;font-size:14px;line-height:1.4;color:var(--mute);box-shadow:inset 0 0 0 1px var(--line);overflow-wrap:anywhere;transition:box-shadow .12s,color .12s}
+.qz-ops>button{color:var(--fg)}
+.qz-ops>.mine{color:var(--fg);box-shadow:inset 0 0 0 1.5px var(--fg);font-weight:500}
+.qz-ops>span.on{background:var(--fg);color:var(--bg);box-shadow:none;font-weight:500}
+.qz-ops>span.on.mine{box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--fg)}
+.qz-say{display:grid;gap:3px;padding-left:12px;border-left:2px solid var(--fg);font-size:15.5px;line-height:1.6;overflow-wrap:anywhere}
+.qz-paper .dots{height:24px}
+.qz-acts{margin-top:30px;padding-top:18px;border-top:1px solid var(--line)}
+.qz-card{max-height:none}
+.bubble.qz{cursor:pointer;max-width:min(300px,78vw)}
+.qz-ans{display:grid;gap:9px;margin-top:4px}
+.qz-ans>span{display:grid;gap:1px;font-weight:500;overflow-wrap:anywhere}
+.qz-ans>span small{font-size:12px;font-weight:400;color:var(--mute);line-height:1.45}
+.qz-foot{display:block;margin-top:2px;font-size:11.5px;color:var(--mute)}
+.qz-ans .qz-foot{margin-top:0}
+.qz-draw{font-size:12px;color:var(--mute);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.pk-quick.qz-sets{flex-wrap:wrap;overflow:visible}

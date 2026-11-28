@@ -1,4 +1,5 @@
-import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Letter,type Msg,type Persona,type When} from './db';
+import {S,box,list,mapMsgs,packsFor,poke,pushMsg,setBox,setMsg,setPersona,uid,who,whens,unread,type Letter,type Msg,type Persona,type QSheet,type When} from './db';
+import {answer,span,title as quizTitle,type Draft} from './quizcalc';
 import {notify,remind,blip,badge,clearNotes} from './alive';
 import {pushWas,type Ahead} from './push';
 import {isShell} from './native';
@@ -117,6 +118,36 @@ function mail(p:Persona,now:number){
   const inApp=add.length>0&&!document.hidden&&first>=backAt&&!location.hash.startsWith('#/f/mail/'+p.id);
   if(add.length&&!inApp&&!(pushWas()&&first<backAt))notify(p,pro?'给你写了一封信':'给你回了一封信','mail');
   if(inApp)dispatchEvent(new CustomEvent('cx-say',{detail:`${p.name} ${pro?'给你写了一封信':'给你回了一封信'}`}));
+}
+
+/* 问卷 */
+/** 发一份问卷：他怎么答、几点交卷当场定好，存在这一份上；聊天里留一张小卡。返回这一份的 id */
+export function sendSheet(p:Persona,name:string,qs:Draft[]):string{
+  const now=Date.now(),id=uid(),n=name.trim().slice(0,20);
+  const s:QSheet={id,at:now,...(n?{name:n}:{}),qs:answer(qs,k=>lines(p,k)),due:now+span(qs.length)};
+  setBox(p.id,{sheets:[...(box(p.id).sheets??[]),s].slice(-120)});
+  pushMsg({pid:p.id,from:'me',kind:'text',text:quizTitle(s),at:now,seen:now,qz:{id,n:qs.length}});
+  return id;
+}
+// 到点交卷：聊天里留一行（点了去看答卷），人不在就弹一条通知。id 跟着问卷走，别的设备同步过来不会重复
+function quiz(p:Persona,now:number){
+  const all=box(p.id).sheets;if(!all?.length)return;
+  const due=all.filter(s=>!s.got&&now>=s.due);if(!due.length)return;
+  const ids=new Set(due.map(s=>s.id));
+  setBox(p.id,{sheets:all.map(s=>ids.has(s.id)?{...s,got:true}:s)},true);
+  let first=0,fresh=0;
+  for(const s of due){
+    const id='qz'+s.id;if(list(p.id).some(m=>m.id===id))continue;
+    pushMsg({pid:p.id,from:'ta',kind:'tip',text:'交卷了',at:Math.max(Math.min(s.due,now),(list(p.id).at(-1)?.at??0)+1),id});
+    first=first?Math.min(first,s.due):s.due;fresh++;
+  }
+  if(!fresh)return;
+  const text='交卷了 · '+quizTitle(due[0]),onPage=location.hash.startsWith('#/f/quiz/'+p.id)||location.hash.startsWith('#/f/ask/'+p.id);
+  if(!document.hidden&&(active===p.id||onPage))setPersona(p.id,{readAt:Math.max(Date.now(),list(p.id).at(-1)?.at??0)},true);
+  // 正开着小鹿：屏幕下方说一声（就在问卷那一页的话，页面自己会变，不用说）；人不在才弹系统通知，云端推过的不再弹一遍
+  if(!document.hidden&&first>=backAt){if(!onPage&&active!==p.id)dispatchEvent(new CustomEvent('cx-say',{detail:`${p.name} ${text}`}));}
+  else if(!(pushWas()&&first<backAt))notify(p,text);
+  badge();
 }
 
 /* 提前排好的话（只在这台设备上）：离开前台时交给云端推送，回来时聊天里补上的就是同样几句 */
@@ -430,6 +461,7 @@ export function ahead():Ahead[]{
     const bx=box(p.id);
     for(const l of bx.letters)if(l.from==='me'&&l.due&&l.plan&&!l.got)out.push({at:Math.max(l.due,now),title:p.name,body:'给你回了一封信',pid:p.id});
     if(bx.mailDue)out.push({at:Math.max(bx.mailDue,now),title:p.name,body:'给你回了一封信',pid:p.id});
+    for(const q of bx.sheets??[])if(!q.got)out.push({at:Math.max(q.due,now),title:p.name,body:'交卷了 · '+quizTitle(q),pid:p.id});
     if(bx.mailPro&&bx.mailNext)out.push({at:Math.max(bx.mailNext.at,now),title:p.name,body:'给你写了一封信',pid:p.id});
     // 经期快到了的提醒（不是他说的话，不进聊天）
     for(const t of cyTips(bx.cycle,now))if(t.at>now&&t.at<now+72*3600e3)out.push({at:t.at,title:'经期',body:t.text,pid:p.id});
@@ -461,6 +493,7 @@ function tickBody(now:number){
     }else if(!busy.has(p.id)&&typing.has(p.id))setTyping(p.id,false);
     if(!busy.has(p.id)&&!p.replyAt)proactive(p,now);
     mail(p,now);
+    quiz(p,now);
     cyRemind(p,now);
     dayRemind(p,now);
     // 响了很久没人接

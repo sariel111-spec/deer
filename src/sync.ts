@@ -1,5 +1,5 @@
 import {useSyncExternalStore} from 'react';
-import {adopt,delKey,dropImageCache,dump,getKey,onChange,readKey,setKey,storageDown,type Reading,type Talk,type Turn,type Letter,type Box,type Deck,type Dump,type Grave,type Msg,type Pack,type Persona,type State} from './db';
+import {adopt,delKey,dropImageCache,dump,getKey,onChange,readKey,setKey,storageDown,type Reading,type Talk,type Turn,type Letter,type QSheet,type Box,type Deck,type Dump,type Grave,type Msg,type Pack,type Persona,type State} from './db';
 
 /* 同步：把数据放进你自己的一个私有 GitHub 仓库。
    不是整包覆盖——每台设备先把云端的拿下来和本机的合并，再把合并后的结果传上去；
@@ -157,6 +157,11 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
       for(const x of o.letters??[])if(!mdead.has(x.id))lm.set(x.id,x);
       for(const x of b.letters??[])if(!mdead.has(x.id)){const y=lm.get(x.id),w=y&&(y.u??0)>(x.u??0)?y:x;lm.set(x.id,y?{...w,...(x.read||y.read?{read:true}:{}),...(x.got||y.got?{got:true}:{})}:x);}
       const letters=[...lm.values()].sort((x,y)=>x.at-y.at||(x.id<y.id?-1:1));
+      // 问卷：按份并。同一份两边都有时听后改的那边（你先猜的记在题上），「交卷了」只要一边是就算
+      const qgone=[...new Set([...(o.sheetsGone??[]),...(b.sheetsGone??[])])].slice(-200),qdead=new Set(qgone),qm=new Map<string,QSheet>();
+      for(const x of o.sheets??[])if(!qdead.has(x.id))qm.set(x.id,x);
+      for(const x of b.sheets??[])if(!qdead.has(x.id)){const y=qm.get(x.id),w=y&&(y.u??0)>(x.u??0)?y:x;qm.set(x.id,y&&(x.got||y.got)?{...w,got:true}:w);}
+      const sheets=[...qm.values()].sort((x,y)=>x.at-y.at||(x.id<y.id?-1:1)).slice(-120);
       // 每天的一句：按日子并起来（同一天听后点过喜欢的那边）
       // 同一天两台设备各定了一句：两边都记了时刻的，听先定下的那句（两边会一致）；分不清先后的，这台设备上显示的那句不换。喜欢听后点的那边
       const dm=new Map<string,Box['lines'][number]>();
@@ -175,14 +180,14 @@ function merge(l:Dump,r:{state?:Shared;m:Record<string,Chat>;x:Record<string,Box
       const seen=[b.lineSeen,o.lineSeen].filter(Boolean).sort().at(-1);
       const mn=b.mailNext&&o.mailNext?(o.mailNext.at>b.mailNext.at?o.mailNext:b.mailNext):(b.at??0)===(o.at??0)?b.mailNext??o.mailNext:b.mailNext;
       // 其余的设置（信的节奏、他的照片库、他的报备组、纪念日…）：每一项各听各的后改。没记时刻的改动（旧版本改的）算在整格头上
-      const MERGED=new Set(['at','fu','letters','lines','checks','tarot','tarotGone','tarotMine','talks','talksGone','lenoMine','mailGone','lineSeen','mailNext','ring','call']);
+      const MERGED=new Set(['at','fu','letters','lines','checks','tarot','tarotGone','tarotMine','talks','talksGone','lenoMine','mailGone','sheets','sheetsGone','lineSeen','mailNext','ring','call']);
       const looseB=(x:Box)=>(x.at??0)>Math.max(0,...Object.values(x.fu??{}))?(x.at??0):0,lB=looseB(b),lO=looseB(o);
       const one:Record<string,unknown>={},fu:Record<string,number>={...b.fu};
       for(const k of Object.keys(o.fu??{})){
         if(MERGED.has(k))continue;
         if(Math.max(o.fu![k],lO)>Math.max(b.fu?.[k]??0,lB)){one[k]=(o as unknown as Record<string,unknown>)[k];fu[k]=o.fu![k];}
       }
-      boxes[p.id]={...b,...(one as Partial<Box>),...(Object.keys(fu).length?{fu}:{}),lineSeen:seen,mailNext:mn,ring:lb?.ring,call:lb?.call,letters,lines,checks,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{}),...(talks.length?{talks}:{}),...(tgone.length?{talksGone:tgone}:{}),...(Object.keys(lmine).length?{lenoMine:lmine}:{})};
+      boxes[p.id]={...b,...(one as Partial<Box>),...(Object.keys(fu).length?{fu}:{}),lineSeen:seen,mailNext:mn,ring:lb?.ring,call:lb?.call,letters,lines,checks,...(mgone.length?{mailGone:mgone}:{}),...(tarot.length?{tarot}:{}),...(gone.length?{tarotGone:gone}:{}),...(Object.keys(mine).length?{tarotMine:mine}:{}),...(talks.length?{talks}:{}),...(tgone.length?{talksGone:tgone}:{}),...(Object.keys(lmine).length?{lenoMine:lmine}:{}),...(sheets.length?{sheets}:{}),...(qgone.length?{sheetsGone:qgone}:{})};
     }else if(b)boxes[p.id]=b===rb?{...b,ring:undefined,call:undefined}:b;
   }
   return {state,msgs,boxes,graves};

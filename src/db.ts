@@ -22,7 +22,7 @@ export type Persona={
   nextAt:number;replyAt:number;readAt:number;created:number;updated:number;
   fu?:Record<string,number>;   // 每一项是什么时候改的。同步时各项各听各的后改——在手机上换了头像，不会因为电脑上之后改了别的就被换回去
 };
-export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean;ck?:boolean;pk?:{opts:string[];got:string}};   // react：贴在这条上的表情；st：这是一张表情包；ck：这是一条报备（聊天里显示成小卡）；pk：这是一次「帮我选」（小卡：问题、选项、他选的那个）
+export type Msg={id:string;pid:string;from:'me'|'ta';kind:'text'|'img'|'tip';text:string;at:number;re?:string;like?:boolean;seen?:number;fav?:boolean;src?:string;u?:number;react?:string;st?:boolean;ck?:boolean;pk?:{opts:string[];got:string};qz?:{id:string;n:number}};   // qz：这是发出去的一份问卷（小卡；答卷本身在 box.sheets 里）   // react：贴在这条上的表情；st：这是一张表情包；ck：这是一条报备（聊天里显示成小卡）；pk：这是一次「帮我选」（小卡：问题、选项、他选的那个）
 export type Prefs={theme:'auto'|'light'|'dark';bubble:'ins'|'mono'|'accent'|'line';v?:number;myName:string;myAvatar?:string;last:string;audio:boolean;notify:boolean;sound:boolean;at?:number;
   mode?:'pip'|'loop'|'osc'|'both';pipAuto?:boolean;awake?:boolean;cloud?:string;   // 保活方式、画中画自动进入、屏幕常亮（都只管这台设备）；cloud：云端推送服务的地址（跟着同步走）
   plan?:Plan[];quick?:string[];dayAt?:number;hl?:string[];hlOrd?:boolean;hlPic?:Record<string,string>};   // hl：主页那一排放哪几个功能（和 plan / quick 一起按 dayAt 同步）
@@ -48,8 +48,14 @@ export type TCard={c:number;r?:boolean};
 export type More={c:number;r?:boolean;deck:'t'|'l';why:'ok'|'go'|'kw'|'jump';on?:number};   // 补的牌：核对 / 接着说 / 给第 on 张塔罗补的雷诺曼关键词
 export type Turn={id:string;at:number;u?:number;deck:'t'|'l';kind:'say'|'here'|'bye'|'doing'|'yn'|'ab'|'day3';th?:number;q?:string;a?:string;b?:string;cards:TCard[];more?:More[];read?:string;ok?:boolean};
 export type Talk={id:string;at:number;u?:number;end?:number;turns:Turn[];ai?:string};
+/** 问卷里的一题。k：选一个 / 可多选 / 让他说一句；got：他选的第几个；said：他说的那一两句；mine：你先猜的那个 */
+export type QItem={q:string;k:'one'|'many'|'say';opts?:string[];got?:number[];said?:string[];mine?:number};
+/** 发出去的一份问卷。他的回答在发出去时就定好、存在题上；due 是交卷的时刻，got＝已经交卷（聊天里说过了） */
+export type QSheet={id:string;at:number;name?:string;qs:QItem[];due:number;got?:boolean;u?:number};
 export type Box={letters:Letter[];mailDue:number;diary:Diary[];days:Day[];/** 「在一起」到整数天、周年时提醒（没写＝提醒） */sinceTip?:boolean;
   /** 帮我选：存成常用的几组选项；选过的记录（新的在前，最多三十条） */
+  /** 问卷：发出去的每一份；删掉的那几份（同步时别的设备也跟着删） */
+  sheets?:QSheet[];sheetsGone?:string[];
   pickSaved?:{id:string;q:string;opts:string[]}[];pickLog?:{at:number;q:string;opts:string[];got:string}[];lines:{date:string;text:string;like?:boolean;u?:number;at?:number}[];lineSeen?:string;answers:Record<string,string>;
   draw?:{date:string;luck:string;text:string;i:number};checks:{at:number;text:string;id?:string;plan?:string}[];ckDecks?:string[];listen:number;   // checks.id：聊天里那条消息；checks.plan：这条报的是哪天的哪条日程；ckDecks：他哪几组字卡算报备
   focus:{n:number;min:number};

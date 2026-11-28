@@ -1,8 +1,9 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {Bookmark,Camera,ChevronDown,ChevronLeft,Copy,Dices,EyeOff,Hand,Heart,Image as ImageIcon,Info,Mail,ListChecks,MapPin,Plus,RefreshCw,Reply,Search,Smile,Trash2,Undo2,Video,X} from 'lucide-react';
-import {S,addPack,dropPack,list,packsFor,pushMsg,putImage,setCard,setMsg,setPack,setPrefs,useVer,type Msg,type Pack,type Persona} from './db';
+import {S,addPack,box,dropPack,list,packsFor,pushMsg,putImage,setCard,setMsg,setPack,setPrefs,useVer,type Msg,type Pack,type Persona} from './db';
 import {hisCheck,isTyping,onCall,pool,read,redraw,sent,setActive} from './engine';
 import {Tell} from './check';
+import {shown} from './quizcalc';
 import {callOpen} from './call';
 import {PersonaSheet,Sheet,say} from './pages';
 import {enter,useBackClose,useDismiss,useTwice} from './ui';
@@ -285,6 +286,7 @@ function Bubble({m,p,gap,top,bottom,lit,quoted,onReply,onMenu,onView,onJump}:{m:
   const mine=m.from==='me',react=m.react??(m.like?'❤️':'');
   const card=m.kind==='text'&&(m.ck||hisCheck(m,p));   // 报备：一张小卡，不是普通气泡
   const pk=m.kind==='text'?m.pk:undefined;   // 帮我选：问题 + 选项，他选的那个打上勾
+  const qz=m.kind==='text'?m.qz:undefined,sheet=qz?box(p.id).sheets?.find(x=>x.id===qz.id):undefined;   // 问卷：一张小卡，交卷了就看得到他答的前几题，点开是整份
   const fire=()=>{g.current.fired=true;g.current.on=false;try{navigator.vibrate?.(8);}catch{/* */}onMenu();};
   const down=(e:React.PointerEvent)=>{
     if(e.button!==0)return;
@@ -300,6 +302,7 @@ function Bubble({m,p,gap,top,bottom,lit,quoted,onReply,onMenu,onView,onJump}:{m:
   const up=()=>{const s=g.current;clearTimeout(s.held);if(s.on&&Math.abs(dx)>52)onReply();s.on=false;setDx(0);};
   if(m.kind==='tip'){
     const rec=m.text.includes('视频通话');
+    if(m.id.startsWith('qz'))return <>{gap&&<time className="stamp">{dayLabel(m.at)}</time>}<p id={'m-'+m.id} className="tip rec"><a href={'#/f/quiz/'+m.pid+'/'+m.id.slice(2)}><ListChecks size={15} strokeWidth={1.8} aria-hidden="true"/>{m.text} · 去看答卷</a></p></>;
     if(m.id.startsWith('ml'))return <>{gap&&<time className="stamp">{dayLabel(m.at)}</time>}<p id={'m-'+m.id} className="tip rec"><a href={'#/f/mail/'+m.pid}><Mail size={15} strokeWidth={1.8} aria-hidden="true"/>{m.text} · 去信箱看</a></p></>;
     return <>{gap&&<time className="stamp">{dayLabel(m.at)}</time>}<p id={'m-'+m.id} className={rec?'tip rec':'tip'} onContextMenu={e=>{e.preventDefault();onMenu();}} onDoubleClick={onMenu}>{rec&&<Video size={15} strokeWidth={1.8} aria-hidden="true"/>}{m.text}</p></>;
   }
@@ -309,12 +312,16 @@ function Bubble({m,p,gap,top,bottom,lit,quoted,onReply,onMenu,onView,onJump}:{m:
       {!mine&&(bottom?<Avatar id={p.avatar} name={p.name} size={28}/>:<span className="gutter"/>)}
       <div className="stack" style={dx?{transform:`translateX(${dx}px)`,transition:'none'}:undefined}>
         {quoted&&<button className="quote" onClick={()=>onJump(quoted.id)} aria-label="回到被回复的那句">{peek(quoted)}</button>}
-        <div className={`bubble${m.kind==='img'?' pic':''}${m.st?' st':''}${card||pk?' ck':''}${pk?' pk':''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-          onClick={()=>{if(m.kind==='img'&&!m.st&&!g.current.fired&&!g.current.moved)onView();}}
+        <div className={`bubble${m.kind==='img'?' pic':''}${m.st?' st':''}${card||pk||qz?' ck':''}${pk?' pk':''}${qz?' qz':''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+          onClick={()=>{if(g.current.fired||g.current.moved)return;if(m.kind==='img'&&!m.st)onView();else if(qz&&sheet)location.hash='#/f/quiz/'+p.id+'/'+qz.id;}}
+          {...(qz&&sheet?{role:'button',tabIndex:0,'aria-label':`问卷，${qz.n} 题，${sheet.got?'已交卷':'他在答'}。点开看整份`,onKeyDown:(e:React.KeyboardEvent)=>{if(e.key==='Enter')location.hash='#/f/quiz/'+p.id+'/'+qz.id;}}:{})}
           onDoubleClick={()=>setMsg(p.id,m.id,{react:react==='❤️'?'':'❤️',like:false})} onContextMenu={e=>{e.preventDefault();clearTimeout(g.current.held);fire();}}>
           {card&&<small className="ck-tag"><MapPin size={12} strokeWidth={2} aria-hidden="true"/>报备</small>}
           {pk&&<small className="ck-tag"><ListChecks size={12} strokeWidth={2} aria-hidden="true"/>帮我选</small>}
-          {m.kind==='img'?<Pic id={m.text} alt={m.st?'表情包':'图片'}/>:m.text}
+          {qz&&<small className="ck-tag"><ListChecks size={12} strokeWidth={2} aria-hidden="true"/>问卷 · {qz.n} 题</small>}
+          {m.kind==='img'?<Pic id={m.text} alt={m.st?'表情包':'图片'}/>:qz&&sheet&&!sheet.name?null:m.text}
+          {qz&&sheet&&(sheet.got?<span className="qz-ans">{sheet.qs.slice(0,3).map((q,i)=><span key={i}><small>{q.q}</small>{shown(q)}</span>)}<small className="qz-foot">{sheet.qs.length>3?`还有 ${sheet.qs.length-3} 题 · `:''}点开看整份</small></span>
+            :<small className="qz-foot">{p.name}在答…</small>)}
           {pk&&<span className="pk-opts">{pk.opts.map(o=><span key={o} className={o===pk.got?'on':''}>{o}{o===pk.got&&<small>{p.name}选的</small>}</span>)}</span>}
           {react&&<i className="liked" aria-label={`贴了 ${react}`}>{react}</i>}
         </div>

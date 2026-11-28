@@ -227,7 +227,8 @@ export function TalkView({p,opened,misses,rev,session,onSpread,onLib}:{p:Persona
   const b=box(p.id),t=liveTalk(p.id);
   const [deck,setDeck0]=useState<Deck>(()=>ls('cx-talk-deck','t')==='l'?'l':'t');
   const [ns,setNs]=useState<Record<Deck,number>>(()=>({t:Number(ls('cx-talk-n-t','1'))||1,l:Number(ls('cx-talk-n-l','3'))||3}));
-  const [text,setText]=useState(''),[a,setA]=useState(''),[bb,setBb]=useState(''),[armed,setArmed]=useState<AskKind|LSpread|null>(null),[err,setErr]=useState('');
+  // 从问卷里「拿去占」带过来的那一题：先放在输入框里（只带这一次，十分钟内有效）
+  const [text,setText]=useState(()=>{try{const k='cx-ask-draw:'+p.id,v=JSON.parse(sessionStorage.getItem(k)??'null') as {q?:string;at?:number}|null;sessionStorage.removeItem(k);return v&&typeof v.q==='string'&&Date.now()-(v.at??0)<6e5?v.q.slice(0,80):'';}catch{return '';}}),[a,setA]=useState(''),[bb,setBb]=useState(''),[armed,setArmed]=useState<AskKind|LSpread|null>(null),[err,setErr]=useState('');
   const [hand,setHand0]=useState(()=>ls('cx-talk-hand','')==='1');
   const setHand=(v:boolean)=>{setHand0(v);lsSet('cx-talk-hand',v?'1':'');};
   const [picking,setPicking]=useState<{deck:Deck;n:number;skip:number[];pos?:string[];go:(cs:TCard[],jump?:Drawn)=>void}|null>(null);

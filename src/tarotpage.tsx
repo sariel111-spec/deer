@@ -393,7 +393,8 @@ const SIT=2*3600e3;   // 两小时内算同一场
 export function TarotPage({p}:{p:Persona}){
   useVer();
   const b=box(p.id),all=b.tarot??[],rev=b.tarotRev!==false,today=ymd();
-  const [tab,setTab]=useState<Tab>('day'),[lib,setLib]=useState(false);
+  // 从问卷带着一题过来的：直接落在「问他」那一栏
+  const [tab,setTab]=useState<Tab>(()=>{try{return sessionStorage.getItem('cx-ask-draw:'+p.id)?'ask':'day';}catch{return 'day';}}),[lib,setLib]=useState(false);
   // 这一场开过场了吗（两小时内对上过）。没开过就先停在「对一对」上；对了两次都没对上，就不再催着连
   const now=Date.now(),opened=all.some(r=>r.kind==='match'&&r.ok&&now-r.at<SIT),missN=all.filter(r=>r.kind==='match'&&r.ok===false&&now-r.at<SIT).length;
   const [q,setQ]=useState(''),[kind,setKind]=useState<AskKind>(()=>opened||missN>=2?lastKind():'match');
