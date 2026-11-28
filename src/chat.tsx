@@ -1,5 +1,5 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
-import {Bookmark,Camera,ChevronDown,ChevronLeft,Copy,Dices,EyeOff,Hand,Heart,Image as ImageIcon,Info,Mail,MapPin,Plus,RefreshCw,Reply,Search,Smile,Trash2,Undo2,Video,X} from 'lucide-react';
+import {Bookmark,Camera,ChevronDown,ChevronLeft,Copy,Dices,EyeOff,Hand,Heart,Image as ImageIcon,Info,Mail,ListChecks,MapPin,Plus,RefreshCw,Reply,Search,Smile,Trash2,Undo2,Video,X} from 'lucide-react';
 import {S,addPack,dropPack,list,packsFor,pushMsg,putImage,setCard,setMsg,setPack,setPrefs,useVer,type Msg,type Pack,type Persona} from './db';
 import {hisCheck,isTyping,onCall,pool,read,redraw,sent,setActive} from './engine';
 import {Tell} from './check';
@@ -284,6 +284,7 @@ function Bubble({m,p,gap,top,bottom,lit,quoted,onReply,onMenu,onView,onJump}:{m:
   const g=useRef({x:0,y:0,on:false,held:0,moved:false,fired:false});
   const mine=m.from==='me',react=m.react??(m.like?'❤️':'');
   const card=m.kind==='text'&&(m.ck||hisCheck(m,p));   // 报备：一张小卡，不是普通气泡
+  const pk=m.kind==='text'?m.pk:undefined;   // 帮我选：问题 + 选项，他选的那个打上勾
   const fire=()=>{g.current.fired=true;g.current.on=false;try{navigator.vibrate?.(8);}catch{/* */}onMenu();};
   const down=(e:React.PointerEvent)=>{
     if(e.button!==0)return;
@@ -308,11 +309,13 @@ function Bubble({m,p,gap,top,bottom,lit,quoted,onReply,onMenu,onView,onJump}:{m:
       {!mine&&(bottom?<Avatar id={p.avatar} name={p.name} size={28}/>:<span className="gutter"/>)}
       <div className="stack" style={dx?{transform:`translateX(${dx}px)`,transition:'none'}:undefined}>
         {quoted&&<button className="quote" onClick={()=>onJump(quoted.id)} aria-label="回到被回复的那句">{peek(quoted)}</button>}
-        <div className={`bubble${m.kind==='img'?' pic':''}${m.st?' st':''}${card?' ck':''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        <div className={`bubble${m.kind==='img'?' pic':''}${m.st?' st':''}${card||pk?' ck':''}${pk?' pk':''}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
           onClick={()=>{if(m.kind==='img'&&!m.st&&!g.current.fired&&!g.current.moved)onView();}}
           onDoubleClick={()=>setMsg(p.id,m.id,{react:react==='❤️'?'':'❤️',like:false})} onContextMenu={e=>{e.preventDefault();clearTimeout(g.current.held);fire();}}>
           {card&&<small className="ck-tag"><MapPin size={12} strokeWidth={2} aria-hidden="true"/>报备</small>}
+          {pk&&<small className="ck-tag"><ListChecks size={12} strokeWidth={2} aria-hidden="true"/>帮我选</small>}
           {m.kind==='img'?<Pic id={m.text} alt={m.st?'表情包':'图片'}/>:m.text}
+          {pk&&<span className="pk-opts">{pk.opts.map(o=><span key={o} className={o===pk.got?'on':''}>{o}{o===pk.got&&<small>{p.name}选的</small>}</span>)}</span>}
           {react&&<i className="liked" aria-label={`贴了 ${react}`}>{react}</i>}
         </div>
       </div>

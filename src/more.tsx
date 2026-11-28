@@ -10,6 +10,7 @@ import {TarotPage} from './tarotpage';
 import {MailBox} from './mail';
 import {CheckPage} from './check';
 import {DaysPage} from './days';
+import {PickPage} from './pick';
 
 // 主页上摆出来的全部功能。顺序就是宫格里的顺序
 export const feats:{id:string;name:string;icon:LucideIcon}[]=[
@@ -32,21 +33,6 @@ export function Sub({p,title,act,children,cls=''}:{p:Persona;title:string;act?:R
   </main>;
 }
 const AddBtn=({on,label,pen}:{on:()=>void;label:string;pen?:boolean})=><button className="ico" onClick={on} aria-label={label}>{pen?<SquarePen size={23} strokeWidth={1.7}/>:<Plus size={26} strokeWidth={1.7}/>}</button>;
-
-/* 帮我选 */
-function PickPage({p}:{p:Persona}){
-  const [opts,setOpts]=useState<string[]>([]),[t,setT]=useState(''),[hi,setHi]=useState(-1),[done,setDone]=useState(''),[spin,setSpin]=useState(false);
-  const add=()=>{const x=t.trim();if(!x||opts.includes(x))return;setOpts([...opts,x]);setT('');setDone('');setHi(-1);};
-  const run=()=>{if(opts.length<2||spin)return;setSpin(true);setDone('');let k=0;const end=10+Math.floor(Math.random()*opts.length)+opts.length;
-    const id=setInterval(()=>{setHi(k%opts.length);k++;if(k>end){clearInterval(id);setSpin(false);setDone(lines(p,1)[0]??'就这个');}},110);};
-  return <>
-    {!opts.length&&<p className="lede">纠结的时候，把选项写下来，让他替你挑一个。</p>}
-    <div className="newdeck"><input value={t} onChange={e=>setT(e.target.value)} onKeyDown={e=>{if(enter(e))add();}} placeholder="写一个选项，比如 奶茶" aria-label="一个选项"/><button className="btn sm" onClick={add} disabled={!t.trim()}>加上</button></div>
-    <ul className="opts">{opts.map((o,i)=><li key={o} className={i===hi?'on':''}><span>{o}</span><button className="ico sm" onClick={()=>{setOpts(opts.filter(x=>x!==o));setHi(-1);setDone('');}} aria-label={`去掉 ${o}`}><Trash2 size={16} strokeWidth={1.6}/></button></li>)}</ul>
-    <button className="btn wide" onClick={run} disabled={opts.length<2||spin}>{spin?'他在想…':'让他选'}</button>
-    {done&&hi>=0&&<div className="said" role="status"><Avatar id={p.avatar} name={p.name} size={28}/><div><span>{opts[hi]}</span><span>{done}</span></div></div>}
-  </>;
-}
 
 /* 问卷 */
 const asks=['我们是怎么认识的','第一次说话是哪一天','他最常叫我什么','我最喜欢他哪一点','他生气的时候是什么样子','他最常说的一句话','最想和他一起去的地方','一首像他的歌','他让我改变了什么','还没来得及对他说的话'];
