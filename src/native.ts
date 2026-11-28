@@ -47,12 +47,12 @@ export const shellFire=(pid:string,title:string,body:string,extra:object,key:str
 /** 壳里：他要说的话照「通知」的开关走，人不在的时候由手机到点自己弹，不需要云端 */
 export const shellOn=()=>isShell()&&!!S().prefs.notify&&ok;
 
-type Ahead={at:number;title:string;body:string;pid:string};
+type Ahead={at:number;title:string;body:string;pid:string;ring?:number;miss?:boolean};
 export async function startShell(ahead:()=>Ahead[],freed:(at:number)=>void,setHold:(v:boolean)=>void){
   if(!isShell())return;
   const m=await shell();
   ok=await m.granted();can=m.canOpen();keepCan=await m.canKeep();inf=await m.info();
-  slog(`打开小鹿：安装包${(inf.v??0)>=3?'1.3+':keepCan?'1.2':can?'1.1':'1.0'} 通知权限=${ok?'有':'无'} 开关=${S().prefs.notify?'开':'关'} 常驻=${shellKeep()??'没有'}${(inf.v??0)>=3?` 电池不限制=${inf.battery?'是':'否'} 手机=${inf.maker??''}`:''}`);
+  slog(`打开小鹿：安装包${(inf.v??0)>=4?'1.4+':(inf.v??0)>=3?'1.3':keepCan?'1.2':can?'1.1':'1.0'} 通知权限=${ok?'有':'无'} 开关=${S().prefs.notify?'开':'关'} 常驻=${shellKeep()??'没有'}${(inf.v??0)>=3?` 电池不限制=${inf.battery?'是':'否'} 手机=${inf.maker??''}`:''}`);
   m.onAlarm();
   if(S().prefs.notify&&!ok)setPrefs({notify:false});   // 系统里把权限关了：开关跟着显示成没开
   // 刚装好第一次打开：像别的聊天 app 一样问一次要不要通知（只问这一次，之后在设置里自己开关）
@@ -63,12 +63,12 @@ export async function startShell(ahead:()=>Ahead[],freed:(at:number)=>void,setHo
   let beat=0,since=0;
   const away=(why:string)=>{if(!shellOn()){slog('离开（'+why+'）：通知没开，不交');return;}const t=Date.now();if(t-gone<1500)return;gone=t;here=0;
     const list=ahead();slog(`离开（${why}）：接下来有 ${list.length} 条`);void m.plan(list);setHold(true);
-    // 1.3 起：半小时内有话要到，就让手机在那之前别睡（息屏了页面也照样走，到点当场弹）；更久以后的交给闹钟
-    if((inf.v??0)>=3&&shellKeep()==='on'){const soon=list.filter(x=>x.at-t<30*60000).map(x=>x.at);void m.stayAwake(soon.length?Math.max(...soon)-t+20000:0);}
+    // 1.3：半小时内有话要到，就让手机在那之前别睡（息屏了页面也照样走，到点当场弹）；更久以后的交给闹钟。1.4 起安装包自己看着时间表办这件事
+    if(inf.v===3&&shellKeep()==='on'){const soon=list.filter(x=>x.at-t<30*60000).map(x=>x.at);void m.stayAwake(soon.length?Math.max(...soon)-t+20000:0);}
     // 人不在的时候每半分钟记一笔，看得出页面在后台是不是还醒着
     since=t;clearInterval(beat);beat=window.setInterval(()=>{const s=Math.round((Date.now()-since)/1000);if(s<=600)slog(`后台 ${s} 秒：页面还醒着`);else clearInterval(beat);},30000);};
   const back=()=>{const t=Date.now();if(t-here<1500)return;here=t;const was=gone;if(gone)slog(`回来了（离开了 ${Math.round((t-gone)/1000)} 秒）`);gone=0;clearInterval(beat);setHold(false);void m.cancelPlan().then(()=>freed(Date.now()));void m.clearShown();
-    if((inf.v??0)>=3&&was){if(shellKeep()==='on'&&shellOn())void m.stayAwake(0);void shellRefresh();}};
+    if((inf.v??0)>=3&&was){if(inf.v===3&&shellKeep()==='on'&&shellOn())void m.stayAwake(0);void shellRefresh();}};
   document.addEventListener('visibilitychange',()=>{if(document.hidden)away('页面隐藏');else back();});
   addEventListener('pagehide',()=>away('页面收起'));
   m.onState(active=>{if(active)back();else away('系统通知');});

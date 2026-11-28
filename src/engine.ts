@@ -453,7 +453,9 @@ export function ahead():Ahead[]{
       }
       if(q.length)plans.pq[p.id]=q;else delete plans.pq[p.id];
       q.forEach(x=>{
-        out.push({at:Math.max(x.at,now),title:p.name,body:x.call?'邀请你视频通话':x.text,pid:p.id,badge:1});
+        // 他打来视频：响 45 秒；没接的话，那一条换成「未接视频通话」
+        if(x.call){out.push({at:Math.max(x.at,now),title:p.name,body:'邀请你视频通话',pid:p.id,badge:1,ring:RING},{at:Math.max(x.at,now)+RING,title:p.name,body:'未接视频通话',pid:p.id,miss:true});}
+        else out.push({at:Math.max(x.at,now),title:p.name,body:x.text,pid:p.id,badge:1});
         book.push({pid:p.id,at:Math.max(x.at,now),id:x.call?callId(p,x.at):proId(p,x.at),kind:x.call?'call':'pro',text:x.text,src:x.src});
       });
     }else delete plans.pq[p.id];
@@ -498,7 +500,9 @@ function tickBody(now:number){
     dayRemind(p,now);
     // 响了很久没人接
     const r=box(p.id).ring;
-    if(r&&now-r.at>=RING){setBox(p.id,{ring:undefined},true);missed(p,r.at+RING,callId(p,r.at));}
+    if(r&&now-r.at>=RING){setBox(p.id,{ring:undefined},true);missed(p,r.at+RING,callId(p,r.at));
+      // 人不在：那条「邀请你视频通话」换成「未接视频通话」（云端推过的不再弹一遍）
+      if(document.hidden&&!(r.at+RING<backAt&&pushWas()))notify(p,'未接视频通话');}
   }
 }
 // 这句不满意：给同一条消息换一句

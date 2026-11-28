@@ -8,7 +8,8 @@ import {shellOn} from './native';
 // 云端服务的地址（cloud/worker.js 部署出来的那个）。在设置里填一次，跟着同步带到别的设备
 export const pushUrl=()=>((import.meta.env.DEV&&localStorage.getItem('cx-push-url'))||S().prefs.cloud||'').replace(/\/+$/,'');
 
-export type Ahead={at:number;title:string;body:string;pid:string;badge?:number};
+/** ring：这是一通来电，响这么久（毫秒）没接就算了；miss：紧跟着那通来电的「未接」 */
+export type Ahead={at:number;title:string;body:string;pid:string;badge?:number;ring?:number;miss?:boolean};
 type Sub={endpoint:string;keys:{p256dh:string;auth:string}};
 const FLAG='cx-push';
 let sub:Sub|null=null,key='',keyOf='',plan:()=>Ahead[]=()=>[],flying:AbortController|null=null;
